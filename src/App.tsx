@@ -20,7 +20,6 @@ import AdminTurmas from "./pages/admin/Turmas";
 import AdminAulas from "./pages/admin/Aulas";
 import { AdminBanners, AdminProfessores, AdminTags, AdminDepoimentos, AdminFAQ, AdminAlunos } from "./pages/admin/Pages";
 import AdminFinanceiro from "./pages/admin/Financeiro";
-import AdminConfiguracoes from "./pages/admin/Configuracoes";
 import CheckoutCart from "./pages/CheckoutCart";
 import Cart from "./pages/Cart";
 import TermosDeUso from "./pages/TermosDeUso";
@@ -64,7 +63,6 @@ const App = () => (
           <Route path="/admin/faq" element={<AdminFAQ />} />
           <Route path="/admin/alunos" element={<AdminAlunos />} />
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
-          <Route path="/admin/configuracoes" element={<AdminConfiguracoes />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

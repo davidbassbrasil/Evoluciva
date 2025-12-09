@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, Settings, LogOut, Menu, X, Wallet, UsersRound, PlayCircle } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,6 @@ const menuItems = [
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq' },
   { icon: Users, label: 'Alunos', path: '/admin/alunos' },
   { icon: Wallet, label: 'Financeiro', path: '/admin/financeiro' },
-  { icon: Settings, label: 'Configurações', path: '/admin/configuracoes' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
