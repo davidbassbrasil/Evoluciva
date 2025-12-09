@@ -4,22 +4,47 @@ import { GraduationCap, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { getUserByEmail, setCurrentUser } from '@/lib/localStorage';
+import { signIn, getUser } from '@/lib/supabaseAuth';
+import supabase from '@/lib/supabaseClient';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('admin@admin.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = getUserByEmail(email);
-    if (user && user.password === password && user.email === 'admin@admin.com') {
-      setCurrentUser(user);
-      navigate('/admin');
-    } else {
-      toast({ title: 'Erro', description: 'Credenciais inválidas', variant: 'destructive' });
+    const { user, error } = await signIn(email, password);
+    if (error || !user) {
+      toast({ title: 'Erro', description: (error && (error.message || String(error))) || 'Credenciais inválidas', variant: 'destructive' });
+      return;
+    }
+    // Check profile role via Supabase if available; fallback to email check
+    try {
+      if (supabase) {
+        const { data: profile, error: pErr } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        if (pErr) {
+          // couldn't fetch profile; deny access to be safe
+          toast({ title: 'Erro', description: 'Não foi possível verificar permissões', variant: 'destructive' });
+          return;
+        }
+        if (profile && profile.role === 'admin') {
+          navigate('/admin');
+          return;
+        }
+        toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de admin', variant: 'destructive' });
+        return;
+      }
+
+      // Supabase not configured: fallback to previous email-based gate
+      if (user.email === 'admin@admin.com') {
+        navigate('/admin');
+      } else {
+        toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de admin', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Erro', description: String(err), variant: 'destructive' });
     }
   };
 

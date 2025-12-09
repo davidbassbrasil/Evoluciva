@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getUserByEmail, addUser, setCurrentUser } from '@/lib/localStorage';
+import { getUserByEmail as localGetUserByEmail } from '@/lib/localStorage';
+import { signIn, signUp } from '@/lib/supabaseAuth';
 import { User as UserType } from '@/types';
 
 const ESTADOS = [
@@ -66,20 +67,13 @@ export default function AlunoLogin() {
 
     try {
       if (isLogin) {
-        const user = getUserByEmail(formData.email);
-        if (user && user.password === formData.password) {
-          setCurrentUser(user);
-          toast({
-            title: 'Login realizado!',
-            description: 'Bem-vindo de volta!',
-          });
-          navigate('/aluno/dashboard');
+        const { user, error } = await signIn(formData.email, formData.password);
+        if (error || !user) {
+          // fallback message
+          toast({ title: 'Erro no login', description: (error && (error.message || String(error))) || 'Email ou senha incorretos.', variant: 'destructive' });
         } else {
-          toast({
-            title: 'Erro no login',
-            description: 'Email ou senha incorretos.',
-            variant: 'destructive',
-          });
+          toast({ title: 'Login realizado!', description: 'Bem-vindo de volta!' });
+          navigate('/aluno/dashboard');
         }
       } else {
         // Validação dos campos obrigatórios
@@ -94,31 +88,18 @@ export default function AlunoLogin() {
           return;
         }
 
-        const existingUser = getUserByEmail(formData.email);
-        if (existingUser) {
-          toast({
-            title: 'Email já cadastrado',
-            description: 'Tente fazer login ou use outro email.',
-            variant: 'destructive',
-          });
+        // Prefer Supabase signUp; fallback to local check if needed
+        const existingLocal = localGetUserByEmail(formData.email);
+        if (existingLocal) {
+          toast({ title: 'Email já cadastrado', description: 'Tente fazer login ou use outro email.', variant: 'destructive' });
         } else {
-          const newUser: UserType = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            avatar: '',
-            purchasedCourses: [],
-            progress: {},
-            createdAt: new Date().toISOString(),
-          };
-          addUser(newUser);
-          setCurrentUser(newUser);
-          toast({
-            title: 'Cadastro realizado!',
-            description: 'Sua conta foi criada com sucesso.',
-          });
-          navigate('/aluno/dashboard');
+          const { user, error } = await signUp(formData.name, formData.email, formData.password);
+          if (error) {
+            toast({ title: 'Erro no cadastro', description: (error && (error.message || String(error))) || 'Não foi possível criar a conta.', variant: 'destructive' });
+          } else {
+            toast({ title: 'Cadastro realizado!', description: 'Sua conta foi criada com sucesso.' });
+            navigate('/aluno/dashboard');
+          }
         }
       }
     } finally {
