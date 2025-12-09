@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { GraduationCap, Instagram, Facebook, Youtube, Mail, Phone, MapPin, MessageCircle } from 'lucide-react';
-import { getSettings, getCourses, getTags } from '@/lib/localStorage';
-import { SiteSettings, Course, Tag } from '@/types';
+import { getSettings } from '@/lib/localStorage';
+import { SiteSettings } from '@/types';
 
 export function Footer() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
 
   useEffect(() => {
     setSettings(getSettings());
-    setCourses(getCourses().slice(0, 4));
-    setTags(getTags().slice(0, 6));
   }, []);
 
   if (!settings) return null;
@@ -85,42 +81,7 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Cursos Populares */}
-          <div>
-            <h4 className="font-bold text-lg mb-4">Cursos Populares</h4>
-            <ul className="space-y-2">
-              {courses.map((course) => (
-                <li key={course.id}>
-                  <Link to={`/curso/${course.id}`} className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm">
-                    {course.title}
-                  </Link>
-                </li>
-              ))}
-              {courses.length > 0 && (
-                <li>
-                  <Link to="/cursos" className="text-primary hover:underline text-sm font-medium">
-                    Ver todos os cursos →
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </div>
-
-          {/* Categorias (Tags) */}
-          <div>
-            <h4 className="font-bold text-lg mb-4">Categorias</h4>
-            <ul className="space-y-2">
-              {tags.map((tag) => (
-                <li key={tag.id}>
-                  <Link to="/cursos" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm">
-                    {tag.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Links & Políticas */}
+          {/* Links Úteis */}
           <div>
             <h4 className="font-bold text-lg mb-4">Links Úteis</h4>
             <ul className="space-y-2">
@@ -139,6 +100,13 @@ export function Footer() {
                   Área do Aluno
                 </Link>
               </li>
+            </ul>
+          </div>
+
+          {/* Políticas */}
+          <div>
+            <h4 className="font-bold text-lg mb-4">Políticas</h4>
+            <ul className="space-y-2">
               <li>
                 <Link to="/termos-de-uso" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm">
                   Termos de Uso
@@ -158,6 +126,35 @@ export function Footer() {
                 <Link to="/politica-de-reembolso" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors text-sm">
                   Política de Reembolso
                 </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Contato - informações fictícias temporárias */}
+          <div>
+            <h4 className="font-bold text-lg mb-4">Contato</h4>
+            <ul className="space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <Mail className="w-5 h-5 mt-0.5 text-primary-foreground/80" />
+                <a href="mailto:contato@evoluciva-demo.com" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+                  contato@evoluciva-demo.com
+                </a>
+              </li>
+              <li className="flex items-start gap-3">
+                <Phone className="w-5 h-5 mt-0.5 text-primary-foreground/80" />
+                <a href="tel:+551140000000" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+                  (11) 4000-0000
+                </a>
+              </li>
+              <li className="flex items-start gap-3">
+                <MapPin className="w-5 h-5 mt-0.5 text-primary-foreground/80" />
+                <span className="text-primary-foreground/70">
+                  Rua das Acácias, 123 — São Paulo, SP
+                </span>
+              </li>
+              <li className="flex items-start gap-3">
+                <GraduationCap className="w-5 h-5 mt-0.5 text-primary-foreground/80" />
+                <span className="text-primary-foreground/70">Atendimento: Seg–Sex 09:00–18:00</span>
               </li>
             </ul>
           </div>

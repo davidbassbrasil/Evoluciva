@@ -21,7 +21,7 @@ export function HeroBanner() {
 
   if (banners.length === 0) {
     return (
-      <section className="relative h-[60vh] min-h-[400px] bg-muted flex items-center justify-center">
+      <section className="relative h-[75vh] min-h-[520px] bg-muted flex items-center justify-center">
         <p className="text-muted-foreground">Nenhum banner configurado</p>
       </section>
     );
@@ -32,7 +32,7 @@ export function HeroBanner() {
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % banners.length);
 
   return (
-    <section className="relative h-[60vh] min-h-[400px] overflow-hidden mt-24">
+    <section className="relative h-[75vh] min-h-[520px] overflow-hidden mt-24">
       {banners.map((banner, index) => (
         <div
           key={banner.id}
