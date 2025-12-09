@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Menu, X, GraduationCap, User, ShoppingCart, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { getSettings, getCurrentUser } from '@/lib/localStorage';
+import { getSettings, getCurrentUser, getCart } from '@/lib/localStorage';
 import { SiteSettings } from '@/types';
 
 export function FloatingNav() {
@@ -11,10 +11,39 @@ export function FloatingNav() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [cartCount, setCartCount] = useState(0);
   const currentUser = getCurrentUser();
 
   useEffect(() => {
     setSettings(getSettings());
+    setCartCount(getCart().length);
+  }, []);
+
+  useEffect(() => {
+    const onCartUpdated = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail;
+        if (detail && Array.isArray(detail.cart)) setCartCount(detail.cart.length);
+        else setCartCount(getCart().length);
+      } catch {
+        setCartCount(getCart().length);
+      }
+    };
+
+    window.addEventListener('cartUpdated', onCartUpdated as EventListener);
+    // Also listen to storage events (other tabs)
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === undefined || ev.key === null) return;
+      if (ev.key.includes('cursos_cart')) {
+        setCartCount(getCart().length);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('cartUpdated', onCartUpdated as EventListener);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -109,9 +138,16 @@ export function FloatingNav() {
           >
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ShoppingCart className="w-5 h-5" />
-          </Button>
+          <Link to="/cart" className="relative">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ShoppingCart className="w-5 h-5" />
+            </Button>
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-xs font-semibold">
+                {cartCount}
+              </span>
+            )}
+          </Link>
           {currentUser ? (
             <Link to={currentUser.email === 'admin@admin.com' ? '/admin' : '/aluno/dashboard'}>
               <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold">
@@ -139,9 +175,16 @@ export function FloatingNav() {
           >
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-full">
-            <ShoppingCart className="w-5 h-5" />
-          </Button>
+          <Link to="/cart" className="relative">
+            <Button variant="ghost" size="icon" className="rounded-full">
+              <ShoppingCart className="w-5 h-5" />
+            </Button>
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-xs font-semibold">
+                {cartCount}
+              </span>
+            )}
+          </Link>
           <button
             className="p-2 hover:bg-secondary rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(!isMenuOpen)}

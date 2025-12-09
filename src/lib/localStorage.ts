@@ -11,6 +11,7 @@ const STORAGE_KEYS = {
   USERS: 'cursos_users',
   CURRENT_USER: 'cursos_current_user',
   SETTINGS: 'cursos_settings',
+  CART: 'cursos_cart',
 };
 
 // Generic helpers
@@ -104,6 +105,27 @@ export const getSettings = (): SiteSettings => getItem(STORAGE_KEYS.SETTINGS, {
   },
 });
 export const setSettings = (settings: SiteSettings) => setItem(STORAGE_KEYS.SETTINGS, settings);
+
+// Cart
+export const getCart = (): string[] => getItem(STORAGE_KEYS.CART, []);
+export const setCart = (items: string[]) => setItem(STORAGE_KEYS.CART, items);
+export const addToCart = (courseId: string) => {
+  const cart = getCart();
+  if (!cart.includes(courseId)) {
+    const next = [...cart, courseId];
+    setCart(next);
+    try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: next } })); } catch {};
+  }
+};
+export const removeFromCart = (courseId: string) => {
+  const next = getCart().filter(id => id !== courseId);
+  setCart(next);
+  try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: next } })); } catch {};
+};
+export const clearCart = () => {
+  setCart([]);
+  try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: [] } })); } catch {};
+};
 
 // Purchase course
 export const purchaseCourse = (userId: string, courseId: string) => {

@@ -101,7 +101,7 @@ export function CoursesSection() {
                       </div>
                       <Link to={`/curso/${course.id}`}>
                         <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
-                          Comprar
+                          Saber mais
                         </Button>
                       </Link>
                     </div>

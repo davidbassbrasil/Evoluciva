@@ -21,6 +21,8 @@ import AdminAulas from "./pages/admin/Aulas";
 import { AdminBanners, AdminProfessores, AdminTags, AdminDepoimentos, AdminFAQ, AdminAlunos } from "./pages/admin/Pages";
 import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminConfiguracoes from "./pages/admin/Configuracoes";
+import CheckoutCart from "./pages/CheckoutCart";
+import Cart from "./pages/Cart";
 import TermosDeUso from "./pages/TermosDeUso";
 import PoliticaDePrivacidade from "./pages/PoliticaDePrivacidade";
 import LGPD from "./pages/LGPD";
@@ -39,6 +41,8 @@ const App = () => (
           <Route path="/cursos" element={<Cursos />} />
           <Route path="/curso/:courseId" element={<CursoDetalhe />} />
           <Route path="/sobre" element={<Sobre />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<CheckoutCart />} />
           <Route path="/checkout/:courseId" element={<Checkout />} />
           <Route path="/termos-de-uso" element={<TermosDeUso />} />
           <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />

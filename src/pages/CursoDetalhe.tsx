@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, BookOpen, User, CheckCircle, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getCourses } from '@/lib/localStorage';
+import { getCourses, addToCart } from '@/lib/localStorage';
+import { useToast } from '@/hooks/use-toast';
 import { Course } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 
 export default function CursoDetalhe() {
   const { courseId } = useParams();
+  const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const courses = getCourses();
@@ -174,11 +177,21 @@ export default function CursoDetalhe() {
                 </div>
 
                 <div className="space-y-3">
-                  <Link to={`/checkout/${course.id}`} className="block">
+                  <button
+                    onClick={() => {
+                      addToCart(course.id);
+                      toast({ title: 'Adicionado ao carrinho', description: `${course.title} foi adicionado ao carrinho.` });
+                    }}
+                    className="w-full block"
+                  >
                     <Button className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg">
                       <ShoppingCart className="w-5 h-5 mr-2" />
-                      Comprar Agora
+                      Adicionar ao carrinho
                     </Button>
+                  </button>
+
+                  <Link to="/cart" className="block">
+                    <Button variant="outline" className="w-full">Ir para o carrinho</Button>
                   </Link>
                 </div>
 
