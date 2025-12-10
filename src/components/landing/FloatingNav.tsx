@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Menu, X, GraduationCap, User, ShoppingCart, Moon, Sun } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Menu, X, GraduationCap, User, ShoppingCart, Moon, Sun, LogOut, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { getSettings, getCurrentUser, getCart } from '@/lib/localStorage';
+import { getSettings, getCurrentUser, getCart, logout } from '@/lib/localStorage';
 import { SiteSettings } from '@/types';
 
 export function FloatingNav() {
@@ -13,6 +21,12 @@ export function FloatingNav() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [cartCount, setCartCount] = useState(0);
   const currentUser = getCurrentUser();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   useEffect(() => {
     setSettings(getSettings());
@@ -149,12 +163,28 @@ export function FloatingNav() {
             )}
           </Link>
           {currentUser ? (
-            <Link to={currentUser.email === 'admin@admin.com' ? '/admin' : '/aluno/dashboard'}>
-              <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold">
-                <User className="w-4 h-4 mr-2" />
-                {currentUser.email === 'admin@admin.com' ? 'Admin' : 'Minha Conta'}
-              </Button>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold">
+                  <User className="w-4 h-4 mr-2" />
+                  {currentUser.email === 'admin@admin.com' ? 'Admin' : 'Minha Conta'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to={currentUser.email === 'admin@admin.com' ? '/admin' : '/aluno/dashboard'} className="cursor-pointer">
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Acessar
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link to="/aluno/login">
               <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold">
@@ -221,12 +251,24 @@ export function FloatingNav() {
             ))}
             <div className="flex flex-col gap-2 pt-2">
               {currentUser ? (
-                <Link to={currentUser.email === 'admin@admin.com' ? '/admin' : '/aluno/dashboard'} onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full gradient-bg text-primary-foreground">
-                    <User className="w-4 h-4 mr-2" />
-                    {currentUser.email === 'admin@admin.com' ? 'Admin' : 'Minha Conta'}
+                <>
+                  <Link to={currentUser.email === 'admin@admin.com' ? '/admin' : '/aluno/dashboard'} onClick={() => setIsMenuOpen(false)}>
+                    <Button className="w-full gradient-bg text-primary-foreground">
+                      <LogIn className="w-4 h-4 mr-2" />
+                      Acessar
+                    </Button>
+                  </Link>
+                  <Button 
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sair
                   </Button>
-                </Link>
+                </>
               ) : (
                 <Link to="/aluno/login" onClick={() => setIsMenuOpen(false)}>
                   <Button className="w-full gradient-bg text-primary-foreground">

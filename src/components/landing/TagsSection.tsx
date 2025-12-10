@@ -2,14 +2,36 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getTags } from '@/lib/localStorage';
 import { Tag } from '@/types';
+import { supabase } from '@/lib/supabaseClient';
 
 export function TagsSection() {
   const [tags, setTags] = useState<Tag[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTags(getTags());
+    loadTags();
   }, []);
+
+  const loadTags = async () => {
+    // Try to load from Supabase first
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('tags')
+          .select('*')
+          .order('name', { ascending: true });
+        
+        if (!error && data) {
+          setTags(data);
+          return;
+        }
+      } catch (err) {
+        console.error('Error loading tags from Supabase:', err);
+      }
+    }
+    // Fallback to localStorage
+    setTags(getTags());
+  };
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {

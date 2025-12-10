@@ -93,7 +93,17 @@ export default function AlunoLogin() {
         if (existingLocal) {
           toast({ title: 'Email já cadastrado', description: 'Tente fazer login ou use outro email.', variant: 'destructive' });
         } else {
-          const { user, error } = await signUp(formData.name, formData.email, formData.password);
+          const profileFields = {
+            whatsapp: formData.whatsapp,
+            cpf: formData.cpf,
+            address: formData.endereco,
+            number: formData.numero,
+            complement: formData.complemento,
+            state: formData.estado,
+            city: formData.cidade,
+            cep: formData.cep,
+          };
+          const { user, error } = await signUp(formData.name, formData.email, formData.password, profileFields);
           if (error) {
             toast({ title: 'Erro no cadastro', description: (error && (error.message || String(error))) || 'Não foi possível criar a conta.', variant: 'destructive' });
           } else {

@@ -4,6 +4,7 @@ import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCir
 import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
+import supabase from '@/lib/supabaseClient';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
@@ -21,15 +22,63 @@ const menuItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user || user.email !== 'admin@admin.com') {
-      navigate('/admin/login');
-    }
+    const checkAuth = async () => {
+      const user = getCurrentUser();
+      
+      if (!user) {
+        navigate('/admin/login');
+        return;
+      }
+
+      // If Supabase is configured, check role in profiles table
+      if (supabase) {
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          
+          if (error || !profile || profile.role !== 'admin') {
+            navigate('/admin/login');
+            return;
+          }
+        } catch (e) {
+          // If error checking profile, fallback to email check
+          if (user.email !== 'admin@admin.com') {
+            navigate('/admin/login');
+            return;
+          }
+        }
+      } else {
+        // No Supabase: fallback to email check
+        if (user.email !== 'admin@admin.com') {
+          navigate('/admin/login');
+          return;
+        }
+      }
+      
+      setIsCheckingAuth(false);
+    };
+
+    checkAuth();
   }, [navigate]);
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     logout();

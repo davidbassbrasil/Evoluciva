@@ -8,13 +8,36 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { supabase } from '@/lib/supabaseClient';
 
 export function FAQSection() {
   const [faqs, setFaqs] = useState<FAQ[]>([]);
 
   useEffect(() => {
-    setFaqs(getFAQs());
+    loadFAQs();
   }, []);
+
+  const loadFAQs = async () => {
+    // Try to load from Supabase first
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('faqs')
+          .select('*')
+          .order('order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true });
+        
+        if (!error && data) {
+          setFaqs(data);
+          return;
+        }
+      } catch (err) {
+        console.error('Error loading FAQs from Supabase:', err);
+      }
+    }
+    // Fallback to localStorage
+    setFaqs(getFAQs());
+  };
 
   if (faqs.length === 0) return null;
 

@@ -27,6 +27,8 @@ export interface Professor {
   specialty: string;
   image: string;
   bio: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Tag {
@@ -38,10 +40,10 @@ export interface Tag {
 export interface Testimonial {
   id: string;
   name: string;
-  course: string;
   text: string;
-  rating: number;
   avatar: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FAQ {
@@ -52,11 +54,10 @@ export interface FAQ {
 
 export interface Banner {
   id: string;
-  title: string;
-  subtitle: string;
   image: string;
-  ctaText: string;
-  ctaLink: string;
+  order: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface User {

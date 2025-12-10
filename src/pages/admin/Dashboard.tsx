@@ -6,6 +6,7 @@ import { Course, Testimonial, User } from '@/types';
 import { BookOpen, Users, MessageSquare, Image, TrendingUp, GraduationCap, Tag, HelpCircle, PlayCircle, Eye, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import supabase from '@/lib/supabaseClient';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -24,37 +25,74 @@ export default function AdminDashboard() {
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    const courses = getCourses();
-    const users = getUsers().filter(u => u.email !== 'admin@admin.com');
-    const testimonials = getTestimonials();
-    const lessons = getLessons();
-    
-    // Calculate total revenue from purchased courses
-    let totalRevenue = 0;
-    users.forEach(user => {
-      user.purchasedCourses.forEach(courseId => {
-        const course = courses.find(c => c.id === courseId);
-        if (course) {
-          totalRevenue += course.price;
+    const loadData = async () => {
+      const courses = getCourses();
+      let users: User[] = [];
+      
+      // Try to fetch users from Supabase first
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, purchased_courses')
+            .neq('role', 'admin');
+          
+          if (!error && data) {
+            users = data.map((p: any) => ({
+              id: p.id,
+              name: p.full_name || '',
+              email: p.email || '',
+              password: '',
+              avatar: '',
+              purchasedCourses: Array.isArray(p.purchased_courses) ? p.purchased_courses : [],
+              progress: {},
+              createdAt: new Date().toISOString(),
+            }));
+          } else {
+            // Fallback to localStorage
+            users = getUsers().filter(u => u.email !== 'admin@admin.com');
+          }
+        } catch (e) {
+          // Fallback to localStorage
+          users = getUsers().filter(u => u.email !== 'admin@admin.com');
         }
+      } else {
+        // No Supabase, use localStorage
+        users = getUsers().filter(u => u.email !== 'admin@admin.com');
+      }
+      
+      const testimonials = getTestimonials();
+      const lessons = getLessons();
+      
+      // Calculate total revenue from purchased courses
+      let totalRevenue = 0;
+      users.forEach(user => {
+        user.purchasedCourses.forEach(courseId => {
+          const course = courses.find(c => c.id === courseId);
+          if (course) {
+            totalRevenue += course.price;
+          }
+        });
       });
-    });
 
-    setStats({
-      courses: courses.length,
-      users: users.length,
-      testimonials: testimonials.length,
-      banners: getBanners().length,
-      professors: getProfessors().length,
-      tags: getTags().length,
-      faqs: getFAQs().length,
-      lessons: lessons.length,
-      totalRevenue,
-    });
+      setStats({
+        courses: courses.length,
+        users: users.length,
+        testimonials: testimonials.length,
+        banners: getBanners().length,
+        professors: getProfessors().length,
+        tags: getTags().length,
+        faqs: getFAQs().length,
+        lessons: lessons.length,
+        totalRevenue,
+      });
 
-    setRecentCourses(courses.slice(0, 4));
-    setRecentTestimonials(testimonials.slice(0, 3));
-    setRecentUsers(users.slice(-3).reverse());
+      setRecentCourses(courses.slice(0, 4));
+      setRecentTestimonials(testimonials.slice(0, 3));
+      setRecentUsers(users.slice(-3).reverse());
+    };
+    
+    loadData();
   }, []);
 
   const mainCards = [

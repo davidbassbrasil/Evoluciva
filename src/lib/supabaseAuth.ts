@@ -21,18 +21,41 @@ function mapSupabaseUserToAppUser(supUser: any): AppUser {
   };
 }
 
-export async function signUp(name: string, email: string, password: string) {
+export async function signUp(name: string, email: string, password: string, profileFields?: Record<string, any>) {
   // If supabase client is configured use it, otherwise fallback to localStorage
   if (supabase) {
-    const res = await supabase.auth.signUp({ email, password }, { data: { name } });
+    const res = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: { name }
+      }
+    });
     if (res.error) return { user: null, error: res.error };
-    // res.data.user may be undefined until confirmation; map if present
     const su = res.data.user;
     if (su) {
       const user = mapSupabaseUserToAppUser(su);
       // persist minimal copy locally for app compatibility
       addUser(user);
       setCurrentUser(user);
+
+      // Attempt to create/merge a full profile row in `public.profiles`.
+      try {
+        const profilePayload: any = {
+          id: su.id,
+          email: email,
+          full_name: name,
+          role: 'student',
+          ...profileFields,
+        };
+        // upsert so re-running script is safe
+        await supabase.from('profiles').upsert(profilePayload, { returning: 'minimal' });
+      } catch (e) {
+        // don't block signup on profile write; log to console for debugging
+        // eslint-disable-next-line no-console
+        console.warn('Could not upsert profile after signUp', e);
+      }
+
       return { user, error: null };
     }
     return { user: null, error: null };
@@ -57,12 +80,34 @@ export async function signUp(name: string, email: string, password: string) {
 }
 
 export async function signIn(email: string, password: string) {
+  // Validate inputs
+  if (!email || !password) {
+    return { user: null, error: new Error('Email e senha são obrigatórios') };
+  }
+  
   if (supabase) {
     const res = await supabase.auth.signInWithPassword({ email, password });
     if (res.error) return { user: null, error: res.error };
     const su = res.data.user;
     if (su) {
       const user = mapSupabaseUserToAppUser(su);
+      
+      // Fetch full profile data including name
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, whatsapp, cpf, purchased_courses')
+          .eq('id', su.id)
+          .single();
+        
+        if (profile) {
+          user.name = profile.full_name || user.name;
+          user.purchasedCourses = Array.isArray(profile.purchased_courses) ? profile.purchased_courses : [];
+        }
+      } catch (e) {
+        // Continue with basic user data if profile fetch fails
+      }
+      
       // ensure local copy
       addUser(user);
       setCurrentUser(user);

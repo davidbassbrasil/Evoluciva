@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { getCurrentUser, getCourses, getLessonsByCourse, logout } from '@/lib/localStorage';
 import { Course, Lesson, User } from '@/types';
+import supabase from '@/lib/supabaseClient';
 
 export default function AlunoDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,17 +14,39 @@ export default function AlunoDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      navigate('/aluno/login');
-      return;
-    }
-    setUser(currentUser);
+    const loadUserData = async () => {
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        navigate('/aluno/login');
+        return;
+      }
 
-    const allCrs = getCourses();
-    setAllCourses(allCrs);
-    const purchasedCrs = allCrs.filter((c) => currentUser.purchasedCourses.includes(c.id));
-    setCourses(purchasedCrs);
+      // Try to fetch full profile data from Supabase if available
+      if (supabase && currentUser.id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', currentUser.id)
+            .single();
+          
+          if (profile && profile.full_name) {
+            currentUser.name = profile.full_name;
+          }
+        } catch (e) {
+          // Use data from localStorage if Supabase fails
+        }
+      }
+
+      setUser(currentUser);
+
+      const allCrs = getCourses();
+      setAllCourses(allCrs);
+      const purchasedCrs = allCrs.filter((c) => currentUser.purchasedCourses.includes(c.id));
+      setCourses(purchasedCrs);
+    };
+
+    loadUserData();
   }, [navigate]);
 
   const handleLogout = () => {
@@ -97,7 +120,7 @@ export default function AlunoDashboard() {
               <p className="text-muted-foreground mb-6">
                 Explore nossos cursos e comece sua jornada de aprovação!
               </p>
-              <Link to="/#cursos">
+              <Link to="/cursos">
                 <Button className="gradient-bg text-primary-foreground">
                   Ver Cursos Disponíveis
                 </Button>

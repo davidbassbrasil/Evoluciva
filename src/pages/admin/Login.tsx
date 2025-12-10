@@ -15,31 +15,52 @@ export default function AdminLogin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { user, error } = await signIn(email, password);
-    if (error || !user) {
-      toast({ title: 'Erro', description: (error && (error.message || String(error))) || 'Credenciais inválidas', variant: 'destructive' });
+    
+    // Validate fields
+    if (!email || !password) {
+      toast({ title: 'Erro', description: 'Por favor, preencha email e senha', variant: 'destructive' });
       return;
     }
-    // Check profile role via Supabase if available; fallback to email check
+    
     try {
+      const { user, error } = await signIn(email, password);
+      
+      if (error || !user) {
+        toast({ title: 'Erro', description: (error && (error.message || String(error))) || 'Credenciais inválidas', variant: 'destructive' });
+        return;
+      }
+
+      // Check profile role via Supabase if available
       if (supabase) {
-        const { data: profile, error: pErr } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+        const { data: profile, error: pErr } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
         if (pErr) {
-          // couldn't fetch profile; deny access to be safe
-          toast({ title: 'Erro', description: 'Não foi possível verificar permissões', variant: 'destructive' });
+          if (pErr.code === 'PGRST116') {
+            toast({ title: 'Erro', description: 'Perfil não encontrado. Por favor, cadastre-se primeiro.', variant: 'destructive' });
+          } else {
+            toast({ title: 'Erro', description: `Erro ao verificar permissões: ${pErr.message}`, variant: 'destructive' });
+          }
           return;
         }
-        if (profile && profile.role === 'admin') {
-          navigate('/admin');
+        
+        if (profile?.role === 'admin') {
+          toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso' });
+          setTimeout(() => navigate('/admin'), 100);
           return;
         }
+        
         toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de admin', variant: 'destructive' });
         return;
       }
 
-      // Supabase not configured: fallback to previous email-based gate
+      // Supabase not configured: fallback to email-based check
       if (user.email === 'admin@admin.com') {
-        navigate('/admin');
+        toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso' });
+        setTimeout(() => navigate('/admin'), 100);
       } else {
         toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de admin', variant: 'destructive' });
       }
