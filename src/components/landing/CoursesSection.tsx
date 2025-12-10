@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient';
-import { Course } from '@/types';
+import { Turma } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 export function CoursesSection() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,16 +15,43 @@ export function CoursesSection() {
       if (!supabase) return;
       try {
         const { data, error } = await supabase
-          .from('courses')
-          .select('*')
-          .eq('active', true)
-          .order('display_order', { ascending: true, nullsFirst: false })
-          .order('featured', { ascending: false })
-          .order('title', { ascending: true });
+          .from('turmas')
+          .select(`
+            *,
+            course:courses (
+              id,
+              title,
+              description,
+              image,
+              instructor,
+              category,
+              slug,
+              full_description,
+              whats_included,
+              duration,
+              lessons
+            )
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
 
-        if (!error && data) setCourses(data);
+        if (!error && data) {
+          // Filtrar por datas de venda se definidas
+          const now = new Date();
+          const filtered = data.filter((turma: any) => {
+            const startDate = turma.sale_start_date ? new Date(turma.sale_start_date) : null;
+            const endDate = turma.sale_end_date ? new Date(turma.sale_end_date) : null;
+            
+            if (startDate && now < startDate) return false;
+            if (endDate && now > endDate) return false;
+            
+            return true;
+          });
+          
+          setTurmas(filtered);
+        }
       } catch (err) {
-        console.error('Error loading courses from Supabase:', err);
+        console.error('Error loading turmas from Supabase:', err);
       }
     };
 
@@ -76,47 +103,54 @@ export function CoursesSection() {
             className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {courses.map((course) => (
+            {turmas.map((turma) => (
               <div
-                key={course.id}
+                key={turma.id}
                 className="flex-shrink-0 w-[320px] md:w-[380px] snap-start"
               >
                 <div className="group bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50">
                   <div className="relative aspect-[5/4] overflow-hidden">
                     <img
-                      src={course.image}
-                      alt={course.title}
+                      src={turma.course?.image}
+                      alt={turma.course?.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     <div className="absolute top-3 right-3">
                       <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm">
-                        {course.category}
+                        {turma.course?.category}
                       </Badge>
                     </div>
+                    {turma.status === 'coming_soon' && (
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-orange-500">Em Breve</Badge>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="p-5">
                     <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      {course.title}
+                      {turma.course?.title}
                     </h3>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
-                      {course.description}
+                      {turma.course?.description}
                     </p>
 
                     <p className="text-sm text-muted-foreground mb-4">
-                      {course.instructor}
+                      {turma.course?.instructor}
                     </p>
                     
                     <div className="flex items-end justify-between">
                       <div>
-                        <span className="text-muted-foreground text-sm line-through">
-                          R$ {Number(course.originalPrice || 0).toFixed(2)}
-                        </span>
+                        {turma.original_price > turma.price && (
+                          <span className="text-muted-foreground text-sm line-through">
+                            R$ {Number(turma.original_price).toFixed(2)}
+                          </span>
+                        )}
                         <div className="text-2xl font-bold text-primary">
-                          R$ {Number(course.price || 0).toFixed(2)}
+                          R$ {Number(turma.price).toFixed(2)}
                         </div>
                       </div>
-                      <Link to={`/curso/${course.slug || course.id}`}>
+                      <Link to={`/curso/${turma.course?.slug || turma.course_id}?turma=${turma.id}`}>
                         <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                           Saber mais
                         </Button>

@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { getCart, removeFromCart, getCurrentUser } from '@/lib/localStorage';
-import { Course } from '@/types';
+import { Turma } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Cart() {
-  const [items, setItems] = useState<Course[]>([]);
+  const [items, setItems] = useState<Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -30,9 +31,9 @@ export default function Cart() {
     }
 
     const loadCartItems = async () => {
-      const cartIds = getCart();
+      const cartItems = getCart();
       
-      if (cartIds.length === 0) {
+      if (cartItems.length === 0) {
         setLoading(false);
         return;
       }
@@ -43,17 +44,53 @@ export default function Cart() {
       }
 
       try {
+        // Parsear itemIds para extrair turmaIds e modality
+        const turmaIds = cartItems
+          .map(item => {
+            const parts = item.split(':');
+            return parts[1]; // turmaId
+          })
+          .filter(Boolean);
+
+        if (turmaIds.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        // Buscar turmas com JOIN para dados do curso
         const { data, error } = await supabase
-          .from('courses')
-          .select('*')
-          .in('id', cartIds);
+          .from('turmas')
+          .select(`
+            *,
+            course:courses (
+              id,
+              title,
+              description,
+              image,
+              instructor,
+              category,
+              slug,
+              full_description,
+              whats_included,
+              duration,
+              lessons
+            )
+          `)
+          .in('id', turmaIds);
 
         if (!error && data) {
-          // Manter a ordem do carrinho
-          const orderedCourses = cartIds
-            .map(id => data.find(course => course.id === id))
-            .filter(Boolean) as Course[];
-          setItems(orderedCourses);
+          // Manter ordem do carrinho e associar itemId + modality
+          const orderedItems = cartItems
+            .map(itemId => {
+              const parts = itemId.split(':');
+              const turmaId = parts[1];
+              const modality = (parts[2] || 'presential') as 'presential' | 'online';
+              const turma = data.find((t: any) => t.id === turmaId);
+              return turma ? { item: turma, itemId, modality } : null;
+            })
+            .filter(Boolean) as Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>;
+          
+          setItems(orderedItems);
         }
       } catch (err) {
         console.error('Error loading cart items:', err);
@@ -65,12 +102,15 @@ export default function Cart() {
     loadCartItems();
   }, [navigate, toast]);
 
-  const handleRemove = (id: string) => {
-    removeFromCart(id);
-    setItems((s) => s.filter(i => i.id !== id));
+  const handleRemove = (itemId: string) => {
+    removeFromCart(itemId);
+    setItems((s) => s.filter(i => i.itemId !== itemId));
   };
 
-  const total = items.reduce((acc, c) => acc + c.price, 0);
+  const total = items.reduce((acc, item) => {
+    const price = item.modality === 'online' ? Number(item.item.price_online) : Number(item.item.price);
+    return acc + price;
+  }, 0);
 
   if (loading) {
     return (
@@ -114,26 +154,43 @@ export default function Cart() {
 
           <div className="grid md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-4">
-              {items.map((course) => (
-                <div key={course.id} className="bg-card p-4 rounded-2xl flex items-center justify-between border border-border/50">
-                  <div className="flex items-center gap-4">
-                    <img src={course.image} alt={course.title} className="w-24 h-16 object-cover rounded-lg" />
-                    <div>
-                      <h3 className="font-semibold">{course.title}</h3>
-                      <p className="text-sm text-muted-foreground">{course.instructor}</p>
+              {items.map(({ item: turma, itemId, modality }) => {
+                const displayPrice = modality === 'online' ? Number(turma.price_online) : Number(turma.price);
+                const displayOriginalPrice = modality === 'online' ? Number(turma.original_price_online) : Number(turma.original_price);
+                
+                return (
+                  <div key={itemId} className="bg-card p-4 rounded-2xl flex items-center justify-between border border-border/50">
+                    <div className="flex items-center gap-4">
+                      <img src={turma.course?.image} alt={turma.course?.title} className="w-24 h-16 object-cover rounded-lg" />
+                      <div>
+                        <h3 className="font-semibold">{turma.course?.title}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="secondary" className="text-xs">{turma.name}</Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {modality === 'online' ? 'Online' : 'Presencial'}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{turma.course?.instructor}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        {displayOriginalPrice > displayPrice && (
+                          <div className="text-muted-foreground text-sm line-through">
+                            R$ {displayOriginalPrice.toFixed(2)}
+                          </div>
+                        )}
+                        <div className="text-lg font-bold text-primary">
+                          R$ {displayPrice.toFixed(2)}
+                        </div>
+                      </div>
+                      <button onClick={() => handleRemove(itemId)} className="p-2 rounded-lg hover:bg-secondary">
+                        <Trash2 className="w-5 h-5 text-muted-foreground" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-muted-foreground text-sm line-through">R$ {Number(course.originalPrice || 0).toFixed(2)}</div>
-                      <div className="text-lg font-bold text-primary">R$ {Number(course.price || 0).toFixed(2)}</div>
-                    </div>
-                    <button onClick={() => handleRemove(course.id)} className="p-2 rounded-lg hover:bg-secondary">
-                      <Trash2 className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <aside className="bg-card p-6 rounded-2xl border border-border/50 h-max mt-4">

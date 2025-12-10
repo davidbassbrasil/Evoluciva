@@ -32,8 +32,7 @@ export function Footer() {
               )}
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
-              A melhor plataforma de cursos para concursos públicos do Brasil. 
-              Prepare-se com os melhores professores e conquiste sua aprovação.
+              venha com a gente!
             </p>
 
             {/* Social Links */}
@@ -66,16 +65,6 @@ export function Footer() {
                   className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
                 >
                   <Youtube className="w-5 h-5" />
-                </a>
-              )}
-              {settings.socialLinks.whatsapp && (
-                <a
-                  href={settings.socialLinks.whatsapp}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
-                >
-                  <MessageCircle className="w-5 h-5" />
                 </a>
               )}
             </div>

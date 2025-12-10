@@ -106,19 +106,19 @@ export const getSettings = (): SiteSettings => getItem(STORAGE_KEYS.SETTINGS, {
 });
 export const setSettings = (settings: SiteSettings) => setItem(STORAGE_KEYS.SETTINGS, settings);
 
-// Cart
+// Cart (suporta formato: "courseId:turmaId" ou só "courseId")
 export const getCart = (): string[] => getItem(STORAGE_KEYS.CART, []);
 export const setCart = (items: string[]) => setItem(STORAGE_KEYS.CART, items);
-export const addToCart = (courseId: string) => {
+export const addToCart = (itemId: string) => {
   const cart = getCart();
-  if (!cart.includes(courseId)) {
-    const next = [...cart, courseId];
+  if (!cart.includes(itemId)) {
+    const next = [...cart, itemId];
     setCart(next);
     try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: next } })); } catch {};
   }
 };
-export const removeFromCart = (courseId: string) => {
-  const next = getCart().filter(id => id !== courseId);
+export const removeFromCart = (itemId: string) => {
+  const next = getCart().filter(id => id !== itemId);
   setCart(next);
   try { window.dispatchEvent(new CustomEvent('cartUpdated', { detail: { cart: next } })); } catch {};
 };

@@ -1,7 +1,7 @@
 /**
  * Checkout Page - Integrado com Asaas
  * Suporta: Cartão de Crédito, PIX e Boleto
- * @updated 2025-12-09
+ * @updated 2025-12-10 - Integração com sistema de turmas
  */
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -13,15 +13,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser, getCart, clearCart, purchaseCourse, setCurrentUser, addUser, getUserByEmail } from '@/lib/localStorage';
 import { asaasService } from '@/lib/asaasService';
-import type { Course, User } from '@/types';
+import type { Turma, User } from '@/types';
 import supabase from '@/lib/supabaseClient';
 
 export default function Checkout() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [course, setCourse] = useState<Course | null>(null);
-  const [cartItems, setCartItems] = useState<Course[]>([]);
+  const [turma, setTurma] = useState<Turma | null>(null);
+  const [turmaModality, setTurmaModality] = useState<'presential' | 'online'>('presential');
+  const [cartItems, setCartItems] = useState<Array<{ turma: Turma; modality: 'presential' | 'online' }>>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CREDIT_CARD_ONE' | 'CREDIT_CARD_INSTALL' | 'DEBIT_CARD' | 'PIX' | 'BOLETO'>('CREDIT_CARD_ONE');
@@ -71,43 +72,161 @@ export default function Checkout() {
 
       try {
         if (courseId) {
-          // Single course checkout
-          const { data, error } = await supabase
-            .from('courses')
-            .select('*')
-            .eq('id', courseId)
-            .single();
-
-          if (error || !data) {
-            toast({ title: 'Erro', description: 'Curso não encontrado', variant: 'destructive' });
+          // Single turma checkout (format: courseId:turmaId:modality)
+          const parts = courseId.split(':');
+          const turmaId = parts[1];
+          const modality = (parts[2] || 'presential') as 'presential' | 'online';
+          
+          if (!turmaId) {
+            toast({ title: 'Erro', description: 'Turma não especificada', variant: 'destructive' });
             navigate('/');
             return;
           }
-          setCourse(data);
+
+          setTurmaModality(modality);
+
+          const { data, error } = await supabase
+            .from('turmas')
+            .select(`
+              *,
+              course:courses (
+                id,
+                title,
+                description,
+                image,
+                instructor,
+                category,
+                slug,
+                full_description,
+                whats_included,
+                duration,
+                lessons
+              )
+            `)
+            .eq('id', turmaId)
+            .single();
+
+          if (error || !data) {
+            toast({ title: 'Erro', description: 'Turma não encontrada', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          
+          // Verificar se turma está disponível para venda
+          if (data.status !== 'active') {
+            toast({ title: 'Turma indisponível', description: 'Esta turma não está disponível no momento.', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          
+          // Verificar datas de venda
+          const now = new Date();
+          if (data.sale_start_date && now < new Date(data.sale_start_date)) {
+            toast({ title: 'Vendas não iniciadas', description: 'As vendas para esta turma ainda não começaram.', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          if (data.sale_end_date && now > new Date(data.sale_end_date)) {
+            toast({ title: 'Vendas encerradas', description: 'O período de vendas desta turma foi encerrado.', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          
+          setTurma(data);
+          
+          // Definir método de pagamento padrão baseado nas opções da turma
+          if (data.allow_pix) {
+            setPaymentMethod('PIX');
+          } else if (data.allow_credit_card) {
+            setPaymentMethod(data.allow_installments ? 'CREDIT_CARD_INSTALL' : 'CREDIT_CARD_ONE');
+          } else if (data.allow_debit_card) {
+            setPaymentMethod('DEBIT_CARD');
+          } else if (data.allow_boleto) {
+            setPaymentMethod('BOLETO');
+          }
+          
+          if (data.allow_installments && data.max_installments) {
+            setInstallmentCount(Math.min(2, data.max_installments));
+          }
         } else {
           // Cart checkout
-          const cartIds = getCart();
-          if (cartIds.length === 0) {
+          const cartItemIds = getCart();
+          if (cartItemIds.length === 0) {
             toast({ title: 'Carrinho vazio', description: 'Adicione cursos antes de finalizar a compra.' });
             navigate('/cursos');
             return;
           }
 
+          // Extrair turmaIds e modality do formato courseId:turmaId:modality
+          const parsedItems = cartItemIds
+            .map(item => {
+              const parts = item.split(':');
+              return {
+                turmaId: parts[1],
+                modality: (parts[2] || 'presential') as 'presential' | 'online'
+              };
+            })
+            .filter(item => item.turmaId);
+
+          if (parsedItems.length === 0) {
+            toast({ title: 'Erro', description: 'Nenhuma turma válida no carrinho.' });
+            navigate('/cart');
+            return;
+          }
+
+          const turmaIds = parsedItems.map(item => item.turmaId);
+
           const { data, error } = await supabase
-            .from('courses')
-            .select('*')
-            .in('id', cartIds);
+            .from('turmas')
+            .select(`
+              *,
+              course:courses (
+                id,
+                title,
+                description,
+                image,
+                instructor,
+                category,
+                slug,
+                full_description,
+                whats_included,
+                duration,
+                lessons
+              )
+            `)
+            .in('id', turmaIds);
 
           if (!error && data) {
-            const orderedCourses = cartIds
-              .map(id => data.find(course => course.id === id))
-              .filter(Boolean) as Course[];
-            setCartItems(orderedCourses);
+            // Filtrar turmas disponíveis
+            const availableTurmas = data.filter((t: any) => {
+              if (t.status !== 'active') return false;
+              
+              const now = new Date();
+              if (t.sale_start_date && now < new Date(t.sale_start_date)) return false;
+              if (t.sale_end_date && now > new Date(t.sale_end_date)) return false;
+              
+              return true;
+            });
+            
+            if (availableTurmas.length === 0) {
+              toast({ title: 'Nenhuma turma disponível', description: 'As turmas do carrinho não estão mais disponíveis.' });
+              navigate('/cart');
+              return;
+            }
+            
+            // Ordenar conforme carrinho e associar modality
+            const orderedTurmas = parsedItems
+              .map(({ turmaId, modality }) => {
+                const turma = availableTurmas.find((t: any) => t.id === turmaId);
+                return turma ? { turma, modality } : null;
+              })
+              .filter(Boolean) as Array<{ turma: Turma; modality: 'presential' | 'online' }>;
+            setCartItems(orderedTurmas);
           }
         }
       } catch (err) {
-        console.error('Error loading course data:', err);
-        toast({ title: 'Erro', description: 'Erro ao carregar dados do curso', variant: 'destructive' });
+        console.error('Error loading turma data:', err);
+        toast({ title: 'Erro', description: 'Erro ao carregar dados', variant: 'destructive' });
         navigate('/');
       }
     };
@@ -118,10 +237,36 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Determine items to purchase and total
-    const itemsToPurchase = course ? [course] : cartItems;
-    if (!course && itemsToPurchase.length === 0) {
+    const itemsToPurchase = turma ? [{ turma, modality: turmaModality }] : cartItems;
+    if (!turma && itemsToPurchase.length === 0) {
       toast({ title: 'Carrinho vazio', description: 'Adicione cursos antes de finalizar a compra.' });
       return;
+    }
+    
+    // Verificar se método de pagamento é permitido pela turma
+    const firstItem = itemsToPurchase[0];
+    const firstTurma = firstItem.turma;
+    if (firstTurma) {
+      if (paymentMethod === 'PIX' && !firstTurma.allow_pix) {
+        toast({ title: 'Método não permitido', description: 'PIX não está disponível para esta turma.', variant: 'destructive' });
+        return;
+      }
+      if (paymentMethod === 'BOLETO' && !firstTurma.allow_boleto) {
+        toast({ title: 'Método não permitido', description: 'Boleto não está disponível para esta turma.', variant: 'destructive' });
+        return;
+      }
+      if ((paymentMethod === 'CREDIT_CARD_ONE' || paymentMethod === 'CREDIT_CARD_INSTALL') && !firstTurma.allow_credit_card) {
+        toast({ title: 'Método não permitido', description: 'Cartão de crédito não está disponível para esta turma.', variant: 'destructive' });
+        return;
+      }
+      if (paymentMethod === 'CREDIT_CARD_INSTALL' && !firstTurma.allow_installments) {
+        toast({ title: 'Método não permitido', description: 'Parcelamento não está disponível para esta turma.', variant: 'destructive' });
+        return;
+      }
+      if (paymentMethod === 'DEBIT_CARD' && !firstTurma.allow_debit_card) {
+        toast({ title: 'Método não permitido', description: 'Cartão de débito não está disponível para esta turma.', variant: 'destructive' });
+        return;
+      }
     }
 
     // Validar se Asaas está configurado
@@ -175,7 +320,23 @@ export default function Checkout() {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 7); // Vencimento em 7 dias
 
-      const totalValue = itemsToPurchase.reduce((s, it) => s + it.price, 0);
+      // Calcular total com desconto por método de pagamento
+      let totalValue = itemsToPurchase.reduce((s, it) => s + Number(it.price), 0);
+      
+      // Aplicar desconto baseado no método de pagamento (apenas primeira turma se cart)
+      const turmaForDiscount = itemsToPurchase[0];
+      if (turmaForDiscount) {
+        if (paymentMethod === 'CREDIT_CARD_ONE' && turmaForDiscount.discount_cash > 0) {
+          const discount = totalValue * (Number(turmaForDiscount.discount_cash) / 100);
+          totalValue -= discount;
+        } else if (paymentMethod === 'PIX' && turmaForDiscount.discount_pix > 0) {
+          const discount = totalValue * (Number(turmaForDiscount.discount_pix) / 100);
+          totalValue -= discount;
+        } else if (paymentMethod === 'DEBIT_CARD' && turmaForDiscount.discount_debit > 0) {
+          const discount = totalValue * (Number(turmaForDiscount.discount_debit) / 100);
+          totalValue -= discount;
+        }
+      }
 
       if (paymentMethod === 'CREDIT_CARD_ONE' || paymentMethod === 'CREDIT_CARD_INSTALL') {
         const [expiryMonth, expiryYear] = formData.expiry.split('/');
@@ -295,13 +456,41 @@ export default function Checkout() {
     }
   };
 
-    // Items to display in the summary (single course or cart items)
-    const itemsToShow = course ? [course] : cartItems;
-    const subtotalOriginal = itemsToShow.reduce((s, it) => s + Number(it.originalPrice ?? it.price ?? 0), 0);
-    const subtotal = itemsToShow.reduce((s, it) => s + Number(it.price ?? 0), 0);
-    const discountTotal = subtotalOriginal - subtotal;
+    // Items to display in the summary (single turma or cart items)
+    const itemsToShow = turma ? [{ turma, modality: turmaModality }] : cartItems;
+    
+    const subtotalOriginal = itemsToShow.reduce((s, item) => {
+      const originalPrice = item.modality === 'online' 
+        ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
+        : Number(item.turma.original_price ?? item.turma.price ?? 0);
+      return s + originalPrice;
+    }, 0);
+    
+    const subtotalBase = itemsToShow.reduce((s, item) => {
+      const price = item.modality === 'online' 
+        ? Number(item.turma.price_online ?? 0)
+        : Number(item.turma.price ?? 0);
+      return s + price;
+    }, 0);
+    
+    // Aplicar desconto por método de pagamento (apenas primeira turma)
+    let paymentDiscount = 0;
+    const firstItem = itemsToShow[0];
+    const firstTurma = firstItem?.turma;
+    if (firstTurma) {
+      if (paymentMethod === 'CREDIT_CARD_ONE' && firstTurma.discount_cash > 0) {
+        paymentDiscount = subtotalBase * (Number(firstTurma.discount_cash) / 100);
+      } else if (paymentMethod === 'PIX' && firstTurma.discount_pix > 0) {
+        paymentDiscount = subtotalBase * (Number(firstTurma.discount_pix) / 100);
+      } else if (paymentMethod === 'DEBIT_CARD' && firstTurma.discount_debit > 0) {
+        paymentDiscount = subtotalBase * (Number(firstTurma.discount_debit) / 100);
+      }
+    }
+    
+    const subtotal = subtotalBase - paymentDiscount;
+    const discountTotal = subtotalOriginal - subtotalBase;
 
-    if (!course && itemsToShow.length === 0) {
+    if (!turma && itemsToShow.length === 0) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center p-6">
@@ -346,29 +535,38 @@ export default function Checkout() {
 
               {itemsToShow.length === 1 ? (
                 (() => {
-                  const it = itemsToShow[0];
+                  const item = itemsToShow[0];
+                  const displayPrice = item.modality === 'online' 
+                    ? Number(item.turma.price_online ?? 0)
+                    : Number(item.turma.price ?? 0);
+                  const displayOriginalPrice = item.modality === 'online'
+                    ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
+                    : Number(item.turma.original_price ?? item.turma.price ?? 0);
+                  
                   return (
                     <>
                       <div className="flex gap-4 mb-6">
-                        <img src={it.image} alt={it.title} className="w-24 h-16 object-cover rounded-lg" />
-                        <div>
-                          <h3 className="font-semibold line-clamp-2">{it.title}</h3>
-                          <p className="text-sm text-muted-foreground">{it.instructor}</p>
+                        <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-24 h-16 object-cover rounded-lg" />
+                        <div className="flex-1">
+                          <h3 className="font-semibold line-clamp-2">{item.turma.course?.title}</h3>
+                          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+                            <span>{item.turma.name}</span>
+                            <span className="px-2 py-0.5 bg-secondary rounded text-xs">
+                              {item.modality === 'online' ? 'Online' : 'Presencial'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">{item.turma.course?.instructor}</p>
                         </div>
                       </div>
-
-                      <div className="space-y-3 text-sm mb-6">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          <span>{it.duration} de conteúdo</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <BookOpen className="w-4 h-4" />
-                          <span>{it.lessons} aulas</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Shield className="w-4 h-4" />
-                          <span>Garantia de 7 dias</span>
+                      <div className="flex justify-between items-center mb-6">
+                        <span className="text-muted-foreground">Valor</span>
+                        <div className="text-right">
+                          {displayOriginalPrice > displayPrice && (
+                            <div className="text-xs text-muted-foreground line-through">
+                              R$ {displayOriginalPrice.toFixed(2)}
+                            </div>
+                          )}
+                          <div className="text-lg font-semibold">R$ {displayPrice.toFixed(2)}</div>
                         </div>
                       </div>
                     </>
@@ -377,29 +575,61 @@ export default function Checkout() {
               ) : (
                 <div className="mb-4">
                   <ul className="space-y-4">
-                    {itemsToShow.map((it) => (
-                      <li key={it.id} className="flex items-center gap-4">
-                        <img src={it.image} alt={it.title} className="w-20 h-12 object-cover rounded-md" />
-                        <div className="flex-1">
-                          <div className="font-medium">{it.title}</div>
-                          <div className="text-sm text-muted-foreground">{it.instructor}</div>
-                        </div>
-                        <div className="font-semibold">R$ {Number(it.price ?? 0).toFixed(2)}</div>
-                      </li>
-                    ))}
+                    {itemsToShow.map((item) => {
+                      const displayPrice = item.modality === 'online' 
+                        ? Number(item.turma.price_online ?? 0)
+                        : Number(item.turma.price ?? 0);
+                      const displayOriginalPrice = item.modality === 'online'
+                        ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
+                        : Number(item.turma.original_price ?? item.turma.price ?? 0);
+                      
+                      return (
+                        <li key={item.turma.id} className="flex items-center gap-4">
+                          <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-20 h-12 object-cover rounded-md" />
+                          <div className="flex-1">
+                            <div className="font-medium">{item.turma.course?.title}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              <span>{item.turma.name}</span>
+                              <span className="px-2 py-0.5 bg-secondary rounded text-xs">
+                                {item.modality === 'online' ? 'Online' : 'Presencial'}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground">{item.turma.course?.instructor}</div>
+                          </div>
+                          <div className="text-right">
+                            {displayOriginalPrice > displayPrice && (
+                              <div className="text-xs text-muted-foreground line-through">
+                                R$ {displayOriginalPrice.toFixed(2)}
+                              </div>
+                            )}
+                            <div className="font-semibold">R$ {displayPrice.toFixed(2)}</div>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
 
               <div className="border-t border-border pt-4">
-                <div className="flex justify-between text-muted-foreground mb-2">
-                  <span>Subtotal</span>
-                  <span className="line-through">R$ {subtotalOriginal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-success mb-2">
-                  <span>Desconto</span>
-                  <span>-R$ {discountTotal.toFixed(2)}</span>
-                </div>
+                {discountTotal > 0 && (
+                  <>
+                    <div className="flex justify-between text-muted-foreground mb-2">
+                      <span>Subtotal Original</span>
+                      <span className="line-through">R$ {subtotalOriginal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-success mb-2">
+                      <span>Desconto</span>
+                      <span>-R$ {discountTotal.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {paymentDiscount > 0 && (
+                  <div className="flex justify-between text-success mb-2">
+                    <span>Desconto {paymentMethod === 'PIX' ? 'PIX' : paymentMethod === 'DEBIT_CARD' ? 'Débito' : 'à Vista'}</span>
+                    <span>-R$ {paymentDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xl font-bold">
                   <span>Total</span>
                   <span className="gradient-text">R$ {subtotal.toFixed(2)}</span>
@@ -530,37 +760,69 @@ export default function Checkout() {
                   
                   <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)} className="w-full">
                     <div className="space-y-3">
-                      {/* Top row: 2 columns for credit options */}
-                      <TabsList className="grid w-full grid-cols-2 gap-2">
-                        <TabsTrigger value="CREDIT_CARD_ONE" className="gap-2 flex items-center w-full justify-start">
-                          <CreditCard className="w-4 h-4" />
-                          <span>Cartão à vista</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="CREDIT_CARD_INSTALL" className="gap-2 flex items-center w-full justify-start">
-                          <CreditCard className="w-4 h-4" />
-                          <span>Cartão parcelado</span>
-                        </TabsTrigger>
-                      </TabsList>
+                      {/* Top row: Opções de crédito (se permitido) */}
+                      {(firstTurma?.allow_credit_card || firstTurma?.allow_installments) && (
+                        <TabsList className="grid w-full grid-cols-2 gap-2">
+                          {firstTurma?.allow_credit_card && (
+                            <TabsTrigger value="CREDIT_CARD_ONE" className="gap-2 flex items-center w-full justify-start">
+                              <CreditCard className="w-4 h-4" />
+                              <span>Cartão à vista</span>
+                              {firstTurma?.discount_cash > 0 && (
+                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_cash}%</span>
+                              )}
+                            </TabsTrigger>
+                          )}
+                          {firstTurma?.allow_installments && (
+                            <TabsTrigger value="CREDIT_CARD_INSTALL" className="gap-2 flex items-center w-full justify-start">
+                              <CreditCard className="w-4 h-4" />
+                              <span>Cartão parcelado</span>
+                            </TabsTrigger>
+                          )}
+                        </TabsList>
+                      )}
 
-                      {/* Bottom row: 3 columns - Débito | PIX | Boleto */}
-                      <TabsList className="grid w-full grid-cols-3 gap-2">
-                        <TabsTrigger value="DEBIT_CARD" className="gap-2 flex items-center w-full justify-start col-span-1">
-                          <CreditCard className="w-4 h-4" />
-                          <span>Débito</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="PIX" className="gap-2 flex items-center w-full justify-start col-span-1">
-                          <QrCode className="w-4 h-4" />
-                          <span>PIX</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="BOLETO" className="gap-2 flex items-center w-full justify-start col-span-1">
-                          <Barcode className="w-4 h-4" />
-                          <span>Boleto</span>
-                        </TabsTrigger>
-                      </TabsList>
+                      {/* Bottom row: Débito | PIX | Boleto (conforme permitido) */}
+                      {(firstTurma?.allow_debit_card || firstTurma?.allow_pix || firstTurma?.allow_boleto) && (
+                        <TabsList className={`grid w-full gap-2 ${
+                          [firstTurma?.allow_debit_card, firstTurma?.allow_pix, firstTurma?.allow_boleto].filter(Boolean).length === 3 
+                            ? 'grid-cols-3' 
+                            : 'grid-cols-2'
+                        }`}>
+                          {firstTurma?.allow_debit_card && (
+                            <TabsTrigger value="DEBIT_CARD" className="gap-2 flex items-center w-full justify-start">
+                              <CreditCard className="w-4 h-4" />
+                              <span>Débito</span>
+                              {firstTurma?.discount_debit > 0 && (
+                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_debit}%</span>
+                              )}
+                            </TabsTrigger>
+                          )}
+                          {firstTurma?.allow_pix && (
+                            <TabsTrigger value="PIX" className="gap-2 flex items-center w-full justify-start">
+                              <QrCode className="w-4 h-4" />
+                              <span>PIX</span>
+                              {firstTurma?.discount_pix > 0 && (
+                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_pix}%</span>
+                              )}
+                            </TabsTrigger>
+                          )}
+                          {firstTurma?.allow_boleto && (
+                            <TabsTrigger value="BOLETO" className="gap-2 flex items-center w-full justify-start">
+                              <Barcode className="w-4 h-4" />
+                              <span>Boleto</span>
+                            </TabsTrigger>
+                          )}
+                        </TabsList>
+                      )}
                     </div>
 
                     {/* Cartão à vista */}
                     <TabsContent value="CREDIT_CARD_ONE" className="space-y-4 mt-4">
+                      {firstTurma?.discount_cash > 0 && (
+                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-sm text-green-700 dark:text-green-400">
+                          💳 Desconto de {firstTurma.discount_cash}% no pagamento à vista!
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="cardName">Nome no cartão *</Label>
                         <Input
@@ -679,11 +941,11 @@ export default function Checkout() {
                             onChange={(e) => setInstallmentCount(Number(e.target.value))}
                             className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm w-40 appearance-none"
                           >
-                            {Array.from({ length: 12 }).map((_, i) => {
+                            {Array.from({ length: firstTurma?.max_installments || 12 }).map((_, i) => {
                               const val = i + 1;
                               if (val < 2) return null;
                               return (
-                                <option key={val} value={val}>{val}x</option>
+                                <option key={val} value={val}>{val}x de R$ {(subtotal / val).toFixed(2)}</option>
                               );
                             })}
                           </select>

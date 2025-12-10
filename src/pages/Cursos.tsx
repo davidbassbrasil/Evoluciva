@@ -6,13 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import supabase from '@/lib/supabaseClient';
-import { Course } from '@/types';
+import { Turma } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 
 export default function Cursos() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [filteredTurmas, setFilteredTurmas] = useState<Turma[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,18 +27,39 @@ export default function Cursos() {
       setLoading(true);
       try {
         const { data, error } = await supabase
-          .from('courses')
-          .select('*')
-          .eq('active', true)
-          .order('display_order', { ascending: true, nullsFirst: false })
-          .order('title', { ascending: true });
+          .from('turmas')
+          .select(`
+            *,
+            course:courses (
+              id,
+              title,
+              description,
+              image,
+              instructor,
+              category,
+              slug,
+              estado,
+              duration,
+              lessons
+            )
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
 
         if (!error && data) {
-          setCourses(data);
-          setFilteredCourses(data);
+          const now = new Date();
+          const availableTurmas = data.filter((t: any) => {
+            const startDate = t.sale_start_date ? new Date(t.sale_start_date) : null;
+            const endDate = t.sale_end_date ? new Date(t.sale_end_date) : null;
+            if (startDate && now < startDate) return false;
+            if (endDate && now > endDate) return false;
+            return true;
+          });
+          setTurmas(availableTurmas);
+          setFilteredTurmas(availableTurmas);
         }
       } catch (err) {
-        console.error('Error loading courses:', err);
+        console.error('Error loading turmas:', err);
       } finally {
         setLoading(false);
       }
@@ -48,22 +69,23 @@ export default function Cursos() {
   }, []);
 
   useEffect(() => {
-    let result = courses;
+    let result = turmas;
     
     if (searchTerm) {
-      result = result.filter(course => 
-        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.instructor.toLowerCase().includes(searchTerm.toLowerCase())
+      result = result.filter(turma => 
+        turma.course?.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        turma.course?.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        turma.course?.instructor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        turma.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
     if (selectedEstado) {
-      result = result.filter(course => course.estado === selectedEstado);
+      result = result.filter(turma => turma.course?.estado === selectedEstado);
     }
     
-    setFilteredCourses(result);
-  }, [searchTerm, selectedEstado, courses]);
+    setFilteredTurmas(result);
+  }, [searchTerm, selectedEstado, turmas]);
 
   const states = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE', 'CE', 'DF', 'GO', 'PA', 'AM', 'MT', 'MS', 'ES', 'PB', 'RN', 'AL', 'SE', 'PI', 'MA', 'TO', 'RO', 'AC', 'AP', 'RR'];
 
@@ -117,7 +139,7 @@ export default function Cursos() {
 
           {/* Results count */}
           <p className="text-muted-foreground mb-6">
-            {filteredCourses.length} curso{filteredCourses.length !== 1 ? 's' : ''} encontrado{filteredCourses.length !== 1 ? 's' : ''}
+            {filteredTurmas.length} turma{filteredTurmas.length !== 1 ? 's' : ''} encontrada{filteredTurmas.length !== 1 ? 's' : ''}
           </p>
 
           {/* Courses Grid */}
@@ -127,51 +149,85 @@ export default function Cursos() {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Carregando cursos...</p>
               </div>
-            ) : filteredCourses.length === 0 ? (
+            ) : filteredTurmas.length === 0 ? (
               <div className="col-span-full text-center py-12">
                 <p className="text-muted-foreground">Nenhum curso encontrado</p>
               </div>
             ) : (
-              filteredCourses.map(course => (
+              filteredTurmas.map(turma => (
               <Link 
-                key={course.id} 
-                to={`/curso/${course.slug || course.id}`}
+                key={turma.id} 
+                to={`/curso/${turma.course?.slug || turma.course_id}?turma=${turma.id}`}
                 className="group"
               >
                 <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50 h-full flex flex-col">
                   <div className="relative aspect-[5/4] overflow-hidden">
                     <img
-                      src={course.image}
-                      alt={course.title}
+                      src={turma.course?.image}
+                      alt={turma.course?.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     <div className="absolute top-3 right-3">
                       <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm">
-                        {course.category}
+                        {turma.course?.category}
                       </Badge>
                     </div>
+                    {turma.status === 'coming_soon' && (
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-orange-500">Em Breve</Badge>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="p-5 flex-1 flex flex-col">
                     <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                      {course.title}
+                      {turma.course?.title}
                     </h3>
+                    <Badge variant="outline" className="text-xs mb-2 w-fit">{turma.name}</Badge>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-2 flex-1">
-                      {course.description}
+                      {turma.course?.description}
                     </p>
 
                     <p className="text-sm text-muted-foreground mb-4">
-                      {course.instructor}
+                      {turma.course?.instructor}
                     </p>
                     
                     <div className="flex items-end justify-between mt-auto">
                       <div>
-                        <span className="text-muted-foreground text-sm line-through">
-                          R$ {Number(course.originalPrice || 0).toFixed(2)}
-                        </span>
-                        <div className="text-2xl font-bold text-primary">
-                          R$ {Number(course.price || 0).toFixed(2)}
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="text-xs text-muted-foreground">Presencial</div>
+                          {turma.presential_slots > 0 && (
+                            <Badge variant={turma.presential_slots <= 5 ? "destructive" : "secondary"} className="text-xs">
+                              {turma.presential_slots} {turma.presential_slots === 1 ? 'vaga' : 'vagas'}
+                            </Badge>
+                          )}
+                          {turma.presential_slots === 0 && (
+                            <Badge variant="destructive" className="text-xs">
+                              Esgotado
+                            </Badge>
+                          )}
                         </div>
+                        {turma.original_price > turma.price && (
+                          <span className="text-muted-foreground text-xs line-through">
+                            R$ {Number(turma.original_price).toFixed(2)}
+                          </span>
+                        )}
+                        <div className="text-lg font-bold text-primary">
+                          R$ {Number(turma.price).toFixed(2)}
+                        </div>
+                        {turma.price_online > 0 && (
+                          <>
+                            <div className="text-xs text-muted-foreground mt-2 mb-1">Online</div>
+                            {turma.original_price_online > turma.price_online && (
+                              <span className="text-muted-foreground text-xs line-through">
+                                R$ {Number(turma.original_price_online).toFixed(2)}
+                              </span>
+                            )}
+                            <div className="text-lg font-bold text-primary">
+                              R$ {Number(turma.price_online).toFixed(2)}
+                            </div>
+                          </>
+                        )}
                       </div>
                       <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                         Ver Detalhes
@@ -183,10 +239,10 @@ export default function Cursos() {
             )))}
           </div>
 
-          {!loading && filteredCourses.length === 0 && (
+          {!loading && filteredTurmas.length === 0 && (
             <div className="text-center py-16">
               <p className="text-xl text-muted-foreground mb-4">
-                Nenhum curso encontrado
+                Nenhuma turma encontrada
               </p>
               <Button onClick={() => { setSearchTerm(''); setSelectedEstado(null); }}>
                 Limpar filtros

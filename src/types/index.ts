@@ -20,6 +20,37 @@ export interface Course {
   updated_at?: string;
 }
 
+export interface Turma {
+  id: string;
+  name: string;
+  course_id: string;
+  sale_start_date: string | null;
+  sale_end_date: string | null;
+  access_end_date: string | null;
+  presential_slots: number;
+  online_slots: number;
+  status: 'active' | 'coming_soon' | 'inactive';
+  price: number;
+  price_online: number;
+  original_price: number;
+  original_price_online: number;
+  allow_credit_card: boolean;
+  allow_installments: boolean;
+  max_installments: number;
+  allow_debit_card: boolean;
+  allow_pix: boolean;
+  allow_boleto: boolean;
+  discount_cash: number;
+  discount_pix: number;
+  discount_debit: number;
+  coupon_code: string | null;
+  coupon_discount: number;
+  created_at?: string;
+  updated_at?: string;
+  // Campos do JOIN com courses
+  course?: Course;
+}
+
 export interface Lesson {
   id: string;
   courseId: string;

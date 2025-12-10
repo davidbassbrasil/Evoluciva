@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, CheckCircle, ShoppingCart } from 'lucide-react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, User, CheckCircle, ShoppingCart, Calendar, Users as UsersIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { addToCart, getCurrentUser } from '@/lib/localStorage';
 import { useToast } from '@/hooks/use-toast';
-import { Course } from '@/types';
+import { Course, Turma } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
 
 export default function CursoDetalhe() {
   const { courseId } = useParams();
+  const [searchParams] = useSearchParams();
+  const turmaIdFromUrl = searchParams.get('turma');
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [selectedTurma, setSelectedTurma] = useState<Turma | null>(null);
+  const [selectedModality, setSelectedModality] = useState<'presential' | 'online'>('presential');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -45,6 +52,54 @@ export default function CursoDetalhe() {
 
         if (error) throw error;
         setCourse(data);
+        
+        // Carregar turmas disponíveis para este curso
+        const { data: turmasData, error: turmasError } = await supabase
+          .from('turmas')
+          .select('*')
+          .eq('course_id', data.id)
+          .in('status', ['active', 'coming_soon'])
+          .order('created_at', { ascending: false });
+        
+        if (!turmasError && turmasData) {
+          // Filtrar por datas de venda
+          const now = new Date();
+          const availableTurmas = turmasData.filter((turma: any) => {
+            const startDate = turma.sale_start_date ? new Date(turma.sale_start_date) : null;
+            const endDate = turma.sale_end_date ? new Date(turma.sale_end_date) : null;
+            
+            // Se status é coming_soon, sempre mostrar (mas não permitir compra)
+            if (turma.status === 'coming_soon') return true;
+            
+            // Para active, verificar datas
+            if (startDate && now < startDate) return false;
+            if (endDate && now > endDate) return false;
+            
+            return true;
+          });
+          
+          setTurmas(availableTurmas);
+          
+          // Selecionar turma da URL ou primeira disponível
+          if (turmaIdFromUrl) {
+            const turmaFromUrl = availableTurmas.find((t: any) => t.id === turmaIdFromUrl);
+            const selectedT = turmaFromUrl || availableTurmas[0] || null;
+            setSelectedTurma(selectedT);
+            
+            // Se vagas presenciais esgotadas e tem online, selecionar online automaticamente
+            if (selectedT && selectedT.presential_slots === 0 && selectedT.price_online > 0) {
+              setSelectedModality('online');
+            }
+          } else {
+            const selectedT = availableTurmas[0] || null;
+            setSelectedTurma(selectedT);
+            
+            // Se vagas presenciais esgotadas e tem online, selecionar online automaticamente
+            if (selectedT && selectedT.presential_slots === 0 && selectedT.price_online > 0) {
+              setSelectedModality('online');
+            }
+          }
+        }
       } catch (err: any) {
         console.error('Error loading course:', err);
         setCourse(null);
@@ -54,7 +109,7 @@ export default function CursoDetalhe() {
     };
 
     loadCourse();
-  }, [courseId]);
+  }, [courseId, turmaIdFromUrl]);
 
   if (loading) {
     return (
@@ -195,20 +250,177 @@ export default function CursoDetalhe() {
                 </div>
 
                 <div className="mb-6">
-                  <span className="text-muted-foreground text-sm line-through">
-                    R$ {Number(course.originalPrice || 0).toFixed(2)}
-                  </span>
+                  {selectedTurma && selectedTurma.original_price > selectedTurma.price && selectedModality === 'presential' && (
+                    <span className="text-sm text-muted-foreground line-through block mb-1">
+                      De R$ {Number(selectedTurma.original_price).toFixed(2)}
+                    </span>
+                  )}
+                  {selectedTurma && selectedTurma.original_price_online > selectedTurma.price_online && selectedModality === 'online' && (
+                    <span className="text-sm text-muted-foreground line-through block mb-1">
+                      De R$ {Number(selectedTurma.original_price_online).toFixed(2)}
+                    </span>
+                  )}
                   <div className="text-3xl font-bold text-primary">
-                    R$ {Number(course.price || 0).toFixed(2)}
+                    R$ {
+                      selectedTurma 
+                        ? (selectedModality === 'online' 
+                            ? Number(selectedTurma.price_online).toFixed(2) 
+                            : Number(selectedTurma.price).toFixed(2)
+                          )
+                        : Number(course.price || 0).toFixed(2)
+                    }
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    ou 12x de R$ {(Number(course.price || 0) / 12).toFixed(2)}
-                  </p>
+                  {selectedTurma?.allow_installments && selectedModality === 'presential' && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ou até {selectedTurma.max_installments}x de R$ {(Number(selectedTurma.price) / selectedTurma.max_installments).toFixed(2)}
+                    </p>
+                  )}
                 </div>
+
+                {/* Seleção de Turma */}
+                {turmas.length > 0 && (
+                  <div className="mb-6 pb-6 border-b border-border">
+                    <label className="text-sm font-medium mb-2 block">Turma Disponível</label>
+                    <div className="space-y-2">
+                      {turmas.map((turma) => {
+                        const isComingSoon = turma.status === 'coming_soon';
+                        
+                        return (
+                          <button
+                            key={turma.id}
+                            onClick={() => {
+                              if (!isComingSoon) {
+                                setSelectedTurma(turma);
+                                // Se vagas presenciais esgotadas e tem online, selecionar online
+                                if (turma.presential_slots === 0 && turma.price_online > 0) {
+                                  setSelectedModality('online');
+                                } else {
+                                  setSelectedModality('presential');
+                                }
+                              }
+                            }}
+                            disabled={isComingSoon}
+                            className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                              selectedTurma?.id === turma.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50'
+                            } ${isComingSoon ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold text-sm">{turma.name}</span>
+                              {isComingSoon && (
+                                <Badge className="bg-orange-500 text-xs">Em Breve</Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Presencial:</span>{' '}
+                                <span className="font-bold text-primary">
+                                  R$ {Number(turma.price).toFixed(2)}
+                                </span>
+                                {turma.presential_slots > 0 && (
+                                  <Badge variant={turma.presential_slots <= 5 ? "destructive" : "secondary"} className="text-xs">
+                                    {turma.presential_slots} {turma.presential_slots === 1 ? 'vaga' : 'vagas'}
+                                  </Badge>
+                                )}
+                                {turma.presential_slots === 0 && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Esgotado
+                                  </Badge>
+                                )}
+                              </div>
+                              {turma.price_online > 0 && (
+                                <div>
+                                  <span className="font-medium">Online:</span>{' '}
+                                  <span className="font-bold text-primary">
+                                    R$ {Number(turma.price_online).toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Seleção de Modalidade */}
+                {selectedTurma && (
+                  <div className="mb-6 pb-6 border-b border-border">
+                    <Label className="text-sm font-medium mb-3 block">Modalidade</Label>
+                    <RadioGroup value={selectedModality} onValueChange={(value) => setSelectedModality(value as 'presential' | 'online')}>
+                      <div className={`flex items-center space-x-2 p-3 rounded-lg border border-border transition-all ${
+                        selectedTurma.presential_slots === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary cursor-pointer'
+                      }`}>
+                        <RadioGroupItem value="presential" id="presential" disabled={selectedTurma.presential_slots === 0} />
+                        <Label htmlFor="presential" className="flex-1 cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Presencial</span>
+                            {selectedTurma.presential_slots > 0 && (
+                              <Badge variant={selectedTurma.presential_slots <= 5 ? "destructive" : "secondary"} className="text-xs">
+                                {selectedTurma.presential_slots} {selectedTurma.presential_slots === 1 ? 'vaga' : 'vagas'}
+                              </Badge>
+                            )}
+                            {selectedTurma.presential_slots === 0 && (
+                              <Badge variant="destructive" className="text-xs">
+                                Esgotado
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            R$ {Number(selectedTurma.price).toFixed(2)}
+                            {selectedTurma.allow_installments && (
+                              <span> ou até {selectedTurma.max_installments}x</span>
+                            )}
+                          </div>
+                        </Label>
+                      </div>
+                      {selectedTurma.price_online > 0 && (
+                        <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:border-primary transition-all">
+                          <RadioGroupItem value="online" id="online" />
+                          <Label htmlFor="online" className="flex-1 cursor-pointer">
+                            <div className="font-medium">Online</div>
+                            <div className="text-sm text-muted-foreground">
+                              R$ {Number(selectedTurma.price_online).toFixed(2)}
+                            </div>
+                          </Label>
+                        </div>
+                      )}
+                    </RadioGroup>
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <Button
                     onClick={() => {
+                      if (!selectedTurma) {
+                        toast({ 
+                          title: 'Selecione uma turma', 
+                          description: 'Escolha uma turma disponível.',
+                          variant: 'destructive'
+                        });
+                        return;
+                      }
+                      
+                      if (selectedTurma.status === 'coming_soon') {
+                        toast({ 
+                          title: 'Turma em breve', 
+                          description: 'As inscrições ainda não foram abertas.',
+                          variant: 'destructive'
+                        });
+                        return;
+                      }
+                      
+                      if (selectedModality === 'presential' && selectedTurma.presential_slots === 0) {
+                        toast({ 
+                          title: 'Vagas esgotadas', 
+                          description: 'As vagas presenciais para esta turma estão esgotadas. Selecione a modalidade online.',
+                          variant: 'destructive'
+                        });
+                        return;
+                      }
+                      
                       const currentUser = getCurrentUser();
                       if (!currentUser) {
                         toast({ 
@@ -220,10 +432,16 @@ export default function CursoDetalhe() {
                         navigate('/aluno/login');
                         return;
                       }
-                      addToCart(course.id);
-                      toast({ title: 'Adicionado ao carrinho', description: `${course.title} foi adicionado ao carrinho.` });
+                      
+                      // Salvar no localStorage como "courseId:turmaId:modality"
+                      addToCart(`${course.id}:${selectedTurma.id}:${selectedModality}`);
+                      toast({ 
+                        title: 'Adicionado ao carrinho', 
+                        description: `${course.title} - ${selectedTurma.name} (${selectedModality === 'online' ? 'Online' : 'Presencial'})` 
+                      });
                     }}
                     className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg"
+                    disabled={!selectedTurma || selectedTurma.status === 'coming_soon'}
                   >
                     <ShoppingCart className="w-5 h-5 mr-2" />
                     Adicionar ao carrinho
