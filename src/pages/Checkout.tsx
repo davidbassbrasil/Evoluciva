@@ -44,6 +44,14 @@ export default function Checkout() {
     expiry: '',
     cvv: '',
   });
+  // Coupon state
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount: number;
+    turmaId?: string | null;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string>('');
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -321,10 +329,45 @@ export default function Checkout() {
       dueDate.setDate(dueDate.getDate() + 7); // Vencimento em 7 dias
 
       // Calcular total com desconto por método de pagamento
-      let totalValue = itemsToPurchase.reduce((s, it) => s + Number(it.price), 0);
+      let totalValue = itemsToPurchase.reduce((s, item) => {
+        const price = item.modality === 'online'
+          ? Number(item.turma.price_online ?? 0)
+          : Number(item.turma.price ?? 0);
+        return s + price;
+      }, 0);
+
+      // Aplicar desconto de cupom, se aplicado
+      if (appliedCoupon) {
+        // Se o cupom está associado a uma turma específica, aplica apenas nela
+        if (appliedCoupon.turmaId) {
+          const match = itemsToPurchase.find(i => i.turma.id === appliedCoupon.turmaId);
+          if (match) {
+            const price = match.modality === 'online' ? Number(match.turma.price_online ?? 0) : Number(match.turma.price ?? 0);
+            const cupomDiscount = price * (appliedCoupon.discount / 100);
+            totalValue -= cupomDiscount;
+          }
+        } else {
+          // Aplica desconto percentual sobre o total
+          totalValue -= totalValue * (appliedCoupon.discount / 100);
+        }
+      }
+
+      // Se o total é zero ou menor, finalizar matrícula sem passar pelo gateway
+      if (totalValue <= 0) {
+        // Registrar matrícula localmente e limpar carrinho
+        itemsToPurchase.forEach((item) => {
+          purchaseCourse(currentUser!.id, item.turma.course_id || item.turma.course?.id);
+        });
+        if (!turma) clearCart();
+        toast({ title: 'Matrícula concluída', description: 'Seu acesso foi liberado gratuitamente.', variant: 'default' });
+        navigate('/aluno/dashboard');
+        setLoading(false);
+        return;
+      }
       
       // Aplicar desconto baseado no método de pagamento (apenas primeira turma se cart)
-      const turmaForDiscount = itemsToPurchase[0];
+      const firstItemForDiscount = itemsToPurchase[0];
+      const turmaForDiscount = firstItemForDiscount?.turma;
       if (turmaForDiscount) {
         if (paymentMethod === 'CREDIT_CARD_ONE' && turmaForDiscount.discount_cash > 0) {
           const discount = totalValue * (Number(turmaForDiscount.discount_cash) / 100);
@@ -346,8 +389,8 @@ export default function Checkout() {
           billingType: 'CREDIT_CARD',
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
-          description: itemsToPurchase.map((i) => i.title).join(' | '),
-          externalReference: `${currentUser.id}-${course ? course.id : 'cart'}`,
+          description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+          externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           installmentCount: paymentMethod === 'CREDIT_CARD_INSTALL' && installmentCount > 1 ? installmentCount : undefined,
           creditCard: {
             holderName: formData.cardName,
@@ -367,9 +410,9 @@ export default function Checkout() {
         });
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          itemsToPurchase.forEach((it) => purchaseCourse(currentUser.id, it.id));
-          if (!course) clearCart();
-          toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
+          itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
+          if (!turma) clearCart();
+          toast({ title: 'Pagamento Aprovado!', descrição: 'Você já pode acessar seus cursos.' });
           navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
@@ -381,8 +424,8 @@ export default function Checkout() {
           billingType: 'PIX',
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
-          description: itemsToPurchase.map((i) => i.title).join(' | '),
-          externalReference: `${currentUser.id}-${course ? course.id : 'cart'}`,
+          description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+          externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
         });
 
         const pixData = await asaasService.getPixQrCode(payment.id);
@@ -396,8 +439,8 @@ export default function Checkout() {
           billingType: 'BOLETO',
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
-          description: itemsToPurchase.map((i) => i.title).join(' | '),
-          externalReference: `${currentUser.id}-${course ? course.id : 'cart'}`,
+          description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+          externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
         });
 
         setBoletoUrl(payment.bankSlipUrl);
@@ -415,8 +458,8 @@ export default function Checkout() {
           billingType: 'DEBIT_CARD',
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
-          description: itemsToPurchase.map((i) => i.title).join(' | '),
-          externalReference: `${currentUser.id}-${course ? course.id : 'cart'}`,
+          description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+          externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           creditCard: {
             holderName: formData.cardName,
             number: formData.cardNumber.replace(/\s/g, ''),
@@ -456,6 +499,27 @@ export default function Checkout() {
     }
   };
 
+  const handleApplyCoupon = () => {
+    setCouponError('');
+    const code = couponCode.trim().toUpperCase();
+    if (!code) {
+      setCouponError('Informe o código do cupom');
+      return;
+    }
+
+    const items = turma ? [{ turma, modality: turmaModality }] : cartItems;
+    // Encontrar primeira turma que possua este cupom
+    const match = items.find(i => (i.turma.coupon_code || '').toUpperCase() === code);
+    if (match) {
+      setAppliedCoupon({ code, discount: Number(match.turma.coupon_discount || 0), turmaId: match.turma.id });
+      toast({ title: 'Cupom aplicado', description: `Cupom ${code} aplicado (${match.turma.coupon_discount}% off)` });
+      return;
+    }
+
+    setCouponError('Cupom inválido ou não aplicável para este pedido');
+    setAppliedCoupon(null);
+  };
+
     // Items to display in the summary (single turma or cart items)
     const itemsToShow = turma ? [{ turma, modality: turmaModality }] : cartItems;
     
@@ -486,9 +550,23 @@ export default function Checkout() {
         paymentDiscount = subtotalBase * (Number(firstTurma.discount_debit) / 100);
       }
     }
-    
-    const subtotal = subtotalBase - paymentDiscount;
-    const discountTotal = subtotalOriginal - subtotalBase;
+    // Aplicar desconto de cupom (se aplicável)
+    let couponDiscount = 0;
+    if (appliedCoupon) {
+      // Se associado a turma específica
+      if (appliedCoupon.turmaId) {
+        const match = itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId);
+        if (match) {
+          const price = match.modality === 'online' ? Number(match.turma.price_online ?? 0) : Number(match.turma.price ?? 0);
+          couponDiscount = price * (appliedCoupon.discount / 100);
+        }
+      } else {
+        couponDiscount = subtotalBase * (appliedCoupon.discount / 100);
+      }
+    }
+
+    const subtotal = subtotalBase - paymentDiscount - couponDiscount;
+    const discountTotal = subtotalOriginal - subtotalBase + couponDiscount;
 
     if (!turma && itemsToShow.length === 0) {
       return (
@@ -630,6 +708,15 @@ export default function Checkout() {
                     <span>-R$ {paymentDiscount.toFixed(2)}</span>
                   </div>
                 )}
+                {appliedCoupon && (
+                  <div className="flex justify-between text-success mb-2">
+                    <span>Desconto (cupom: {appliedCoupon.code})</span>
+                    <span>-R$ { ( (itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.modality === 'online') ?
+                      (Number(itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.turma.price_online ?? 0) * (appliedCoupon.discount/100)) :
+                      (Number(itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.turma.price ?? 0) * (appliedCoupon.discount/100))
+                    ).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-xl font-bold">
                   <span>Total</span>
                   <span className="gradient-text">R$ {subtotal.toFixed(2)}</span>
@@ -755,6 +842,25 @@ export default function Checkout() {
                 </div>
 
                 {/* Métodos de Pagamento */}
+                {/* Cupom de desconto */}
+                <div className="mt-4 mb-6">
+                  <h3 className="font-semibold text-lg">Cupom de Desconto</h3>
+                  <div className="flex gap-3 mt-3">
+                    <Input
+                      id="coupon"
+                      type="text"
+                      className="h-12 rounded-xl"
+                      placeholder="Código do cupom (ex: PROMO50)"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    />
+                    <Button type="button" className="h-12" onClick={handleApplyCoupon}>Aplicar</Button>
+                  </div>
+                  {couponError && <div className="text-sm text-destructive mt-2">{couponError}</div>}
+                  {appliedCoupon && (
+                    <div className="text-sm text-success mt-2">Cupom <strong>{appliedCoupon.code}</strong> aplicado: -{appliedCoupon.discount}%</div>
+                  )}
+                </div>
                 <div className="border-t border-border pt-6">
                   <h3 className="font-semibold text-lg mb-4">Método de Pagamento</h3>
                   
@@ -1087,7 +1193,7 @@ export default function Checkout() {
 
                 <Button
                   type="submit"
-                  disabled={loading || !asaasService.isConfigured()}
+                  disabled={loading || (subtotal > 0 && !asaasService.isConfigured())}
                   className="w-full h-14 gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold text-lg rounded-xl"
                 >
                   {loading ? (
@@ -1095,27 +1201,27 @@ export default function Checkout() {
                     ) : paymentMethod === 'CREDIT_CARD_ONE' ? (
                       <>
                         <Check className="w-5 h-5 mr-2" />
-                        Finalizar Compra - R$ {subtotal.toFixed(2)}
+                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Finalizar Compra - R$ ${subtotal.toFixed(2)}`}
                       </>
                     ) : paymentMethod === 'CREDIT_CARD_INSTALL' ? (
                       <>
                         <Check className="w-5 h-5 mr-2" />
-                        Parcelado - {installmentCount}x - R$ {subtotal.toFixed(2)}
+                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Parcelado - ${installmentCount}x - R$ ${subtotal.toFixed(2)}`}
                       </>
                     ) : paymentMethod === 'PIX' ? (
                       <>
                         <QrCode className="w-5 h-5 mr-2" />
-                        Gerar PIX - R$ {subtotal.toFixed(2)}
+                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar PIX - R$ ${subtotal.toFixed(2)}`}
                       </>
                     ) : paymentMethod === 'DEBIT_CARD' ? (
                       <>
                         <Check className="w-5 h-5 mr-2" />
-                        Débito - R$ {subtotal.toFixed(2)}
+                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Débito - R$ ${subtotal.toFixed(2)}`}
                       </>
                     ) : (
                       <>
                         <Barcode className="w-5 h-5 mr-2" />
-                        Gerar Boleto - R$ {subtotal.toFixed(2)}
+                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar Boleto - R$ ${subtotal.toFixed(2)}`}
                       </>
                     )}
                 </Button>

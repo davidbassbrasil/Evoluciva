@@ -23,10 +23,30 @@ export default function AdminDashboard() {
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [recentTestimonials, setRecentTestimonials] = useState<Testimonial[]>([]);
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
+  const [coursePrices, setCoursePrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const loadData = async () => {
-      const courses = getCourses();
+      // Load courses from Supabase first, fallback to localStorage
+      let courses: Course[] = [];
+      if (supabase) {
+        try {
+          const { data: coursesData, error: coursesError } = await supabase
+            .from('courses')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (!coursesError && Array.isArray(coursesData)) {
+            courses = coursesData as Course[];
+          } else {
+            courses = getCourses();
+          }
+        } catch (e) {
+          courses = getCourses();
+        }
+      } else {
+        courses = getCourses();
+      }
       let users: User[] = [];
       
       // Try to fetch users from Supabase first
@@ -63,18 +83,81 @@ export default function AdminDashboard() {
       
       const testimonials = getTestimonials();
       const lessons = getLessons();
+
+      // Load turmas (to get prices per course)
+      let turmas: any[] = [];
+      if (supabase) {
+        try {
+          const { data: turmasData, error: turmasError } = await supabase
+            .from('turmas')
+            .select('id, course_id, price, price_online, status');
+          if (!turmasError && Array.isArray(turmasData)) {
+            turmas = turmasData;
+          }
+        } catch (e) {
+          // ignore, fallback to no turmas
+          turmas = [];
+        }
+      }
+
+      // Build a map course_id -> min active turma price
+      const priceMap: Record<string, number> = {};
+      turmas.forEach((t) => {
+        if (!t || t.status !== 'active') return;
+        const cid = t.course_id;
+        const p = Number(t.price) || 0;
+        if (!priceMap[cid] || priceMap[cid] === 0) priceMap[cid] = p;
+        else if (p > 0) priceMap[cid] = Math.min(priceMap[cid], p);
+      });
+      setCoursePrices(priceMap);
       
-      // Calculate total revenue from purchased courses
+      // If Supabase is available, fetch enrollments for the loaded users to count courses per user
+      const userCourseSets: Record<string, Set<string>> = {};
+      if (supabase && users.length > 0) {
+        try {
+          const ids = users.map(u => u.id);
+          const { data: enrollmentsData, error: enrollErr } = await supabase
+            .from('enrollments')
+            .select('profile_id, turma:turmas (course_id)')
+            .in('profile_id', ids);
+
+          if (!enrollErr && Array.isArray(enrollmentsData)) {
+            enrollmentsData.forEach((e: any) => {
+              const pid = e.profile_id;
+              const cid = e.turma && e.turma.course_id ? e.turma.course_id : null;
+              if (!pid) return;
+              if (!userCourseSets[pid]) userCourseSets[pid] = new Set<string>();
+              if (cid) userCourseSets[pid].add(cid);
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // Calculate total revenue from purchased courses using turma price when available
       let totalRevenue = 0;
       users.forEach(user => {
-        user.purchasedCourses.forEach(courseId => {
+        // combine purchasedCourses (from profile) with enrollments-derived course ids
+        const fromProfile = Array.isArray(user.purchasedCourses) ? user.purchasedCourses : [];
+        const fromEnroll = userCourseSets[user.id] ? Array.from(userCourseSets[user.id]) : [];
+        const merged = Array.from(new Set([...fromProfile, ...fromEnroll]));
+        // update user.purchasedCourses for downstream UI
+        user.purchasedCourses = merged;
+
+        merged.forEach(courseId => {
           const course = courses.find(c => c.id === courseId);
-          if (course) {
-            totalRevenue += course.price;
+          const priceFromTurma = priceMap[courseId];
+          if (priceFromTurma && priceFromTurma > 0) {
+            totalRevenue += priceFromTurma;
+          } else if (course) {
+            totalRevenue += Number(course.price || 0);
           }
         });
       });
 
+      // Temporarily disable revenue reporting until prices/configuration is finalized
+      const displayRevenue = 0;
       setStats({
         courses: courses.length,
         users: users.length,
@@ -84,9 +167,10 @@ export default function AdminDashboard() {
         tags: getTags().length,
         faqs: getFAQs().length,
         lessons: lessons.length,
-        totalRevenue,
+        totalRevenue: displayRevenue,
       });
 
+      // recent courses: prefer most recent by created_at (courses already ordered)
       setRecentCourses(courses.slice(0, 4));
       setRecentTestimonials(testimonials.slice(0, 3));
       setRecentUsers(users.slice(-3).reverse());
@@ -99,7 +183,7 @@ export default function AdminDashboard() {
     { icon: BookOpen, label: 'Cursos', value: stats.courses, color: 'bg-primary', link: '/admin/cursos' },
     { icon: Users, label: 'Alunos', value: stats.users, color: 'bg-emerald-500', link: '/admin/alunos' },
     { icon: PlayCircle, label: 'Aulas', value: stats.lessons, color: 'bg-violet-500', link: '/admin/cursos' },
-    { icon: TrendingUp, label: 'Receita Total', value: `R$ ${stats.totalRevenue.toFixed(2)}`, color: 'bg-amber-500', link: '/admin/financeiro' },
+    { icon: TrendingUp, label: 'Financeiro', value: `R$ ${stats.totalRevenue.toFixed(2)}`, color: 'bg-amber-500', link: '/admin/financeiro' },
   ];
 
   const secondaryCards = [
@@ -160,18 +244,23 @@ export default function AdminDashboard() {
               </Button>
             </Link>
           </div>
-          <div className="space-y-3">
-            {recentCourses.map((course) => (
-              <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors">
-                <img src={course.image} alt={course.title} className="w-16 h-12 rounded-lg object-cover" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{course.title}</h3>
-                  <p className="text-sm text-muted-foreground">{course.instructor}</p>
+            <div className="space-y-3">
+            {recentCourses.map((course) => {
+              const displayPrice = (coursePrices && coursePrices[course.id]) ? coursePrices[course.id] : Number(course.price || 0);
+              const category = (course.category || '').toString();
+              const showCategory = category && category.trim().length > 0 && ['geral', 'general'].indexOf(category.trim().toLowerCase()) === -1;
+              return (
+                <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors">
+                  <img src={course.image} alt={course.title} className="w-16 h-12 rounded-lg object-cover" />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium truncate">{course.title}</h3>
+                    <p className="text-sm text-muted-foreground">{course.instructor}</p>
+                  </div>
+                  {showCategory && <Badge variant="secondary">{course.category}</Badge>}
+                  <span className="font-bold text-primary">R$ {displayPrice}</span>
                 </div>
-                <Badge variant="secondary">{course.category}</Badge>
-                <span className="font-bold text-primary">R$ {course.price}</span>
-              </div>
-            ))}
+              );
+            })}
             {recentCourses.length === 0 && (
               <p className="text-center text-muted-foreground py-8">Nenhum curso cadastrado</p>
             )}

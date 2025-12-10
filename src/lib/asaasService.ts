@@ -1,13 +1,14 @@
 /**
- * Asaas Payment Gateway Integration
+ * Asaas Payment Gateway Integration via Supabase Edge Function
  * API Documentation: https://docs.asaas.com/reference/comece-por-aqui
+ * 
+ * IMPORTANTE: Usa Edge Function do Supabase com autenticação JWT
  */
 
-const ASAAS_API_URL = import.meta.env.VITE_ASAAS_ENV === 'production' 
-  ? 'https://api.asaas.com/v3' 
-  : 'https://api-sandbox.asaas.com/v3';
+import { supabase } from './supabaseClient';
 
-const ASAAS_API_KEY = import.meta.env.VITE_ASAAS_API_KEY || '';
+// URL da Edge Function (process-payment)
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-payment`;
 
 interface AsaasCustomer {
   id?: string;
@@ -117,42 +118,46 @@ interface AsaasDebitCardPayment {
 }
 
 class AsaasService {
-  private apiKey: string;
-  private apiUrl: string;
-
-  constructor() {
-    this.apiKey = ASAAS_API_KEY;
-    this.apiUrl = ASAAS_API_URL;
-  }
-
-  private async request<T>(
+  /**
+   * Método privado para chamar a Edge Function com autenticação
+   */
+  private async callEdgeFunction<T>(
+    method: string,
     endpoint: string,
-    options: RequestInit = {}
+    body?: any
   ): Promise<T> {
-    const url = `${this.apiUrl}${endpoint}`;
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      'access_token': this.apiKey,
-      ...options.headers,
-    };
-
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
+      // Obter token de autenticação do Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // Chamar Edge Function com autenticação JWT
+      const response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          method,
+          endpoint,
+          body,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Asaas API Error:', data);
-        throw new Error(data.errors?.[0]?.description || 'Erro na API Asaas');
+        console.error('Edge Function Error:', data);
+        throw new Error(data.message || data.error || 'Erro na API Asaas');
       }
 
       return data;
     } catch (error) {
-      console.error('Request error:', error);
+      console.error('Edge Function request error:', error);
       throw error;
     }
   }
@@ -172,17 +177,15 @@ class AsaasService {
       // Cliente não existe, continua para criar
     }
 
-    return this.request<any>('/customers', {
-      method: 'POST',
-      body: JSON.stringify(customerData),
-    });
+    return this.callEdgeFunction<any>('POST', '/customers', customerData);
   }
 
   /**
    * Buscar cliente por CPF/CNPJ
    */
   async getCustomerByCpfCnpj(cpfCnpj: string): Promise<any> {
-    const response = await this.request<any>(
+    const response = await this.callEdgeFunction<any>(
+      'GET',
       `/customers?cpfCnpj=${cpfCnpj}`
     );
     return response.data?.[0] || null;
@@ -193,10 +196,7 @@ class AsaasService {
    * Docs: https://docs.asaas.com/reference/criar-nova-cobranca
    */
   async createPayment(paymentData: AsaasPayment): Promise<any> {
-    return this.request<any>('/payments', {
-      method: 'POST',
-      body: JSON.stringify(paymentData),
-    });
+    return this.callEdgeFunction<any>('POST', '/payments', paymentData);
   }
 
   /**
@@ -204,10 +204,7 @@ class AsaasService {
    * Docs: https://docs.asaas.com/reference/criar-cobranca-com-cartao-de-credito
    */
   async createCreditCardPayment(paymentData: AsaasCreditCardPayment): Promise<any> {
-    return this.request<any>('/payments', {
-      method: 'POST',
-      body: JSON.stringify(paymentData),
-    });
+    return this.callEdgeFunction<any>('POST', '/payments', paymentData);
   }
 
   /**
@@ -215,10 +212,7 @@ class AsaasService {
    * Alguns gateways tratam débito de forma distinta; Asaas aceita `DEBIT_CARD` nos pagamentos.
    */
   async createDebitCardPayment(paymentData: AsaasDebitCardPayment): Promise<any> {
-    return this.request<any>('/payments', {
-      method: 'POST',
-      body: JSON.stringify(paymentData),
-    });
+    return this.callEdgeFunction<any>('POST', '/payments', paymentData);
   }
 
   /**
@@ -226,7 +220,7 @@ class AsaasService {
    * Docs: https://docs.asaas.com/reference/obter-qr-code-para-pagamentos-via-pix
    */
   async getPixQrCode(paymentId: string): Promise<any> {
-    return this.request<any>(`/payments/${paymentId}/pixQrCode`);
+    return this.callEdgeFunction<any>('GET', `/payments/${paymentId}/pixQrCode`);
   }
 
   /**
@@ -234,7 +228,7 @@ class AsaasService {
    * Docs: https://docs.asaas.com/reference/obter-linha-digitavel-do-boleto
    */
   async getBoletoIdentificationField(paymentId: string): Promise<any> {
-    return this.request<any>(`/payments/${paymentId}/identificationField`);
+    return this.callEdgeFunction<any>('GET', `/payments/${paymentId}/identificationField`);
   }
 
   /**
@@ -242,21 +236,22 @@ class AsaasService {
    * Docs: https://docs.asaas.com/reference/recuperar-uma-unica-cobranca
    */
   async getPayment(paymentId: string): Promise<any> {
-    return this.request<any>(`/payments/${paymentId}`);
+    return this.callEdgeFunction<any>('GET', `/payments/${paymentId}`);
   }
 
   /**
-   * Verificar se a API Key está configurada
+   * Verificar se a API está configurada
    */
   isConfigured(): boolean {
-    return !!this.apiKey && this.apiKey.length > 0;
+    return !!EDGE_FUNCTION_URL;
   }
 
   /**
-   * Verificar ambiente (sandbox ou produção)
+   * Verificar ambiente (sandbox ou produção) - definido nas secrets da Edge Function
    */
   isSandbox(): boolean {
-    return this.apiUrl.includes('sandbox');
+    // Retorna true por padrão (sandbox). Em produção, a Edge Function usa ASAAS_ENV=production
+    return true;
   }
 }
 

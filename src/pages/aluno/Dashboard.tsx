@@ -51,7 +51,7 @@ export default function AlunoDashboard() {
             .order('display_order', { ascending: true, nullsFirst: false })
             .order('title', { ascending: true });
 
-          if (!coursesError && coursesData) {
+            if (!coursesError && coursesData) {
             // Get active turmas to fetch prices
             const { data: turmasData } = await supabase
               .from('turmas')
@@ -75,7 +75,27 @@ export default function AlunoDashboard() {
             });
 
             setAllCourses(coursesWithPrices);
-            const purchasedCrs = coursesWithPrices.filter((c) => currentUser.purchasedCourses.includes(c.id));
+
+            // Also fetch enrollments for this user (admin can enroll students)
+            let enrolledCourseIds: string[] = [];
+            try {
+              const { data: enrollData, error: enrollError } = await supabase
+                .from('enrollments')
+                .select('turma:turmas (course_id)')
+                .eq('profile_id', currentUser.id);
+
+              if (!enrollError && enrollData) {
+                enrolledCourseIds = (enrollData || [])
+                  .map((e: any) => (e.turma && e.turma.course_id) ? e.turma.course_id : null)
+                  .filter((id: any) => id) as string[];
+              }
+            } catch (err) {
+              console.error('Error loading enrollments for user:', err);
+            }
+
+            // Merge purchasedCourses (from localStorage) with enrolledCourseIds
+            const mergedCourseIds = Array.from(new Set([...(currentUser.purchasedCourses || []), ...enrolledCourseIds]));
+            const purchasedCrs = coursesWithPrices.filter((c) => mergedCourseIds.includes(c.id));
             setCourses(purchasedCrs);
           }
         } catch (err) {

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getCurrentUser, getCourses, getLessonsByCourse, updateProgress } from '@/lib/localStorage';
+import supabase from '@/lib/supabaseClient';
 import { Course, Lesson, User } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -17,35 +18,101 @@ export default function CursoPlayer() {
   const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      navigate('/aluno/login');
-      return;
-    }
-    setUser(currentUser);
+    const load = async () => {
+      const currentUser = getCurrentUser();
+      if (!currentUser) {
+        navigate('/aluno/login');
+        return;
+      }
+      setUser(currentUser);
 
-    if (!courseId) return;
+      if (!courseId) return;
 
-    const allCourses = getCourses();
-    const foundCourse = allCourses.find((c) => c.id === courseId);
-    
-    if (!foundCourse || !currentUser.purchasedCourses.includes(courseId)) {
-      navigate('/aluno/dashboard');
-      return;
-    }
+      // Try to load course from Supabase first
+      let foundCourse: Course | null = null;
+      try {
+        const { data: courseData, error: courseError } = await supabase
+          .from('courses')
+          .select('*')
+          .eq('id', courseId)
+          .single();
 
-    setCourse(foundCourse);
-    const courseLessons = getLessonsByCourse(courseId).sort((a, b) => a.order - b.order);
-    setLessons(courseLessons);
+        if (!courseError && courseData) {
+          foundCourse = courseData as Course;
+        }
+      } catch (err) {
+        console.error('Error fetching course from supabase:', err);
+      }
 
-    if (courseLessons.length > 0) {
-      // Find first incomplete lesson or start from beginning
-      const progress = currentUser.progress[courseId] || [];
-      const incompleteLesson = courseLessons.find(
-        (l) => !progress.find((p) => p.lessonId === l.id && p.completed)
-      );
-      setCurrentLesson(incompleteLesson || courseLessons[0]);
-    }
+      // Fallback to localStorage courses
+      if (!foundCourse) {
+        const allCourses = getCourses();
+        foundCourse = allCourses.find((c) => c.id === courseId) || null;
+      }
+
+      if (!foundCourse) {
+        navigate('/aluno/dashboard');
+        return;
+      }
+
+      // Check if user has access: either purchased (local) or has an enrollment in the DB
+      let hasAccess = (currentUser.purchasedCourses || []).includes(courseId);
+      if (!hasAccess) {
+        try {
+          const { data: enrollData, error: enrollError } = await supabase
+            .from('enrollments')
+            .select('id, turma:turmas (id, course_id, status)')
+            .eq('profile_id', currentUser.id);
+
+          if (!enrollError && enrollData) {
+            const matched = (enrollData as any[]).find((e) => e.turma && e.turma.course_id === courseId);
+            if (matched) hasAccess = true;
+          }
+        } catch (err) {
+          console.error('Error checking enrollments:', err);
+        }
+      }
+
+      if (!hasAccess) {
+        navigate('/aluno/dashboard');
+        return;
+      }
+
+      setCourse(foundCourse);
+
+      // Load lessons from Supabase, fallback to localStorage
+      let courseLessons: Lesson[] = [];
+      try {
+        const { data: lessonsData, error: lessonsError } = await supabase
+          .from('lessons')
+          .select('*')
+          .eq('course_id', courseId)
+          .order('order', { ascending: true });
+
+        if (!lessonsError && Array.isArray(lessonsData) && lessonsData.length > 0) {
+          courseLessons = lessonsData as Lesson[];
+        }
+      } catch (err) {
+        console.error('Error fetching lessons from supabase:', err);
+      }
+
+      if (courseLessons.length === 0) {
+        courseLessons = getLessonsByCourse(courseId).sort((a, b) => a.order - b.order);
+      }
+
+      setLessons(courseLessons);
+
+      if (courseLessons.length > 0) {
+        // Find first incomplete lesson or start from beginning
+        const progress = currentUser.progress[courseId] || [];
+        const incompleteLesson = courseLessons.find(
+          (l) => !progress.find((p) => p.lessonId === l.id && p.completed)
+        );
+        setCurrentLesson(incompleteLesson || courseLessons[0]);
+      }
+    };
+
+    load();
   }, [courseId, navigate]);
 
   const isLessonCompleted = (lessonId: string) => {
