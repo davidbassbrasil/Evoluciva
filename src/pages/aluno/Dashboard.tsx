@@ -40,19 +40,42 @@ export default function AlunoDashboard() {
 
       setUser(currentUser);
 
-      // Load courses from Supabase
+      // Load courses from Supabase with turma prices
       if (supabase) {
         try {
-          const { data, error } = await supabase
+          // First get all active courses
+          const { data: coursesData, error: coursesError } = await supabase
             .from('courses')
             .select('*')
             .eq('active', true)
             .order('display_order', { ascending: true, nullsFirst: false })
             .order('title', { ascending: true });
 
-          if (!error && data) {
-            setAllCourses(data);
-            const purchasedCrs = data.filter((c) => currentUser.purchasedCourses.includes(c.id));
+          if (!coursesError && coursesData) {
+            // Get active turmas to fetch prices
+            const { data: turmasData } = await supabase
+              .from('turmas')
+              .select('course_id, price, price_online')
+              .eq('status', 'active');
+
+            // Map courses with presential price from turmas
+            const coursesWithPrices = coursesData.map((course) => {
+              const courseTurmas = turmasData?.filter((t) => t.course_id === course.id) || [];
+              
+              // Find minimum presential price
+              let minPrice = 0;
+              if (courseTurmas.length > 0) {
+                const presentialPrices = courseTurmas
+                  .map((t) => Number(t.price))
+                  .filter((p) => p > 0);
+                minPrice = presentialPrices.length > 0 ? Math.min(...presentialPrices) : 0;
+              }
+              
+              return { ...course, price: minPrice };
+            });
+
+            setAllCourses(coursesWithPrices);
+            const purchasedCrs = coursesWithPrices.filter((c) => currentUser.purchasedCourses.includes(c.id));
             setCourses(purchasedCrs);
           }
         } catch (err) {
@@ -150,7 +173,7 @@ export default function AlunoDashboard() {
                     key={course.id}
                     className="group bg-card rounded-2xl overflow-hidden border border-border/50 hover:shadow-xl transition-all duration-300 hover-lift"
                   >
-                    <div className="relative h-40 overflow-hidden">
+                    <div className="relative aspect-[3/4] overflow-hidden">
                       <img
                         src={course.image}
                         alt={course.title}
@@ -219,7 +242,7 @@ export default function AlunoDashboard() {
                     key={course.id}
                     className="bg-card rounded-xl overflow-hidden border border-border/50 hover:shadow-lg transition-all group"
                   >
-                    <div className="relative h-28 overflow-hidden">
+                    <div className="relative aspect-[3/4] overflow-hidden">
                       <img
                         src={course.image}
                         alt={course.title}
@@ -229,7 +252,7 @@ export default function AlunoDashboard() {
                     <div className="p-4">
                       <h4 className="font-semibold text-sm line-clamp-2 mb-2">{course.title}</h4>
                       <div className="flex items-center justify-between">
-                        <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span>
+                        <span className="text-primary font-bold">Presencial: R$ {Number(course.price || 0).toFixed(2)}</span>
                         <Link to={`/curso/${course.slug || course.id}`}>
                           <Button size="sm" variant="outline">
                             Ver mais

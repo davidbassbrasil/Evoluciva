@@ -40,15 +40,27 @@ export default function Cursos() {
               slug,
               estado,
               duration,
-              lessons
+              lessons,
+              active
             )
           `)
-          .eq('status', 'active')
+          .in('status', ['active', 'coming_soon'])
           .order('created_at', { ascending: false });
 
         if (!error && data) {
           const now = new Date();
           const availableTurmas = data.filter((t: any) => {
+            // Filtrar se o curso está desativado
+            if (!t.course?.active) return false;
+            
+            // Filtrar se não tem preço definido (nem presencial nem online)
+            if (!t.price && !t.price_online) return false;
+            if (t.price <= 0 && (!t.price_online || t.price_online <= 0)) return false;
+            
+            // Se é coming_soon, sempre mostrar (para informação)
+            if (t.status === 'coming_soon') return true;
+            
+            // Para active, filtrar por datas de venda
             const startDate = t.sale_start_date ? new Date(t.sale_start_date) : null;
             const endDate = t.sale_end_date ? new Date(t.sale_end_date) : null;
             if (startDate && now < startDate) return false;
@@ -161,17 +173,12 @@ export default function Cursos() {
                 className="group"
               >
                 <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50 h-full flex flex-col">
-                  <div className="relative aspect-[5/4] overflow-hidden">
+                  <div className="relative aspect-[3/4] overflow-hidden">
                     <img
                       src={turma.course?.image}
                       alt={turma.course?.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="secondary" className="bg-card/90 backdrop-blur-sm">
-                        {turma.course?.category}
-                      </Badge>
-                    </div>
                     {turma.status === 'coming_soon' && (
                       <div className="absolute top-3 left-3">
                         <Badge className="bg-orange-500">Em Breve</Badge>

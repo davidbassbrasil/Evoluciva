@@ -62,9 +62,13 @@ export default function CursoDetalhe() {
           .order('created_at', { ascending: false });
         
         if (!turmasError && turmasData) {
-          // Filtrar por datas de venda
+          // Filtrar por datas de venda e preços
           const now = new Date();
           const availableTurmas = turmasData.filter((turma: any) => {
+            // Filtrar se não tem preço definido (nem presencial nem online)
+            if (!turma.price && !turma.price_online) return false;
+            if (turma.price <= 0 && (!turma.price_online || turma.price_online <= 0)) return false;
+            
             const startDate = turma.sale_start_date ? new Date(turma.sale_start_date) : null;
             const endDate = turma.sale_end_date ? new Date(turma.sale_end_date) : null;
             
@@ -192,7 +196,7 @@ export default function CursoDetalhe() {
               </div>
 
               {/* Course Image */}
-              <div className="aspect-[5/4] rounded-2xl overflow-hidden">
+              <div className="aspect-[3/4] rounded-2xl overflow-hidden">
                 <img 
                   src={course.image} 
                   alt={course.title}
@@ -241,7 +245,7 @@ export default function CursoDetalhe() {
             {/* Sidebar - Purchase Card */}
             <div className="lg:col-span-1">
               <div className="sticky top-32 bg-card rounded-2xl p-6 border border-border/50 shadow-lg">
-                <div className="aspect-[5/4] rounded-xl overflow-hidden mb-6">
+                <div className="aspect-[3/4] rounded-xl overflow-hidden mb-6">
                   <img 
                     src={course.image} 
                     alt={course.title}
