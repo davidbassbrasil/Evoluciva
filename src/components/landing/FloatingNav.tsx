@@ -83,6 +83,37 @@ export function FloatingNav() {
     document.documentElement.classList.toggle('dark', newDark);
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const isOnHomePage = window.location.pathname === '/';
+    
+    const scrollToElement = () => {
+      const element = document.querySelector(sectionId);
+      if (element) {
+        const navHeight = 100; // Altura aproximada do nav
+        const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+        const offsetPosition = elementPosition - navHeight;
+        
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
+      }
+    };
+    
+    if (isOnHomePage) {
+      // Already on home page, just scroll
+      scrollToElement();
+      setIsMenuOpen(false);
+    } else {
+      // Navigate to home first, then scroll
+      navigate('/');
+      setTimeout(() => {
+        scrollToElement();
+      }, 300);
+      setIsMenuOpen(false);
+    }
+  };
+
   const navLinks = [
     { href: '/cursos', label: 'Cursos', isRoute: true },
     { href: '/sobre', label: 'Sobre', isRoute: true },
@@ -132,13 +163,13 @@ export function FloatingNav() {
                 {link.label}
               </Link>
             ) : (
-              <a
+              <button
                 key={link.href}
-                href={link.href}
+                onClick={() => scrollToSection(link.href)}
                 className="text-muted-foreground hover:text-foreground transition-colors font-medium text-sm"
               >
                 {link.label}
-              </a>
+              </button>
             )
           ))}
         </div>
@@ -239,14 +270,13 @@ export function FloatingNav() {
                   {link.label}
                 </Link>
               ) : (
-                <a
+                <button
                   key={link.href}
-                  href={link.href}
-                  className="text-muted-foreground hover:text-foreground transition-colors font-medium py-2"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={() => scrollToSection(link.href)}
+                  className="text-left text-muted-foreground hover:text-foreground transition-colors font-medium py-2"
                 >
                   {link.label}
-                </a>
+                </button>
               )
             ))}
             <div className="flex flex-col gap-2 pt-2">

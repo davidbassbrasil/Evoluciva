@@ -74,12 +74,12 @@ export default function Cart() {
               ))}
             </div>
 
-            <aside className="bg-card p-6 rounded-2xl border border-border/50 h-max">
+            <aside className="bg-card p-6 rounded-2xl border border-border/50 h-max mt-4">
               <div className="mb-4">
                 <div className="text-muted-foreground text-sm">Total</div>
                 <div className="text-2xl font-bold">R$ {total.toFixed(2)}</div>
               </div>
-              <div className="space-y-2">
+              <div className="flex flex-col gap-3">
                 <Button onClick={() => navigate('/checkout')} className="w-full gradient-bg text-primary-foreground">Finalizar Compra</Button>
                 <Link to="/cursos">
                   <Button variant="ghost" className="w-full">Continuar comprando</Button>

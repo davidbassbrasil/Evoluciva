@@ -13,6 +13,7 @@ import AlunoDashboard from "./pages/aluno/Dashboard";
 import CursoPlayer from "./pages/aluno/CursoPlayer";
 import AlunoConfiguracoes from "./pages/aluno/Configuracoes";
 import Checkout from "./pages/Checkout";
+import Links from "./pages/Links";
 import AdminLogin from "./pages/admin/Login";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminCursos from "./pages/admin/Cursos";
@@ -46,12 +47,13 @@ const App = () => (
           <Route path="/curso/:courseId" element={<CursoDetalhe />} />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<CheckoutCart />} />
+          <Route path="/checkout" element={<Checkout />} />
           <Route path="/checkout/:courseId" element={<Checkout />} />
           <Route path="/termos-de-uso" element={<TermosDeUso />} />
           <Route path="/politica-de-privacidade" element={<PoliticaDePrivacidade />} />
           <Route path="/lgpd" element={<LGPD />} />
           <Route path="/politica-de-reembolso" element={<PoliticaDeReembolso />} />
+          <Route path="/links" element={<Links />} />
           <Route path="/aluno/login" element={<AlunoLogin />} />
           <Route path="/aluno/dashboard" element={<AlunoDashboard />} />
           <Route path="/aluno/curso/:courseId" element={<CursoPlayer />} />

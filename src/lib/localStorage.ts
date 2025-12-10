@@ -93,10 +93,10 @@ export const logout = () => localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
 
 // Site Settings
 export const getSettings = (): SiteSettings => getItem(STORAGE_KEYS.SETTINGS, {
-  siteName: 'ConcursaPlus',
+  siteName: 'Evoluciva',
   logo: '',
   primaryColor: '#3B82F6',
-  footerText: '© 2024 ConcursaPlus. Todos os direitos reservados.',
+  footerText: '© 2024 Evoluciva. Todos os direitos reservados.',
   socialLinks: {
     instagram: 'https://instagram.com',
     facebook: 'https://facebook.com',
