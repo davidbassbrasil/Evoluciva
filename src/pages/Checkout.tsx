@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { getCourses, getCurrentUser, getCart, clearCart, purchaseCourse, setCurrentUser, addUser, getUserByEmail } from '@/lib/localStorage';
+import { getCurrentUser, getCart, clearCart, purchaseCourse, setCurrentUser, addUser, getUserByEmail } from '@/lib/localStorage';
 import { asaasService } from '@/lib/asaasService';
 import type { Course, User } from '@/types';
+import supabase from '@/lib/supabaseClient';
 
 export default function Checkout() {
   const { courseId } = useParams();
@@ -45,27 +46,74 @@ export default function Checkout() {
 
   useEffect(() => {
     const currentUser = getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      setFormData((prev) => ({ ...prev, name: currentUser.name, email: currentUser.email }));
+    
+    // SECURITY: Redirect to login if not authenticated
+    if (!currentUser) {
+      toast({ 
+        title: 'Autenticação necessária', 
+        description: 'Você precisa estar logado para finalizar a compra.',
+        variant: 'destructive'
+      });
+      // Save current path to return after login
+      sessionStorage.setItem('checkout_return_path', window.location.pathname);
+      navigate('/aluno/login');
+      return;
     }
 
-    if (courseId) {
-      const courses = getCourses();
-      const foundCourse = courses.find((c) => c.id === courseId);
-      if (!foundCourse) {
-        navigate('/');
+    setUser(currentUser);
+    setFormData((prev) => ({ ...prev, name: currentUser.name, email: currentUser.email }));
+
+    const loadCourseData = async () => {
+      if (!supabase) {
+        if (courseId) navigate('/');
         return;
       }
-      setCourse(foundCourse);
-    } else {
-      // Cart mode
-      const cart = getCart();
-      const courses = getCourses();
-      const selected = cart.map((id) => courses.find((c) => c.id === id)).filter(Boolean) as Course[];
-      setCartItems(selected);
-    }
-  }, [courseId, navigate]);
+
+      try {
+        if (courseId) {
+          // Single course checkout
+          const { data, error } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('id', courseId)
+            .single();
+
+          if (error || !data) {
+            toast({ title: 'Erro', description: 'Curso não encontrado', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          setCourse(data);
+        } else {
+          // Cart checkout
+          const cartIds = getCart();
+          if (cartIds.length === 0) {
+            toast({ title: 'Carrinho vazio', description: 'Adicione cursos antes de finalizar a compra.' });
+            navigate('/cursos');
+            return;
+          }
+
+          const { data, error } = await supabase
+            .from('courses')
+            .select('*')
+            .in('id', cartIds);
+
+          if (!error && data) {
+            const orderedCourses = cartIds
+              .map(id => data.find(course => course.id === id))
+              .filter(Boolean) as Course[];
+            setCartItems(orderedCourses);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading course data:', err);
+        toast({ title: 'Erro', description: 'Erro ao carregar dados do curso', variant: 'destructive' });
+        navigate('/');
+      }
+    };
+
+    loadCourseData();
+  }, [courseId, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,8 +297,8 @@ export default function Checkout() {
 
     // Items to display in the summary (single course or cart items)
     const itemsToShow = course ? [course] : cartItems;
-    const subtotalOriginal = itemsToShow.reduce((s, it) => s + (it.originalPrice ?? it.price ?? 0), 0);
-    const subtotal = itemsToShow.reduce((s, it) => s + (it.price ?? 0), 0);
+    const subtotalOriginal = itemsToShow.reduce((s, it) => s + Number(it.originalPrice ?? it.price ?? 0), 0);
+    const subtotal = itemsToShow.reduce((s, it) => s + Number(it.price ?? 0), 0);
     const discountTotal = subtotalOriginal - subtotal;
 
     if (!course && itemsToShow.length === 0) {
@@ -336,7 +384,7 @@ export default function Checkout() {
                           <div className="font-medium">{it.title}</div>
                           <div className="text-sm text-muted-foreground">{it.instructor}</div>
                         </div>
-                        <div className="font-semibold">R$ { (it.price ?? 0).toFixed(2) }</div>
+                        <div className="font-semibold">R$ {Number(it.price ?? 0).toFixed(2)}</div>
                       </li>
                     ))}
                   </ul>

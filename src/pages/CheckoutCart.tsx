@@ -108,8 +108,8 @@ export default function CheckoutCart() {
                       <p className="text-sm text-muted-foreground">{i.instructor}</p>
                     </div>
                     <div className="ml-auto text-right">
-                      <div className="text-muted-foreground text-sm line-through">R$ {i.originalPrice.toFixed(2)}</div>
-                      <div className="text-lg font-bold">R$ {i.price.toFixed(2)}</div>
+                      <div className="text-muted-foreground text-sm line-through">R$ {Number(i.originalPrice || 0).toFixed(2)}</div>
+                      <div className="text-lg font-bold">R$ {Number(i.price || 0).toFixed(2)}</div>
                     </div>
                   </div>
                 ))}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabaseClient';
+import supabase from '@/lib/supabaseClient';
 import { Course } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,8 @@ export function CoursesSection() {
         const { data, error } = await supabase
           .from('courses')
           .select('*')
+          .eq('active', true)
+          .order('display_order', { ascending: true, nullsFirst: false })
           .order('featured', { ascending: false })
           .order('title', { ascending: true });
 
@@ -108,13 +110,13 @@ export function CoursesSection() {
                     <div className="flex items-end justify-between">
                       <div>
                         <span className="text-muted-foreground text-sm line-through">
-                          R$ {course.originalPrice.toFixed(2)}
+                          R$ {Number(course.originalPrice || 0).toFixed(2)}
                         </span>
                         <div className="text-2xl font-bold text-primary">
-                          R$ {course.price.toFixed(2)}
+                          R$ {Number(course.price || 0).toFixed(2)}
                         </div>
                       </div>
-                      <Link to={`/curso/${course.id}`}>
+                      <Link to={`/curso/${course.slug || course.id}`}>
                         <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                           Saber mais
                         </Button>

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, Play, Clock, BookOpen, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { getCurrentUser, getCourses, getLessonsByCourse, logout } from '@/lib/localStorage';
+import { getCurrentUser, getLessonsByCourse, logout } from '@/lib/localStorage';
 import { Course, Lesson, User } from '@/types';
 import supabase from '@/lib/supabaseClient';
 
@@ -40,10 +40,25 @@ export default function AlunoDashboard() {
 
       setUser(currentUser);
 
-      const allCrs = getCourses();
-      setAllCourses(allCrs);
-      const purchasedCrs = allCrs.filter((c) => currentUser.purchasedCourses.includes(c.id));
-      setCourses(purchasedCrs);
+      // Load courses from Supabase
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('active', true)
+            .order('display_order', { ascending: true, nullsFirst: false })
+            .order('title', { ascending: true });
+
+          if (!error && data) {
+            setAllCourses(data);
+            const purchasedCrs = data.filter((c) => currentUser.purchasedCourses.includes(c.id));
+            setCourses(purchasedCrs);
+          }
+        } catch (err) {
+          console.error('Error loading courses:', err);
+        }
+      }
     };
 
     loadUserData();
@@ -214,10 +229,10 @@ export default function AlunoDashboard() {
                     <div className="p-4">
                       <h4 className="font-semibold text-sm line-clamp-2 mb-2">{course.title}</h4>
                       <div className="flex items-center justify-between">
-                        <span className="text-primary font-bold">R$ {course.price}</span>
-                        <Link to={`/checkout/${course.id}`}>
+                        <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span>
+                        <Link to={`/curso/${course.slug || course.id}`}>
                           <Button size="sm" variant="outline">
-                            Comprar
+                            Ver mais
                           </Button>
                         </Link>
                       </div>

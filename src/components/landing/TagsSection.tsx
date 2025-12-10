@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getTags } from '@/lib/localStorage';
 import { Tag } from '@/types';
-import { supabase } from '@/lib/supabaseClient';
+import supabase from '@/lib/supabaseClient';
 
 export function TagsSection() {
   const [tags, setTags] = useState<Tag[]>([]);

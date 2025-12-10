@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getCourses } from '@/lib/localStorage';
+import supabase from '@/lib/supabaseClient';
 import { Course } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
@@ -14,12 +14,37 @@ export default function Cursos() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const allCourses = getCourses();
-    setCourses(allCourses);
-    setFilteredCourses(allCourses);
+    const loadCourses = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('courses')
+          .select('*')
+          .eq('active', true)
+          .order('display_order', { ascending: true, nullsFirst: false })
+          .order('title', { ascending: true });
+
+        if (!error && data) {
+          setCourses(data);
+          setFilteredCourses(data);
+        }
+      } catch (err) {
+        console.error('Error loading courses:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCourses();
   }, []);
 
   useEffect(() => {
@@ -33,12 +58,12 @@ export default function Cursos() {
       );
     }
     
-    if (selectedCategory) {
-      result = result.filter(course => course.category === selectedCategory);
+    if (selectedEstado) {
+      result = result.filter(course => course.estado === selectedEstado);
     }
     
     setFilteredCourses(result);
-  }, [searchTerm, selectedCategory, courses]);
+  }, [searchTerm, selectedEstado, courses]);
 
   const states = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE', 'CE', 'DF', 'GO', 'PA', 'AM', 'MT', 'MS', 'ES', 'PB', 'RN', 'AL', 'SE', 'PI', 'MA', 'TO', 'RO', 'AC', 'AP', 'RR'];
 
@@ -73,8 +98,8 @@ export default function Cursos() {
               />
             </div>
             <Select
-              value={selectedCategory || "all"}
-              onValueChange={(value) => setSelectedCategory(value === "all" ? null : value)}
+              value={selectedEstado || "all"}
+              onValueChange={(value) => setSelectedEstado(value === "all" ? null : value)}
             >
               <SelectTrigger className="w-full md:w-48 bg-card">
                 <SelectValue placeholder="Filtrar por estado" />
@@ -96,11 +121,21 @@ export default function Cursos() {
           </p>
 
           {/* Courses Grid */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredCourses.map((course) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {loading ? (
+              <div className="col-span-full text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando cursos...</p>
+              </div>
+            ) : filteredCourses.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <p className="text-muted-foreground">Nenhum curso encontrado</p>
+              </div>
+            ) : (
+              filteredCourses.map(course => (
               <Link 
                 key={course.id} 
-                to={`/curso/${course.id}`}
+                to={`/curso/${course.slug || course.id}`}
                 className="group"
               >
                 <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50 h-full flex flex-col">
@@ -132,10 +167,10 @@ export default function Cursos() {
                     <div className="flex items-end justify-between mt-auto">
                       <div>
                         <span className="text-muted-foreground text-sm line-through">
-                          R$ {course.originalPrice.toFixed(2)}
+                          R$ {Number(course.originalPrice || 0).toFixed(2)}
                         </span>
-                        <div className="text-xl font-bold text-primary">
-                          R$ {course.price.toFixed(2)}
+                        <div className="text-2xl font-bold text-primary">
+                          R$ {Number(course.price || 0).toFixed(2)}
                         </div>
                       </div>
                       <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
@@ -145,15 +180,15 @@ export default function Cursos() {
                   </div>
                 </div>
               </Link>
-            ))}
+            )))}
           </div>
 
-          {filteredCourses.length === 0 && (
+          {!loading && filteredCourses.length === 0 && (
             <div className="text-center py-16">
               <p className="text-xl text-muted-foreground mb-4">
                 Nenhum curso encontrado
               </p>
-              <Button onClick={() => { setSearchTerm(''); setSelectedCategory(null); }}>
+              <Button onClick={() => { setSearchTerm(''); setSelectedEstado(null); }}>
                 Limpar filtros
               </Button>
             </div>

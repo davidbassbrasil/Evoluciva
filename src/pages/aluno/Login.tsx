@@ -73,7 +73,14 @@ export default function AlunoLogin() {
           toast({ title: 'Erro no login', description: (error && (error.message || String(error))) || 'Email ou senha incorretos.', variant: 'destructive' });
         } else {
           toast({ title: 'Login realizado!', description: 'Bem-vindo de volta!' });
-          navigate('/aluno/dashboard');
+          // Redirect to saved path or dashboard
+          const returnPath = sessionStorage.getItem('checkout_return_path');
+          if (returnPath) {
+            sessionStorage.removeItem('checkout_return_path');
+            navigate(returnPath);
+          } else {
+            navigate('/aluno/dashboard');
+          }
         }
       } else {
         // Validação dos campos obrigatórios
@@ -108,7 +115,14 @@ export default function AlunoLogin() {
             toast({ title: 'Erro no cadastro', description: (error && (error.message || String(error))) || 'Não foi possível criar a conta.', variant: 'destructive' });
           } else {
             toast({ title: 'Cadastro realizado!', description: 'Sua conta foi criada com sucesso.' });
-            navigate('/aluno/dashboard');
+            // Redirect to saved path or dashboard
+            const returnPath = sessionStorage.getItem('checkout_return_path');
+            if (returnPath) {
+              sessionStorage.removeItem('checkout_return_path');
+              navigate(returnPath);
+            } else {
+              navigate('/aluno/dashboard');
+            }
           }
         }
       }

@@ -1,22 +1,69 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getCart, getCourses, removeFromCart } from '@/lib/localStorage';
+import { getCart, removeFromCart, getCurrentUser } from '@/lib/localStorage';
 import { Course } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
+import supabase from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Cart() {
   const [items, setItems] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const cart = getCart();
-    const courses = getCourses();
-    const selected = cart.map(id => courses.find(c => c.id === id)).filter(Boolean) as Course[];
-    setItems(selected);
-  }, []);
+    // SECURITY: Check if user is logged in
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      toast({ 
+        title: 'Autenticação necessária', 
+        description: 'Você precisa estar logado para acessar o carrinho.',
+        variant: 'destructive'
+      });
+      sessionStorage.setItem('checkout_return_path', '/cart');
+      navigate('/aluno/login');
+      return;
+    }
+
+    const loadCartItems = async () => {
+      const cartIds = getCart();
+      
+      if (cartIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('courses')
+          .select('*')
+          .in('id', cartIds);
+
+        if (!error && data) {
+          // Manter a ordem do carrinho
+          const orderedCourses = cartIds
+            .map(id => data.find(course => course.id === id))
+            .filter(Boolean) as Course[];
+          setItems(orderedCourses);
+        }
+      } catch (err) {
+        console.error('Error loading cart items:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCartItems();
+  }, [navigate, toast]);
 
   const handleRemove = (id: string) => {
     removeFromCart(id);
@@ -24,6 +71,21 @@ export default function Cart() {
   };
 
   const total = items.reduce((acc, c) => acc + c.price, 0);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <FloatingNav />
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-4 text-center py-24">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando carrinho...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
@@ -63,8 +125,8 @@ export default function Cart() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <div className="text-muted-foreground text-sm line-through">R$ {course.originalPrice.toFixed(2)}</div>
-                      <div className="text-lg font-bold text-primary">R$ {course.price.toFixed(2)}</div>
+                      <div className="text-muted-foreground text-sm line-through">R$ {Number(course.originalPrice || 0).toFixed(2)}</div>
+                      <div className="text-lg font-bold text-primary">R$ {Number(course.price || 0).toFixed(2)}</div>
                     </div>
                     <button onClick={() => handleRemove(course.id)} className="p-2 rounded-lg hover:bg-secondary">
                       <Trash2 className="w-5 h-5 text-muted-foreground" />

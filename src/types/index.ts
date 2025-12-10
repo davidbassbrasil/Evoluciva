@@ -2,6 +2,8 @@ export interface Course {
   id: string;
   title: string;
   description: string;
+  full_description?: string;
+  whats_included?: string;
   price: number;
   originalPrice: number;
   image: string;
@@ -9,7 +11,13 @@ export interface Course {
   duration: string;
   lessons: number;
   category: string;
+  estado?: string;
   featured: boolean;
+  active?: boolean;
+  display_order?: number;
+  slug?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Lesson {

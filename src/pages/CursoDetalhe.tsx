@@ -1,25 +1,71 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, BookOpen, User, CheckCircle, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getCourses, addToCart } from '@/lib/localStorage';
+import { addToCart, getCurrentUser } from '@/lib/localStorage';
 import { useToast } from '@/hooks/use-toast';
 import { Course } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
+import supabase from '@/lib/supabaseClient';
 
 export default function CursoDetalhe() {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    const courses = getCourses();
-    const found = courses.find(c => c.id === courseId);
-    setCourse(found || null);
+    const loadCourse = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Tentar buscar por slug primeiro, depois por ID
+        let query = supabase
+          .from('courses')
+          .select('*')
+          .eq('active', true);
+
+        // Verificar se é UUID (id) ou slug
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(courseId || '');
+        
+        if (isUUID) {
+          query = query.eq('id', courseId);
+        } else {
+          query = query.eq('slug', courseId);
+        }
+
+        const { data, error } = await query.single();
+
+        if (error) throw error;
+        setCourse(data);
+      } catch (err: any) {
+        console.error('Error loading course:', err);
+        setCourse(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCourse();
   }, [courseId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando curso...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!course) {
     return (
@@ -34,16 +80,19 @@ export default function CursoDetalhe() {
     );
   }
 
-  const benefits = [
-    "Acesso vitalício ao conteúdo",
-    "Certificado de conclusão",
-    "Suporte direto com o professor",
-    "Material complementar em PDF",
-    "Atualizações gratuitas",
-    "Comunidade exclusiva de alunos",
-    "Simulados e exercícios práticos",
-    "Garantia de 7 dias"
-  ];
+  // Parse whats_included from database (accepts commas or line breaks)
+  const benefits = course.whats_included 
+    ? course.whats_included
+        .split(/[,\n]/) // Split by comma or newline
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => line.replace(/^[•\-*]\s*/, '')) // Remove bullets if present
+    : [
+        "Acesso ao conteúdo do curso",
+        "Certificado de conclusão",
+        "Suporte com o professor",
+        "Material complementar"
+      ];
 
   const modules = [
     { title: "Módulo 1 - Introdução e Fundamentos", lessons: 8 },
@@ -84,14 +133,6 @@ export default function CursoDetalhe() {
                     <User className="w-4 h-4" />
                     {course.instructor}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    {course.duration}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    {course.lessons} aulas
-                  </div>
                 </div>
               </div>
 
@@ -108,35 +149,24 @@ export default function CursoDetalhe() {
               <div className="bg-card rounded-2xl p-6 border border-border/50">
                 <h2 className="text-2xl font-bold mb-4">Sobre o Curso</h2>
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
-                  <p className="text-muted-foreground mb-4">
-                    Este curso foi desenvolvido especialmente para você que deseja se preparar de forma completa e eficiente para os concursos públicos mais disputados do país. Com uma metodologia comprovada e materiais atualizados, você terá acesso a todo o conteúdo necessário para alcançar a aprovação.
-                  </p>
-                  <p className="text-muted-foreground mb-4">
-                    O professor {course.instructor} traz anos de experiência na preparação de candidatos, com um método didático que facilita o aprendizado mesmo dos temas mais complexos. As aulas são objetivas e focadas no que realmente cai nas provas.
-                  </p>
-                  <p className="text-muted-foreground">
-                    Além das videoaulas, você terá acesso a material de apoio em PDF, exercícios comentados, simulados exclusivos e acesso à comunidade de alunos para tirar dúvidas e trocar experiências.
-                  </p>
-                </div>
-              </div>
-
-              {/* Course Content */}
-              <div className="bg-card rounded-2xl p-6 border border-border/50">
-                <h2 className="text-2xl font-bold mb-6">Conteúdo do Curso</h2>
-                <div className="space-y-3">
-                  {modules.map((module, index) => (
-                    <div 
-                      key={index}
-                      className="flex items-center justify-between p-4 bg-secondary/50 rounded-xl"
-                    >
-                      <span className="font-medium">{module.title}</span>
-                      <span className="text-sm text-muted-foreground">{module.lessons} aulas</span>
+                  {course.full_description ? (
+                    <div className="text-muted-foreground whitespace-pre-line">
+                      {course.full_description}
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      <p className="text-muted-foreground mb-4">
+                        {course.description}
+                      </p>
+                      <p className="text-muted-foreground mb-4">
+                        O professor {course.instructor} traz anos de experiência na preparação de candidatos, com um método didático que facilita o aprendizado mesmo dos temas mais complexos. As aulas são objetivas e focadas no que realmente cai nas provas.
+                      </p>
+                      <p className="text-muted-foreground">
+                        Além das videoaulas, você terá acesso a material de apoio em PDF, exercícios comentados, simulados exclusivos e acesso à comunidade de alunos para tirar dúvidas e trocar experiências.
+                      </p>
+                    </>
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground mt-4 text-center">
-                  Total: {modules.reduce((acc, m) => acc + m.lessons, 0)} aulas
-                </p>
               </div>
 
               {/* Benefits */}
@@ -166,39 +196,65 @@ export default function CursoDetalhe() {
 
                 <div className="mb-6">
                   <span className="text-muted-foreground text-sm line-through">
-                    R$ {course.originalPrice.toFixed(2)}
+                    R$ {Number(course.originalPrice || 0).toFixed(2)}
                   </span>
                   <div className="text-3xl font-bold text-primary">
-                    R$ {course.price.toFixed(2)}
+                    R$ {Number(course.price || 0).toFixed(2)}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    ou 12x de R$ {(course.price / 12).toFixed(2)}
+                    ou 12x de R$ {(Number(course.price || 0) / 12).toFixed(2)}
                   </p>
                 </div>
 
                 <div className="space-y-3">
-                  <button
+                  <Button
                     onClick={() => {
+                      const currentUser = getCurrentUser();
+                      if (!currentUser) {
+                        toast({ 
+                          title: 'Faça login', 
+                          description: 'Você precisa estar logado para adicionar cursos ao carrinho.',
+                          variant: 'destructive'
+                        });
+                        sessionStorage.setItem('checkout_return_path', window.location.pathname);
+                        navigate('/aluno/login');
+                        return;
+                      }
                       addToCart(course.id);
                       toast({ title: 'Adicionado ao carrinho', description: `${course.title} foi adicionado ao carrinho.` });
                     }}
-                    className="w-full block"
+                    className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg"
                   >
-                    <Button className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg">
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Adicionar ao carrinho
-                    </Button>
-                  </button>
+                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    Adicionar ao carrinho
+                  </Button>
 
-                  <Link to="/cart" className="block">
-                    <Button variant="outline" className="w-full">Ir para o carrinho</Button>
-                  </Link>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const currentUser = getCurrentUser();
+                      if (!currentUser) {
+                        toast({ 
+                          title: 'Faça login', 
+                          description: 'Você precisa estar logado para acessar o carrinho.',
+                          variant: 'destructive'
+                        });
+                        sessionStorage.setItem('checkout_return_path', '/cart');
+                        navigate('/aluno/login');
+                        return;
+                      }
+                      navigate('/cart');
+                    }}
+                  >
+                    Ir para o carrinho
+                  </Button>
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-border space-y-3 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle className="w-4 h-4 text-primary" />
-                    Acesso imediato
+                    Pagamento seguro
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle className="w-4 h-4 text-primary" />
@@ -206,7 +262,7 @@ export default function CursoDetalhe() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle className="w-4 h-4 text-primary" />
-                    Pagamento seguro
+                    Acesso garantido
                   </div>
                 </div>
               </div>
