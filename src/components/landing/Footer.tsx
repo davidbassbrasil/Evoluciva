@@ -32,7 +32,7 @@ export function Footer() {
               )}
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
-              venha com a gente!
+              Venha com a gente!
             </p>
 
             {/* Social Links */}
