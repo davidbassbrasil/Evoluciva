@@ -49,7 +49,7 @@ export function TestimonialsSection() {
             O que nossos <span className="gradient-text">alunos dizem</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Milhares de aprovados compartilham suas experiências com a plataforma
+            Veja alguns depoimentos reais de alunos que participaram das nossas aulas
           </p>
         </div>
 
