@@ -131,7 +131,8 @@ export function Footer() {
         </div>
 
         <div className="border-t border-primary-foreground/10 mt-12 pt-8 text-center text-primary-foreground/50 text-sm">
-          {settings.footerText}
+          <div>{settings.footerText}</div>
+          <div className="mt-2 text-primary-foreground/60">CNPJ: 22.928.090/0001-18</div>
         </div>
       </div>
     </footer>
