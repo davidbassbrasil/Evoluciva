@@ -19,7 +19,7 @@ export default function TermosDeUso() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Aceitação dos Termos</h2>
               <p className="text-muted-foreground">
-                Ao acessar e utilizar a plataforma ConcursaPlus, você concorda com estes Termos de Uso. 
+                Ao acessar e utilizar a plataforma Edu Sampaio Cursos, você concorda com estes Termos de Uso. 
                 Se você não concordar com qualquer parte destes termos, não deverá utilizar nossos serviços.
               </p>
             </section>
@@ -27,7 +27,7 @@ export default function TermosDeUso() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">2. Descrição dos Serviços</h2>
               <p className="text-muted-foreground">
-                A ConcursaPlus oferece cursos online preparatórios para concursos públicos, 
+                A Edu Sampaio Cursos oferece cursos online preparatórios para concursos públicos, 
                 incluindo videoaulas, materiais de estudo, simulados e outros recursos educacionais.
               </p>
             </section>
@@ -55,7 +55,7 @@ export default function TermosDeUso() {
               <h2 className="text-2xl font-semibold mb-4">5. Propriedade Intelectual</h2>
               <p className="text-muted-foreground">
                 Todo o conteúdo disponibilizado na plataforma, incluindo textos, vídeos, imagens e materiais de estudo, 
-                são protegidos por direitos autorais e pertencem à ConcursaPlus ou aos seus licenciadores.
+                são protegidos por direitos autorais e pertencem à Edu Sampaio Cursos ou aos seus licenciadores.
               </p>
             </section>
 
@@ -78,7 +78,7 @@ export default function TermosDeUso() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">8. Contato</h2>
               <p className="text-muted-foreground">
-                Em caso de dúvidas sobre estes Termos de Uso, entre em contato pelo e-mail: contato@concursaplus.com.br
+                Em caso de dúvidas sobre estes Termos de Uso, entre em contato pelo e-mail: contato@edusampaio.com.br
               </p>
             </section>
           </div>

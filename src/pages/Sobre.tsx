@@ -24,10 +24,10 @@ export default function Sobre() {
 
   const team = [
     {
-      name: "Prof. Ricardo Mendes",
+      name: "Prof. Eduardo Sampaio",
       role: "Fundador e Diretor",
-      image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop",
-      bio: "Ex-servidor público federal com 20 anos de experiência em preparação para concursos."
+      image: '/src/assets/edusobre.jpg',
+      bio: "Prof. de Português e Redação com mais de 20 anos de experiência em preparação para concursos."
     },
   ];
 
@@ -36,75 +36,29 @@ export default function Sobre() {
       <FloatingNav />
       
       <main className="pt-32 pb-20">
-        {/* Hero Section */}
-        <section className="container mx-auto px-4 mb-20">
-          <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="secondary" className="mb-4 px-4 py-1 text-sm font-medium">
-              Nossa História
-            </Badge>
-            <h1 className="text-3xl md:text-5xl font-bold mb-6">
-              Transformando vidas através da <span className="gradient-text">educação</span>
-            </h1>
-            <p className="text-lg text-muted-foreground mb-8">
-              Desde 2009, o ConcursaPlus tem sido referência em preparação para concursos públicos, 
-              ajudando milhares de pessoas a conquistarem a estabilidade e qualidade de vida que merecem.
-            </p>
-          </div>
-        </section>
-
-
-        {/* Our Story */}
         <section className="container mx-auto px-4 mb-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <Badge variant="secondary" className="mb-4">
-                Como Começamos
-              </Badge>
-              <h2 className="text-3xl font-bold mb-6">
-                Uma história de dedicação e resultados
-              </h2>
+              <h1 className="text-3xl md:text-4xl font-bold mb-6">Nossa História</h1>
               <div className="space-y-4 text-muted-foreground">
                 <p>
-                  O ConcursaPlus nasceu em 2009, quando o Professor Ricardo Mendes, após ser aprovado 
-                  em diversos concursos federais, decidiu compartilhar sua metodologia de estudos com 
-                  outros candidatos.
+                  Com mais de 20 anos de atuação, o Edu Sampaio Cursos consolidou-se como uma das instituições de preparação para concursos mais tradicionais de Alagoas. Fundado pelo professor Eduardo Sampaio, especialista em Língua Portuguesa, o curso nasceu com o compromisso de oferecer ensino de qualidade e direcionamento real para quem busca aprovação no serviço público.
                 </p>
                 <p>
-                  O que começou como um pequeno curso presencial em São Paulo, rapidamente se 
-                  transformou em uma das maiores plataformas de preparação para concursos do Brasil. 
-                  A chave do nosso sucesso sempre foi a mesma: foco total na aprovação do aluno.
+                  Ao longo de sua trajetória, o Edu Sampaio Cursos evoluiu de turmas presenciais em Maceió para uma estrutura moderna, com aulas presenciais e transmissões ao vivo, materiais próprios, atendimento próximo ao aluno e uma equipe de professores experientes em áreas como Educação, Saúde, Legislação, RLM e Conhecimentos Pedagógicos.
                 </p>
                 <p>
-                  Hoje, contamos com uma equipe de mais de 30 professores especializados, todos com 
-                  experiência comprovada em aprovações. Nossa plataforma online permite que alunos 
-                  de todo o país tenham acesso à mesma qualidade de ensino que nos tornou referência 
-                  no mercado.
-                </p>
-                <p>
-                  Acreditamos que todo brasileiro merece a oportunidade de conquistar uma carreira 
-                  estável e bem remunerada no serviço público. E trabalhamos todos os dias para 
-                  tornar esse sonho uma realidade.
+                  O resultado dessa caminhada é uma comunidade reconhecida pela disciplina, pelo suporte ao aluno e pelo foco em resultados — a nossa Academia de Vencedores. Hoje, seguimos firmes na mesma missão que nos acompanha desde o início: transformar dedicação em aprovação e abrir caminhos para novas conquistas.
                 </p>
               </div>
             </div>
-            <div className="relative">
+            <div>
               <div className="aspect-square rounded-2xl overflow-hidden">
-                <img 
-                  src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&h=800&fit=crop"
-                  alt="Sala de aula"
+                <img
+                  src={'/src/assets/institucional.jpg'}
+                  alt="Institucional"
                   className="w-full h-full object-cover"
                 />
-              </div>
-              <div className="absolute -bottom-6 -left-6 bg-card p-6 rounded-xl shadow-lg border border-border/50">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full gradient-bg flex items-center justify-center">
-                    <Award className="w-6 h-6 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-lg">15 Anos</div>
-                    <div className="text-sm text-muted-foreground">de excelência</div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

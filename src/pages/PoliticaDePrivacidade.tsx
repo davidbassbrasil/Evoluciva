@@ -19,7 +19,7 @@ export default function PoliticaDePrivacidade() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">1. Introdução</h2>
               <p className="text-muted-foreground">
-                A ConcursaPlus está comprometida com a proteção da privacidade de seus usuários. 
+                A Edu Sampaio Cursos está comprometida com a proteção da privacidade de seus usuários. 
                 Esta política descreve como coletamos, usamos, armazenamos e protegemos suas informações pessoais.
               </p>
             </section>
@@ -87,7 +87,7 @@ export default function PoliticaDePrivacidade() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">8. Contato</h2>
               <p className="text-muted-foreground">
-                Para questões sobre privacidade, entre em contato: contato@concursaplus.com.br
+                Para questões sobre privacidade, entre em contato: contato@edusampaio.com.br
               </p>
             </section>
           </div>

@@ -28,7 +28,7 @@ export default function LGPD() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">2. Nosso Compromisso</h2>
               <p className="text-muted-foreground">
-                A ConcursaPlus está em conformidade com a LGPD. Tratamos seus dados pessoais com 
+                A Edu Sampaio Cursos está em conformidade com a LGPD. Tratamos seus dados pessoais com 
                 responsabilidade, transparência e segurança, respeitando seus direitos como titular dos dados.
               </p>
             </section>
@@ -62,7 +62,7 @@ export default function LGPD() {
               <h2 className="text-2xl font-semibold mb-4">5. Como Exercer Seus Direitos</h2>
               <p className="text-muted-foreground">
                 Para exercer qualquer um dos seus direitos, entre em contato com nosso Encarregado 
-                de Proteção de Dados (DPO) através do e-mail: dpo@concursaplus.com.br
+                de Proteção de Dados (DPO) através do e-mail: dpo@edusampaio.com.br
               </p>
               <p className="text-muted-foreground mt-4">
                 Responderemos sua solicitação em até 15 dias, conforme estabelecido pela LGPD.
@@ -73,7 +73,7 @@ export default function LGPD() {
               <h2 className="text-2xl font-semibold mb-4">6. Encarregado de Dados (DPO)</h2>
               <p className="text-muted-foreground">
                 Nosso Encarregado de Proteção de Dados é responsável por receber suas solicitações 
-                e garantir o cumprimento da LGPD. Contato: dpo@concursaplus.com.br
+                e garantir o cumprimento da LGPD. Contato: dpo@edusampaio.com.br
               </p>
             </section>
 
