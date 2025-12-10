@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { seedInitialData } from '@/lib/seedData';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { HeroBanner } from '@/components/landing/HeroBanner';
 import { CoursesSection } from '@/components/landing/CoursesSection';
@@ -12,7 +11,6 @@ import { FloatingButtons } from '@/components/landing/FloatingButtons';
 
 const Index = () => {
   useEffect(() => {
-    seedInitialData();
   }, []);
 
   return (

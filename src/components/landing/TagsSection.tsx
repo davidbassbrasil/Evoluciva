@@ -13,24 +13,18 @@ export function TagsSection() {
   }, []);
 
   const loadTags = async () => {
-    // Try to load from Supabase first
-    if (supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('tags')
-          .select('*')
-          .order('name', { ascending: true });
-        
-        if (!error && data) {
-          setTags(data);
-          return;
-        }
-      } catch (err) {
-        console.error('Error loading tags from Supabase:', err);
-      }
+    // Load tags from Supabase only (no localStorage fallback)
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (!error && data) setTags(data);
+    } catch (err) {
+      console.error('Error loading tags from Supabase:', err);
     }
-    // Fallback to localStorage
-    setTags(getTags());
   };
 
   const scroll = (direction: 'left' | 'right') => {

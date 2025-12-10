@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getBanners } from '@/lib/localStorage';
+import { supabase } from '@/lib/supabaseClient';
 import { Banner } from '@/types';
 
 export function HeroBanner() {
@@ -8,7 +8,23 @@ export function HeroBanner() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    setBanners(getBanners());
+    const load = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('banners')
+          .select('*')
+          .order('order', { ascending: true, nullsFirst: false });
+
+        if (!error && data) {
+          setBanners(data);
+        }
+      } catch (err) {
+        console.error('Error loading banners from Supabase:', err);
+      }
+    };
+
+    load();
   }, []);
 
   useEffect(() => {

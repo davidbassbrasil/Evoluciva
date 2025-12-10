@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getCourses } from '@/lib/localStorage';
+import { supabase } from '@/lib/supabaseClient';
 import { Course } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,22 @@ export function CoursesSection() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setCourses(getCourses());
+    const load = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('courses')
+          .select('*')
+          .order('featured', { ascending: false })
+          .order('title', { ascending: true });
+
+        if (!error && data) setCourses(data);
+      } catch (err) {
+        console.error('Error loading courses from Supabase:', err);
+      }
+    };
+
+    load();
   }, []);
 
   const scroll = (direction: 'left' | 'right') => {

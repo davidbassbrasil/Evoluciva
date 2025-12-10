@@ -296,7 +296,7 @@ export function AdminBanners() {
           <DialogTrigger asChild>
             <Button className="gradient-bg text-primary-foreground" onClick={() => openDialog()}>
               <Plus className="w-4 h-4 mr-2" />
-              + Novo
+              Novo Banner
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

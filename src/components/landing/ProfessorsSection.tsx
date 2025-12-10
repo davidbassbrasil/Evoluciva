@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getProfessors } from '@/lib/localStorage';
+import { supabase } from '@/lib/supabaseClient';
 import { Professor } from '@/types';
 import { Badge } from '@/components/ui/badge';
 
@@ -9,7 +9,21 @@ export function ProfessorsSection() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setProfessors(getProfessors());
+    const load = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('professors')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (!error && data) setProfessors(data);
+      } catch (err) {
+        console.error('Error loading professors from Supabase:', err);
+      }
+    };
+
+    load();
   }, []);
 
   const scroll = (direction: 'left' | 'right') => {

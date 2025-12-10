@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Star, Quote } from 'lucide-react';
-import { getTestimonials } from '@/lib/localStorage';
+import { supabase } from '@/lib/supabaseClient';
 import { Testimonial } from '@/types';
 import { Badge } from '@/components/ui/badge';
 
@@ -9,7 +9,21 @@ export function TestimonialsSection() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTestimonials(getTestimonials());
+    const load = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('testimonials')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) setTestimonials(data);
+      } catch (err) {
+        console.error('Error loading testimonials from Supabase:', err);
+      }
+    };
+
+    load();
   }, []);
 
   const scroll = (direction: 'left' | 'right') => {
