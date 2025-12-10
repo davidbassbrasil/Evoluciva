@@ -85,7 +85,7 @@ export function CoursesSection() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-8 md:mb-12">
           <Badge variant="secondary" className="mb-4 px-4 py-1 text-sm font-medium">
-            Nossos Cursos
+
           </Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Prepare-se com os <span className="gradient-text">melhores cursos</span>

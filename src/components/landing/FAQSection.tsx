@@ -40,7 +40,6 @@ export function FAQSection() {
       <div className="container mx-auto px-4 max-w-3xl">
         <div className="text-center mb-12">
           <Badge variant="secondary" className="mb-4 px-4 py-1 text-sm font-medium">
-            FAQ
           </Badge>
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Perguntas <span className="gradient-text">Frequentes</span>
