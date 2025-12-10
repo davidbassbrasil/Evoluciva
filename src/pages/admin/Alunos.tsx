@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
@@ -150,7 +150,10 @@ export default function AdminAlunos() {
       // Buscar todos os profiles que não são admin (role != 'admin' OU role é null)
       const { data, error, count } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, created_at', { count: 'exact' })
+        .select(
+          `id, full_name, email, whatsapp, cpf, address, number, complement, state, city, cep, role, created_at, updated_at`,
+          { count: 'exact' }
+        )
         .order('full_name');
       
       if (error) {
@@ -256,6 +259,15 @@ export default function AdminAlunos() {
     return counts;
   }, [enrollments]);
 
+  const selectedTurmaCounts = useMemo(() => {
+    if (!filterTurma || filterTurma === 'all') return null;
+    const turmaEnrolls = enrollments.filter(e => e.turma_id === filterTurma);
+    const presencial = turmaEnrolls.filter(e => e.modality === 'presential').length;
+    const online = turmaEnrolls.filter(e => e.modality === 'online').length;
+    const total = turmaEnrolls.length;
+    return { presencial, online, total };
+  }, [enrollments, filterTurma]);
+
   const getEnrollmentsForProfile = (profileId: string) => {
     return enrollments.filter(e => e.profile_id === profileId);
   };
@@ -289,6 +301,15 @@ export default function AdminAlunos() {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('pt-BR');
+  };
+
+  const getWhatsAppHref = (phone?: string) => {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+    // If there is no country code (<=11 digits), assume Brazil '55'
+    const withCountry = digits.length <= 11 ? `55${digits}` : digits;
+    return `https://wa.me/${withCountry}`;
   };
 
   // CRUD Operations
@@ -368,7 +389,8 @@ export default function AdminAlunos() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Perform update without requesting returned row to avoid 406 when RLS blocks returning
+      const { error } = await supabase
         .from('profiles')
         .update({
           full_name: profileForm.full_name,
@@ -382,12 +404,48 @@ export default function AdminAlunos() {
           city: profileForm.city || null,
           cep: profileForm.cep || null,
         })
-        .eq('id', selectedProfile.id)
-        .select()
-        .single();
+        .eq('id', selectedProfile.id);
 
-      if (error) throw error;
-      if (!data) throw new Error('Nenhuma linha atualizada. Verifique RLS/policies ou o id do perfil.');
+      if (error) {
+        if ((error as any)?.status === 406) {
+          throw new Error('Falha ao atualizar: resposta do servidor inválida (406). Verifique RLS/policies (SELECT/UPDATE) no Supabase.');
+        }
+        throw error;
+      }
+
+      // Verify the update actually persisted by fetching the row back.
+      try {
+        const { data: fresh, error: freshErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, whatsapp, cpf, address, number, complement, state, city, cep')
+          .eq('id', selectedProfile.id)
+          .single();
+
+        if (freshErr) {
+          if ((freshErr as any)?.status === 406) {
+            throw new Error('Atualização enviada, mas não foi possível ler o perfil atualizado (406). Verifique RLS/policies de SELECT.');
+          }
+          throw freshErr;
+        }
+
+        if (!fresh) {
+          throw new Error('Atualização enviada, mas o perfil não foi encontrado ao verificar. Verifique se o id do perfil existe.');
+        }
+
+        // Compare a few key fields to ensure persistence
+        const mismatch = (
+          (fresh.full_name || '') !== (profileForm.full_name || '') ||
+          (fresh.email || '') !== (profileForm.email || '') ||
+          ( (fresh.whatsapp || '') !== (profileForm.whatsapp || '') ) ||
+          ( (fresh.cpf || '') !== (profileForm.cpf || '') )
+        );
+
+        if (mismatch) {
+          throw new Error('Os dados parecem não ter sido persistidos. Isso pode ser causado por políticas RLS que bloqueiam UPDATE/SELECT.');
+        }
+      } catch (verifyErr: any) {
+        throw verifyErr;
+      }
 
       toast({ title: 'Sucesso', description: 'Dados atualizados com sucesso' });
       setOpenEditStudent(false);
@@ -786,7 +844,13 @@ export default function AdminAlunos() {
             <p className="text-muted-foreground">Gerencie os alunos e matrículas</p>
           </div>
           {/* debug UI removed */}
-          <Dialog open={openAddStudent} onOpenChange={setOpenAddStudent}>
+          <Dialog
+            open={openAddStudent}
+            onOpenChange={(open) => {
+              setOpenAddStudent(open);
+              if (open) setProfileForm(initialProfileForm);
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="gradient-bg">
                 <Plus className="w-4 h-4 mr-2" />
@@ -881,11 +945,18 @@ export default function AdminAlunos() {
 
         {/* Filter info */}
         {filterTurma && filterTurma !== 'all' && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Badge variant="secondary">
               {turmas.find(t => t.id === filterTurma)?.name}
             </Badge>
-            <span>{filteredProfiles.length} aluno(s) encontrado(s)</span>
+            <div>
+              <div>{filteredProfiles.length} aluno(s) encontrado(s)</div>
+              {selectedTurmaCounts && (
+                <div className="text-xs text-muted-foreground">
+                  Presencial: {selectedTurmaCounts.presencial} • Online: {selectedTurmaCounts.online} • Total: {selectedTurmaCounts.total}
+                </div>
+              )}
+            </div>
             <Button variant="ghost" size="sm" onClick={() => setFilterTurma('all')}>
               <X className="w-3 h-3 mr-1" />
               Limpar filtro
@@ -933,9 +1004,22 @@ export default function AdminAlunos() {
                       </TableCell>
                       <TableCell>
                         {profile.whatsapp ? (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="w-3 h-3" />
-                            {profile.whatsapp}
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              <span>{profile.whatsapp}</span>
+                            </div>
+                            {getWhatsAppHref(profile.whatsapp) && (
+                              <a
+                                href={getWhatsAppHref(profile.whatsapp)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Abrir WhatsApp de ${profile.full_name}`}
+                                className="text-green-600 hover:text-green-700"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </a>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center gap-1 text-sm">

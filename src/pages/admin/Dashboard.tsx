@@ -23,6 +23,18 @@ export default function AdminDashboard() {
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [recentTestimonials, setRecentTestimonials] = useState<Testimonial[]>([]);
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
+  // Pagination state
+  const [recentCoursesAll, setRecentCoursesAll] = useState<Course[]>([]);
+  const [coursePage, setCoursePage] = useState(0);
+  const COURSES_PER_PAGE = 5;
+
+  const [recentTestimonialsAll, setRecentTestimonialsAll] = useState<Testimonial[]>([]);
+  const [testimonialsPage, setTestimonialsPage] = useState(0);
+  const TESTIMONIALS_PER_PAGE = 3;
+
+  const [recentUsersAll, setRecentUsersAll] = useState<User[]>([]);
+  const [userPage, setUserPage] = useState(0);
+  const USERS_PER_PAGE = 2;
   const [coursePrices, setCoursePrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -171,9 +183,19 @@ export default function AdminDashboard() {
       });
 
       // recent courses: prefer most recent by created_at (courses already ordered)
-      setRecentCourses(courses.slice(0, 4));
-      setRecentTestimonials(testimonials.slice(0, 3));
-      setRecentUsers(users.slice(-3).reverse());
+      // Limit displayed items per page
+      // store full lists and reset pages
+      setRecentCoursesAll(courses);
+      setCoursePage(0);
+      setRecentTestimonialsAll(testimonials);
+      setTestimonialsPage(0);
+      setRecentUsersAll(users.slice(-20).reverse()); // keep recent users (up to 20) in memory
+      setUserPage(0);
+
+      // initial visible slices
+      setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+      setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+      setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
     };
     
     loadData();
@@ -209,7 +231,11 @@ export default function AdminDashboard() {
               <div className={`w-12 h-12 rounded-xl ${card.color} flex items-center justify-center mb-4`}>
                 <card.icon className="w-6 h-6 text-white" />
               </div>
-              <p className="text-3xl font-bold">{card.value}</p>
+              {card.label === 'Financeiro' ? (
+                <div className="min-h-[2rem]" />
+              ) : (
+                <p className="text-3xl font-bold">{card.value}</p>
+              )}
               <p className="text-muted-foreground">{card.label}</p>
             </div>
           </Link>
@@ -244,8 +270,9 @@ export default function AdminDashboard() {
               </Button>
             </Link>
           </div>
-            <div className="space-y-3">
-            {recentCourses.map((course) => {
+
+          <div className="space-y-3">
+            {recentCoursesAll.slice(coursePage * COURSES_PER_PAGE, (coursePage + 1) * COURSES_PER_PAGE).map((course) => {
               const displayPrice = (coursePrices && coursePrices[course.id]) ? coursePrices[course.id] : Number(course.price || 0);
               const category = (course.category || '').toString();
               const showCategory = category && category.trim().length > 0 && ['geral', 'general'].indexOf(category.trim().toLowerCase()) === -1;
@@ -261,9 +288,17 @@ export default function AdminDashboard() {
                 </div>
               );
             })}
-            {recentCourses.length === 0 && (
+            {recentCoursesAll.length === 0 && (
               <p className="text-center text-muted-foreground py-8">Nenhum curso cadastrado</p>
             )}
+          </div>
+
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">Página {coursePage + 1} de {Math.max(1, Math.ceil(recentCoursesAll.length / COURSES_PER_PAGE))}</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCoursePage(p => Math.max(0, p - 1))} disabled={coursePage === 0}>Anterior</Button>
+              <Button variant="outline" size="sm" onClick={() => setCoursePage(p => p + 1)} disabled={(coursePage + 1) * COURSES_PER_PAGE >= recentCoursesAll.length}>Próxima</Button>
+            </div>
           </div>
         </div>
 
@@ -278,7 +313,7 @@ export default function AdminDashboard() {
               </Link>
             </div>
             <div className="space-y-3">
-              {recentUsers.map((user) => (
+              {recentUsersAll.slice(userPage * USERS_PER_PAGE, (userPage + 1) * USERS_PER_PAGE).map((user) => (
                 <div key={user.id} className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold text-sm">
                     {user.name.charAt(0)}
@@ -290,9 +325,17 @@ export default function AdminDashboard() {
                   <Badge variant="outline">{user.purchasedCourses.length} cursos</Badge>
                 </div>
               ))}
-              {recentUsers.length === 0 && (
+              {recentUsersAll.length === 0 && (
                 <p className="text-center text-muted-foreground py-4">Nenhum aluno cadastrado</p>
               )}
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">Página {userPage + 1} de {Math.max(1, Math.ceil(recentUsersAll.length / USERS_PER_PAGE))}</div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.max(0, p - 1))} disabled={userPage === 0}>Anterior</Button>
+                <Button variant="outline" size="sm" onClick={() => setUserPage(p => p + 1)} disabled={(userPage + 1) * USERS_PER_PAGE >= recentUsersAll.length}>Próxima</Button>
+              </div>
             </div>
           </div>
 
@@ -305,7 +348,7 @@ export default function AdminDashboard() {
               </Link>
             </div>
             <div className="space-y-3">
-              {recentTestimonials.map((t) => (
+              {recentTestimonialsAll.slice(testimonialsPage * TESTIMONIALS_PER_PAGE, (testimonialsPage + 1) * TESTIMONIALS_PER_PAGE).map((t) => (
                 <div key={t.id} className="flex items-start gap-3">
                   <img src={t.avatar} alt={t.name} className="w-8 h-8 rounded-full object-cover" />
                   <div className="flex-1 min-w-0">
@@ -314,9 +357,17 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
-              {recentTestimonials.length === 0 && (
+              {recentTestimonialsAll.length === 0 && (
                 <p className="text-center text-muted-foreground py-4">Nenhum depoimento</p>
               )}
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">Página {testimonialsPage + 1} de {Math.max(1, Math.ceil(recentTestimonialsAll.length / TESTIMONIALS_PER_PAGE))}</div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => Math.max(0, p - 1))} disabled={testimonialsPage === 0}>Anterior</Button>
+                <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => p + 1)} disabled={(testimonialsPage + 1) * TESTIMONIALS_PER_PAGE >= recentTestimonialsAll.length}>Próxima</Button>
+              </div>
             </div>
           </div>
         </div>
