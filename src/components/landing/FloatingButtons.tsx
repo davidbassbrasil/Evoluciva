@@ -19,7 +19,7 @@ export function FloatingButtons() {
   };
 
   const openWhatsApp = () => {
-    window.open('https://wa.me/5511999999999?text=Olá! Gostaria de saber mais sobre os cursos.', '_blank');
+    window.open('https://wa.me/5582988163133?text=Olá! Gostaria de saber mais sobre os cursos.', '_blank');
   };
 
   return (
@@ -39,9 +39,9 @@ export function FloatingButtons() {
       <Button
         onClick={openWhatsApp}
         size="icon"
-        className="w-14 h-14 rounded-full shadow-lg bg-[#25D366] hover:bg-[#20BD5A] text-white"
+        className="w-14 h-14 rounded-full shadow-lg bg-[transparent] hover:bg-[transparent] flex items-center justify-center p-0"
       >
-        <MessageCircle className="w-6 h-6" />
+        <img src={'/src/assets/WhatsApp.svg.png'} alt="WhatsApp" className="w-14 h-14" />
       </Button>
     </div>
   );

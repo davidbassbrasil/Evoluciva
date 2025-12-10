@@ -307,7 +307,7 @@ export default function AlunoConfiguracoes() {
                   Entre em contato conosco via WhatsApp
                 </p>
                 <a
-                  href="https://wa.me/5582996002201"
+                  href="https://wa.me/5582988163133"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -317,7 +317,7 @@ export default function AlunoConfiguracoes() {
                   </Button>
                 </a>
                 <p className="text-sm text-muted-foreground mt-4">
-                  (82) 99600-2201
+                  (82) 98816-3133
                 </p>
               </div>
             </TabsContent>

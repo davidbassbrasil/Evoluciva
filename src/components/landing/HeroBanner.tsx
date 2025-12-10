@@ -48,18 +48,18 @@ export function HeroBanner() {
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % banners.length);
 
   return (
-    <section className="relative h-[75vh] min-h-[520px] overflow-hidden mt-24">
+    <section className="relative md:h-[75vh] md:min-h-[520px] overflow-hidden mt-24">
       {banners.map((banner, index) => (
         <div
           key={banner.id}
-          className={`absolute inset-0 transition-all duration-700 ease-out ${
+          className={`md:absolute md:inset-0 transition-all duration-700 ease-out ${
             index === currentSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
           }`}
         >
           <img
             src={banner.image}
             alt={banner.title}
-            className="w-full h-full object-cover"
+            className="w-full h-auto object-contain md:h-full md:object-cover"
           />
         </div>
       ))}
