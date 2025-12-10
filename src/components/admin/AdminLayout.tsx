@@ -95,13 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link to="/admin" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <div>
-                <span className="font-bold text-lg">Admin</span>
-                <p className="text-xs text-muted-foreground">{getSettings().siteName}</p>
-              </div>
+              <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
             </Link>
           </div>
 

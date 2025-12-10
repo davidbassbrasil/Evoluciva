@@ -73,10 +73,7 @@ export default function AdminLogin() {
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
       <div className="bg-card rounded-2xl p-8 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center">
-            <GraduationCap className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold">Admin</span>
+          <img src={"/src/assets/logo_.png"} alt="Logo" className="h-12" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">

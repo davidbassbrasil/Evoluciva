@@ -48,15 +48,15 @@ export default function Links() {
       <div className="w-full max-w-2xl">
         <Card className="p-8 bg-card/95 backdrop-blur-sm border border-border/50 shadow-2xl rounded-3xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg mb-4">
-              <GraduationCap className="w-16 h-16 text-primary-foreground" />
-            </div>
+            <img src={"/src/assets/logo_.svg"} alt="Logo" className="w-32 h-32 mb-2" />
+            <img src={"/src/assets/edulinks.jpg"} alt="EduLinks" className="w-40 h-40 object-cover rounded-2xl shadow-lg mb-4" />
 
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent mb-2">
-              Edu Sampaio Cursos
+              Edu Sampaio
             </h1>
             <p className="text-center text-muted-foreground max-w-md text-base">
-              Cursos preparatórios para concursos públicos · Português e Redação
+              • Presencial em Maceió e online para todo o Brasil.
+              <br/>• Preparatórios para concursos públicos.
             </p>
           </div>
 

@@ -137,13 +137,7 @@ export default function AlunoLogin() {
         <div className="bg-card rounded-3xl shadow-2xl p-8 border border-border/50 max-h-[90vh] overflow-y-auto">
           {/* Logo */}
           <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center shadow-glow">
-              <GraduationCap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <span className="text-2xl font-bold">
-              <span className="gradient-text">Concursa</span>
-              <span className="text-foreground">Plus</span>
-            </span>
+            <img src={"/src/assets/logo_.png"} alt="Logo" className="h-12" />
           </Link>
 
           {/* Title */}

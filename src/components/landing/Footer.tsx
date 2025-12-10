@@ -20,16 +20,7 @@ export function Footer() {
           {/* Logo & About */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
-              {settings.logo ? (
-                <img src={settings.logo} alt={settings.siteName} className="h-10" />
-              ) : (
-                <>
-                  <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-                    <GraduationCap className="w-6 h-6 text-primary-foreground" />
-                  </div>
-                  <span className="text-xl font-bold">{settings.siteName}</span>
-                </>
-              )}
+              <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
               Venha com a gente!
@@ -37,36 +28,30 @@ export function Footer() {
 
             {/* Social Links */}
             <div className="flex gap-3 mt-6">
-              {settings.socialLinks.instagram && (
-                <a
-                  href={settings.socialLinks.instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
-                >
-                  <Instagram className="w-5 h-5" />
-                </a>
-              )}
-              {settings.socialLinks.facebook && (
-                <a
-                  href={settings.socialLinks.facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
-                >
-                  <Facebook className="w-5 h-5" />
-                </a>
-              )}
-              {settings.socialLinks.youtube && (
-                <a
-                  href={settings.socialLinks.youtube}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
-                >
-                  <Youtube className="w-5 h-5" />
-                </a>
-              )}
+              <a
+                href="https://www.instagram.com/edu_sampaio_cursos/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
+              >
+                <Instagram className="w-5 h-5" />
+              </a>
+              <a
+                href="https://www.facebook.com/edusampaio.portugues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
+              >
+                <Facebook className="w-5 h-5" />
+              </a>
+              <a
+                href="https://www.youtube.com/user/eduardoredacao"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
+              >
+                <Youtube className="w-5 h-5" />
+              </a>
             </div>
           </div>
 

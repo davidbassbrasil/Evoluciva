@@ -128,10 +128,7 @@ export default function AlunoDashboard() {
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
         <div className="container mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">ConcursaPlus</span>
+            <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
           </Link>
 
           <div className="flex items-center gap-4">

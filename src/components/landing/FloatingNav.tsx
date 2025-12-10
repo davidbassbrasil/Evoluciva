@@ -133,22 +133,7 @@ export function FloatingNav() {
     >
       <div className="flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
-          {settings?.logo ? (
-            <img src={settings.logo} alt={settings.siteName} className="h-10" />
-          ) : (
-            <>
-              <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-glow transition-transform group-hover:scale-110">
-                <GraduationCap className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <span className={cn(
-                'font-bold transition-all duration-300',
-                isScrolled ? 'text-lg' : 'text-xl'
-              )}>
-                <span className="gradient-text">{settings?.siteName?.split(' ')[0] || 'Concursa'}</span>
-                <span className="text-foreground">{settings?.siteName?.split(' ').slice(1).join(' ') || 'Plus'}</span>
-              </span>
-            </>
-          )}
+          <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
         </Link>
 
         {/* Desktop Menu */}
