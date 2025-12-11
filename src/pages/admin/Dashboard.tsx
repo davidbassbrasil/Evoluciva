@@ -94,7 +94,24 @@ export default function AdminDashboard() {
       }
       
       const testimonials = getTestimonials();
-      const lessons = getLessons();
+      // Fetch lessons from Supabase when available so dashboard shows up-to-date count
+      let lessons: any[] = [];
+      if (supabase) {
+        try {
+          const { data: lessonsData, error: lessonsError } = await supabase
+            .from('lessons')
+            .select('id');
+          if (!lessonsError && Array.isArray(lessonsData)) {
+            lessons = lessonsData;
+          } else {
+            lessons = getLessons();
+          }
+        } catch (e) {
+          lessons = getLessons();
+        }
+      } else {
+        lessons = getLessons();
+      }
 
       // Load turmas (to get prices per course)
       let turmas: any[] = [];
