@@ -278,6 +278,11 @@ export default function Financeiro() {
   const filterPayments = () => {
     let filtered = [...payments];
     
+    // Filtrar pagamentos cancelados por padrão (exceto se filtro de status for CANCELLED)
+    if (statusFilter !== 'CANCELLED') {
+      filtered = filtered.filter(p => p.status !== 'CANCELLED');
+    }
+    
     // Filtro por data
     filtered = filtered.filter(p => {
       const date = new Date(p.payment_date || p.created_at);
@@ -382,6 +387,7 @@ export default function Financeiro() {
       PENDING: { label: 'Pendente', variant: 'secondary', className: 'bg-yellow-500' },
       OVERDUE: { label: 'Vencido', variant: 'destructive' },
       REFUNDED: { label: 'Reembolsado', variant: 'outline' },
+      CANCELLED: { label: 'Cancelado', variant: 'outline', className: 'bg-gray-500 text-white' },
       AWAITING_RISK_ANALYSIS: { label: 'Em Análise', variant: 'secondary', className: 'bg-blue-500' },
       REFUND_REQUESTED: { label: 'Reembolso Solicitado', variant: 'outline' },
     };
@@ -685,6 +691,7 @@ export default function Financeiro() {
                   <SelectItem value="PENDING">Pendente</SelectItem>
                   <SelectItem value="OVERDUE">Vencido</SelectItem>
                   <SelectItem value="REFUNDED">Reembolsado</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -866,9 +873,7 @@ export default function Financeiro() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">ID Asaas</p>
-                    <p className="font-mono text-sm">
-                      {selectedPayment.asaas_payment_id || <span className="text-muted-foreground italic">Caixa Local</span>}
-                    </p>
+                    <p className="font-mono text-sm">{selectedPayment.asaas_payment_id}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>
