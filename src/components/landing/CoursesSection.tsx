@@ -169,6 +169,13 @@ export function CoursesSection() {
             ))}
           </div>
         </div>
+        <div className="text-center mt-8">
+          <Link to="/cursos">
+            <Button className="gradient-bg text-primary-foreground px-6 py-3">
+              Todos os Cursos
+            </Button>
+          </Link>
+        </div>
       </div>
     </section>
   );
