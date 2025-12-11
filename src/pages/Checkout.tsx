@@ -861,22 +861,22 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-secondary/30">
       {/* Header */}
-      <header className="bg-card border-b border-border py-4 px-6">
-        <div className="container mx-auto flex items-center gap-4">
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span>Voltar</span>
-          </Link>
-          <div className="h-6 w-px bg-border" />
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
-              <GraduationCap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="font-bold">Evoluciva</span>
-          </Link>
+      <header className="bg-card border-b border-border py-4">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto flex items-center gap-4">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>Voltar</span>
+            </Link>
+            <div className="h-6 w-px bg-border" />
+            <Link to="/" className="flex items-center gap-2">
+              <img src={'/src/assets/logo_.png'} alt="Logo" className="h-8" />
+              <span className="font-bold"></span>
+            </Link>
+          </div>
         </div>
       </header>
 
