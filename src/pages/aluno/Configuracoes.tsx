@@ -236,7 +236,7 @@ export default function AlunoConfiguracoes() {
 
   const tabs = [
     { id: 'site', label: 'Site', icon: Globe },
-    { id: 'contato', label: 'Contato', icon: MessageCircle },
+    { id: 'contato', label: 'Suporte', icon: MessageCircle },
     { id: 'dados', label: 'Meus Dados', icon: UserCircle },
     { id: 'senha', label: 'Senha', icon: Key },
   ];
@@ -245,7 +245,7 @@ export default function AlunoConfiguracoes() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6">
-        <div className="container mx-auto flex items-center gap-4">
+        <div className="flex items-center justify-between w-full">
           <Link
             to="/aluno/dashboard"
             className="flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground transition-colors"
@@ -317,7 +317,7 @@ export default function AlunoConfiguracoes() {
             {activeTab === 'contato' && (
               <div className="text-center py-8">
                 <MessageCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
-                <h3 className="text-xl font-bold mb-2">Fale com a Gente</h3>
+                <h3 className="text-xl font-bold mb-2">Fale com o Suporte</h3>
                 <p className="text-muted-foreground mb-6">
                   Entre em contato conosco via WhatsApp
                 </p>

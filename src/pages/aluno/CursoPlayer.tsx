@@ -252,7 +252,7 @@ export default function CursoPlayer() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-card border-b py-4 px-6 sticky top-0 z-10">
-        <div className="container mx-auto flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-4">
             <Link
               to="/aluno/dashboard"

@@ -178,7 +178,7 @@ export default function AlunoDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
-        <div className="container mx-auto flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
           <Link to="/" className="flex items-center gap-2">
             <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
           </Link>
@@ -267,18 +267,17 @@ export default function AlunoDashboard() {
                       alt={turma.course_title}
                       className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 to-transparent" />
                     <div className="absolute bottom-4 left-4 right-4">
                       <Badge className="mb-2 bg-primary/80">
                         {turma.turma_name}
                       </Badge>
-                      <h3 className="text-primary-foreground font-bold line-clamp-1">
+                      <h3 className="text-white font-bold line-clamp-1 drop-shadow-md">
                         {turma.course_title}
                       </h3>
                     </div>
                     <Link
                       to={`/aluno/curso/${turma.turma_id}`}
-                      className="absolute inset-0 flex items-center justify-center bg-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-glow">
                         <Play className="w-8 h-8 text-primary-foreground ml-1" />
