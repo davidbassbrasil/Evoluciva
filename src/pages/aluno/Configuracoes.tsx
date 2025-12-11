@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser, updateUser } from '@/lib/localStorage';
 import { User as UserType } from '@/types';
@@ -21,6 +20,7 @@ export default function AlunoConfiguracoes() {
   const [user, setUser] = useState<UserType | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('site');
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
@@ -234,6 +234,13 @@ export default function AlunoConfiguracoes() {
 
   if (!user) return null;
 
+  const tabs = [
+    { id: 'site', label: 'Site', icon: Globe },
+    { id: 'contato', label: 'Contato', icon: MessageCircle },
+    { id: 'dados', label: 'Meus Dados', icon: UserCircle },
+    { id: 'senha', label: 'Senha', icon: Key },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -253,38 +260,46 @@ export default function AlunoConfiguracoes() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-card rounded-2xl p-8 border border-border/50 shadow-lg">
+        <div className="bg-card rounded-2xl p-6 md:p-8 border border-border/50 shadow-lg">
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-20 h-20 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-3xl font-bold shadow-glow">
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full gradient-bg flex items-center justify-center text-primary-foreground text-2xl md:text-3xl font-bold shadow-glow">
               {profileData.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-2xl font-bold">{profileData.name}</h2>
-              <p className="text-muted-foreground">{profileData.email}</p>
+              <h2 className="text-xl md:text-2xl font-bold">{profileData.name}</h2>
+              <p className="text-sm md:text-base text-muted-foreground">{profileData.email}</p>
             </div>
           </div>
 
-          <Tabs defaultValue="site" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="site">
-                <Globe className="w-4 h-4 mr-2" />
-                Site
-              </TabsTrigger>
-              <TabsTrigger value="contato">
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Contato
-              </TabsTrigger>
-              <TabsTrigger value="dados">
-                <UserCircle className="w-4 h-4 mr-2" />
-                Meus Dados
-              </TabsTrigger>
-              <TabsTrigger value="senha">
-                <Key className="w-4 h-4 mr-2" />
-                Senha
-              </TabsTrigger>
-            </TabsList>
+          {/* Custom Responsive Tabs */}
+          <div className="w-full mb-6">
+            <div className="grid grid-cols-2 gap-3">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all
+                      ${isActive 
+                        ? 'bg-primary text-primary-foreground shadow-md' 
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      }
+                    `}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-sm md:text-base">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-            <TabsContent value="site" className="space-y-4 mt-6">
+          {/* Tab Content */}
+          <div className="mt-8">
+            {activeTab === 'site' && (
               <div className="text-center py-8">
                 <Globe className="w-16 h-16 mx-auto mb-4 text-primary" />
                 <h3 className="text-xl font-bold mb-2">Ir para o Site</h3>
@@ -297,9 +312,9 @@ export default function AlunoConfiguracoes() {
                   </Button>
                 </Link>
               </div>
-            </TabsContent>
+            )}
 
-            <TabsContent value="contato" className="space-y-4 mt-6">
+            {activeTab === 'contato' && (
               <div className="text-center py-8">
                 <MessageCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
                 <h3 className="text-xl font-bold mb-2">Fale com a Gente</h3>
@@ -320,9 +335,9 @@ export default function AlunoConfiguracoes() {
                   (82) 98816-3133
                 </p>
               </div>
-            </TabsContent>
+            )}
 
-            <TabsContent value="dados" className="space-y-4 mt-6">
+            {activeTab === 'dados' && (
               <form onSubmit={handleProfileSubmit} className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -483,9 +498,9 @@ export default function AlunoConfiguracoes() {
                   {loading ? 'Salvando...' : 'Salvar Alterações'}
                 </Button>
               </form>
-            </TabsContent>
+            )}
 
-            <TabsContent value="senha" className="space-y-4 mt-6">
+            {activeTab === 'senha' && (
               <form onSubmit={handlePasswordSubmit} className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -535,8 +550,8 @@ export default function AlunoConfiguracoes() {
                   {loading ? 'Alterando...' : 'Alterar Senha'}
                 </Button>
               </form>
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         </div>
       </main>
     </div>

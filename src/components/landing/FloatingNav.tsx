@@ -159,7 +159,7 @@ export function FloatingNav() {
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-0">
+        <div className="hidden md:flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
