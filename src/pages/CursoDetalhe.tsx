@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, User, CheckCircle, ShoppingCart, Calendar, Users as UsersIcon } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, ShoppingCart, Calendar, Users as UsersIcon, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,8 @@ export default function CursoDetalhe() {
   const [selectedTurma, setSelectedTurma] = useState<Turma | null>(null);
   const [selectedModality, setSelectedModality] = useState<'presential' | 'online'>('presential');
   const [loading, setLoading] = useState(true);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrolledTurmaId, setEnrolledTurmaId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -83,6 +85,23 @@ export default function CursoDetalhe() {
           });
           
           setTurmas(availableTurmas);
+          
+          // Verificar se o aluno está matriculado em alguma turma deste curso
+          const currentUser = getCurrentUser();
+          if (currentUser?.id) {
+            const { data: enrollmentData } = await supabase
+              .from('enrollments')
+              .select('turma_id, turmas!inner(course_id)')
+              .eq('profile_id', currentUser.id);
+            
+            if (enrollmentData && enrollmentData.length > 0) {
+              const enrollment = enrollmentData.find((e: any) => e.turmas?.course_id === data.id);
+              if (enrollment) {
+                setIsEnrolled(true);
+                setEnrolledTurmaId(enrollment.turma_id);
+              }
+            }
+          }
           
           // Selecionar turma da URL ou primeira disponível
           if (turmaIdFromUrl) {
@@ -396,60 +415,70 @@ export default function CursoDetalhe() {
                 )}
 
                 <div className="space-y-3">
-                  <Button
-                    onClick={() => {
-                      if (!selectedTurma) {
+                  {isEnrolled && enrolledTurmaId ? (
+                    <Button
+                      onClick={() => navigate(`/aluno/curso/${enrolledTurmaId}`)}
+                      className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg"
+                    >
+                      <Play className="w-5 h-5 mr-2" />
+                      Estudar agora
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        if (!selectedTurma) {
+                          toast({ 
+                            title: 'Selecione uma turma', 
+                            description: 'Escolha uma turma disponível.',
+                            variant: 'destructive'
+                          });
+                          return;
+                        }
+                        
+                        if (selectedTurma.status === 'coming_soon') {
+                          toast({ 
+                            title: 'Turma em breve', 
+                            description: 'As inscrições ainda não foram abertas.',
+                            variant: 'destructive'
+                          });
+                          return;
+                        }
+                        
+                        if (selectedModality === 'presential' && selectedTurma.presential_slots === 0) {
+                          toast({ 
+                            title: 'Vagas esgotadas', 
+                            description: 'As vagas presenciais para esta turma estão esgotadas. Selecione a modalidade online.',
+                            variant: 'destructive'
+                          });
+                          return;
+                        }
+                        
+                        const currentUser = getCurrentUser();
+                        if (!currentUser) {
+                          toast({ 
+                            title: 'Faça login', 
+                            description: 'Você precisa estar logado para adicionar cursos ao carrinho.',
+                            variant: 'destructive'
+                          });
+                          sessionStorage.setItem('checkout_return_path', window.location.pathname);
+                          navigate('/aluno/login');
+                          return;
+                        }
+                        
+                        // Salvar no localStorage como "courseId:turmaId:modality"
+                        addToCart(`${course.id}:${selectedTurma.id}:${selectedModality}`);
                         toast({ 
-                          title: 'Selecione uma turma', 
-                          description: 'Escolha uma turma disponível.',
-                          variant: 'destructive'
+                          title: 'Adicionado ao carrinho', 
+                          description: `${course.title} - ${selectedTurma.name} (${selectedModality === 'online' ? 'Online' : 'Presencial'})` 
                         });
-                        return;
-                      }
-                      
-                      if (selectedTurma.status === 'coming_soon') {
-                        toast({ 
-                          title: 'Turma em breve', 
-                          description: 'As inscrições ainda não foram abertas.',
-                          variant: 'destructive'
-                        });
-                        return;
-                      }
-                      
-                      if (selectedModality === 'presential' && selectedTurma.presential_slots === 0) {
-                        toast({ 
-                          title: 'Vagas esgotadas', 
-                          description: 'As vagas presenciais para esta turma estão esgotadas. Selecione a modalidade online.',
-                          variant: 'destructive'
-                        });
-                        return;
-                      }
-                      
-                      const currentUser = getCurrentUser();
-                      if (!currentUser) {
-                        toast({ 
-                          title: 'Faça login', 
-                          description: 'Você precisa estar logado para adicionar cursos ao carrinho.',
-                          variant: 'destructive'
-                        });
-                        sessionStorage.setItem('checkout_return_path', window.location.pathname);
-                        navigate('/aluno/login');
-                        return;
-                      }
-                      
-                      // Salvar no localStorage como "courseId:turmaId:modality"
-                      addToCart(`${course.id}:${selectedTurma.id}:${selectedModality}`);
-                      toast({ 
-                        title: 'Adicionado ao carrinho', 
-                        description: `${course.title} - ${selectedTurma.name} (${selectedModality === 'online' ? 'Online' : 'Presencial'})` 
-                      });
-                    }}
-                    className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg"
-                    disabled={!selectedTurma || selectedTurma.status === 'coming_soon'}
-                  >
-                    <ShoppingCart className="w-5 h-5 mr-2" />
-                    Adicionar ao carrinho
-                  </Button>
+                      }}
+                      className="w-full gradient-bg text-primary-foreground shadow-glow hover:opacity-90 h-12 text-lg"
+                      disabled={!selectedTurma || selectedTurma.status === 'coming_soon'}
+                    >
+                      <ShoppingCart className="w-5 h-5 mr-2" />
+                      Adicionar ao carrinho
+                    </Button>
+                  )}
 
                   <Button
                     variant="outline"

@@ -57,7 +57,7 @@ const App = () => (
           <Route path="/links" element={<Links />} />
           <Route path="/aluno/login" element={<AlunoLogin />} />
           <Route path="/aluno/dashboard" element={<AlunoDashboard />} />
-          <Route path="/aluno/curso/:courseId" element={<CursoPlayer />} />
+          <Route path="/aluno/curso/:turmaId" element={<CursoPlayer />} />
           <Route path="/aluno/configuracoes" element={<AlunoConfiguracoes />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
