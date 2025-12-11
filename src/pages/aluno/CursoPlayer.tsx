@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Play, CheckCircle, Circle, ChevronLeft, Clock, BookOpen, FileText, ExternalLink } from 'lucide-react';
+import { Play, CheckCircle, Circle, ChevronLeft, Clock, BookOpen, FileText, ExternalLink, ChevronRight, Search, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { getCurrentUser } from '@/lib/localStorage';
 import supabase from '@/lib/supabaseClient';
 import { cn } from '@/lib/utils';
@@ -42,6 +43,10 @@ export default function CursoPlayer() {
   const [progress, setProgress] = useState<LessonProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [focusMode, setFocusMode] = useState(false);
+  const moduleRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -121,6 +126,14 @@ export default function CursoPlayer() {
 
         const lessonsArray = lessonsData || [];
         setLessons(lessonsArray);
+
+        // Initialize all modules as expanded
+        const moduleTitles = [...new Set(lessonsArray.map(l => l.module_title))];
+        const initialExpanded: Record<string, boolean> = {};
+        moduleTitles.forEach(title => {
+          initialExpanded[title] = true;
+        });
+        setExpandedModules(initialExpanded);
 
         // Load user progress
         const { data: progressData, error: progressError } = await supabase
@@ -251,8 +264,57 @@ export default function CursoPlayer() {
     return url;
   };
 
+  // Navigation functions
+  const goToPreviousLesson = () => {
+    if (!currentLesson) return;
+    const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
+    if (currentIndex > 0) {
+      setCurrentLesson(lessons[currentIndex - 1]);
+    }
+  };
+
+  const goToNextLesson = () => {
+    if (!currentLesson) return;
+    const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
+    if (currentIndex < lessons.length - 1) {
+      setCurrentLesson(lessons[currentIndex + 1]);
+    }
+  };
+
+  const currentLessonIndex = currentLesson ? lessons.findIndex(l => l.id === currentLesson.id) : -1;
+  const hasPrevious = currentLessonIndex > 0;
+  const hasNext = currentLessonIndex < lessons.length - 1;
+
+  // Get current module
+  const currentModule = currentLesson?.module_title || '';
+
+  // Jump to first lesson of module
+  const goToModule = (moduleTitle: string) => {
+    const moduleLessons = lessons
+      .filter(l => l.module_title === moduleTitle)
+      .sort((a, b) => a.lesson_order - b.lesson_order);
+    
+    if (moduleLessons.length > 0) {
+      setCurrentLesson(moduleLessons[0]);
+    }
+  };
+
+  // Toggle module expansion
+  const toggleModule = (moduleTitle: string) => {
+    setExpandedModules(prev => ({
+      ...prev,
+      [moduleTitle]: !prev[moduleTitle]
+    }));
+  };
+
+  // Filter lessons by search query
+  const filteredLessons = lessons.filter(lesson => 
+    lesson.lesson_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    lesson.module_title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // Group lessons by module
-  const groupedLessons = lessons.reduce((acc, lesson) => {
+  const groupedLessons = filteredLessons.reduce((acc, lesson) => {
     if (!acc[lesson.module_title]) {
       acc[lesson.module_title] = [];
     }
@@ -284,7 +346,10 @@ export default function CursoPlayer() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-card border-b py-4 px-6 sticky top-0 z-10">
+      <header className={cn(
+        "bg-card border-b py-4 px-6 sticky top-0 z-10 transition-all duration-300",
+        focusMode && "blur-sm opacity-50"
+      )}>
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-4">
             <Link
@@ -308,6 +373,25 @@ export default function CursoPlayer() {
               <span className="text-muted-foreground">{getProgressPercentage()}% concluído</span>
               <Progress value={getProgressPercentage()} className="w-24 h-2" />
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFocusMode(!focusMode)}
+              className="flex items-center gap-2"
+              title={focusMode ? 'Sair do modo foco' : 'Modo foco'}
+            >
+              {focusMode ? (
+                <>
+                  <Minimize2 className="w-4 h-4" />
+                  <span className="hidden lg:inline">Sair do foco</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4" />
+                  <span className="hidden lg:inline">Modo foco</span>
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </header>
@@ -326,7 +410,39 @@ export default function CursoPlayer() {
           </div>
 
           {/* Lesson Info */}
-          <div className="p-6 bg-card">
+          <div className={cn(
+            "p-6 bg-card transition-all duration-300",
+            focusMode && "blur-sm opacity-50"
+          )}>
+            {/* Navigation Arrows */}
+            <div className="flex items-center justify-between gap-2 mb-4 pb-4 border-b border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousLesson}
+                disabled={!hasPrevious}
+                className="flex items-center gap-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Anterior</span>
+              </Button>
+              
+              <span className="text-sm text-muted-foreground">
+                Aula {currentLessonIndex + 1} de {lessons.length}
+              </span>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextLesson}
+                disabled={!hasNext}
+                className="flex items-center gap-1"
+              >
+                <span className="hidden sm:inline">Próxima</span>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
               <div className="flex-1">
                 <Badge variant="outline" className="mb-2">
@@ -343,11 +459,6 @@ export default function CursoPlayer() {
                 )}
 
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <BookOpen className="w-4 h-4" />
-                    Aula {lessons.findIndex(l => l.id === currentLesson.id) + 1} de {lessons.length}
-                  </span>
-                  
                   {currentLesson.material_link && (
                     <a 
                       href={currentLesson.material_link} 
@@ -387,7 +498,10 @@ export default function CursoPlayer() {
         </div>
 
         {/* Lessons Sidebar */}
-        <div className="lg:w-96 bg-card border-l border-border">
+        <div className={cn(
+          "lg:w-96 bg-card border-l border-border transition-all duration-300",
+          focusMode && "blur-md opacity-30"
+        )}>
           <div className="p-4 border-b border-border">
             <h3 className="font-bold flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
@@ -396,18 +510,82 @@ export default function CursoPlayer() {
             <p className="text-sm text-muted-foreground mt-1">
               {lessons.length} {lessons.length === 1 ? 'aula' : 'aulas'}
             </p>
+            
+            {/* Search Input */}
+            <div className="relative mt-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar aulas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            
+            {searchQuery && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {filteredLessons.length} {filteredLessons.length === 1 ? 'resultado' : 'resultados'}
+              </p>
+            )}
+            
+            {/* Module Navigation */}
+            {!searchQuery && Object.keys(groupedLessons).length > 1 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Módulos</p>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                  {Object.keys(groupedLessons).map((moduleTitle, index) => {
+                    const isActive = moduleTitle === currentModule;
+                    const moduleNumber = index + 1;
+                    
+                    return (
+                      <button
+                        key={moduleTitle}
+                        onClick={() => goToModule(moduleTitle)}
+                        className={cn(
+                          'shrink-0 w-7 h-7 rounded font-semibold text-xs transition-all',
+                          isActive
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'bg-secondary hover:bg-secondary/80 hover:text-primary'
+                        )}
+                        title={moduleTitle}
+                      >
+                        {moduleNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <ScrollArea className="h-[calc(100vh-180px)]">
             <div className="p-2">
-              {Object.entries(groupedLessons).map(([moduleTitle, moduleLessons]) => (
-                <div key={moduleTitle} className="mb-4">
-                  <h4 className="px-3 py-2 text-sm font-semibold text-muted-foreground sticky top-0 bg-card">
-                    {moduleTitle}
-                  </h4>
-                  {moduleLessons
-                    .sort((a, b) => a.lesson_order - b.lesson_order)
-                    .map((lesson) => {
+              {Object.entries(groupedLessons).map(([moduleTitle, moduleLessons], index) => {
+                const isExpanded = expandedModules[moduleTitle] ?? true;
+                
+                return (
+                  <div 
+                    key={moduleTitle} 
+                    className="mb-4"
+                    ref={(el) => (moduleRefs.current[moduleTitle] = el)}
+                  >
+                    <button
+                      onClick={() => toggleModule(moduleTitle)}
+                      className="w-full px-3 py-2 text-sm font-semibold text-muted-foreground sticky top-0 bg-card z-10 flex items-center gap-2 hover:bg-muted/50 transition-colors rounded"
+                    >
+                      <span className="flex items-center justify-center w-6 h-6 rounded bg-primary/10 text-primary text-xs font-bold">
+                        {index + 1}
+                      </span>
+                      <span className="flex-1 text-left">{moduleTitle}</span>
+                      <ChevronDown className={cn(
+                        "w-4 h-4 transition-transform",
+                        !isExpanded && "-rotate-90"
+                      )} />
+                    </button>
+                    {isExpanded && moduleLessons
+                      .sort((a, b) => a.lesson_order - b.lesson_order)
+                      .map((lesson) => {
                       const isCompleted = isLessonCompleted(lesson.id);
                       const isCurrent = currentLesson.id === lesson.id;
 
@@ -444,8 +622,9 @@ export default function CursoPlayer() {
                         </button>
                       );
                     })}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           </ScrollArea>
         </div>
