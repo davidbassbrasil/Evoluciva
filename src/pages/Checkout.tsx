@@ -29,6 +29,8 @@ export default function Checkout() {
   const [installmentCount, setInstallmentCount] = useState<number>(2);
   const [pixQrCode, setPixQrCode] = useState<string>('');
   const [pixCopyPaste, setPixCopyPaste] = useState<string>('');
+  const [pixExpiresAt, setPixExpiresAt] = useState<Date | null>(null);
+  const [pixTimeRemaining, setPixTimeRemaining] = useState<string>('');
   const [boletoUrl, setBoletoUrl] = useState<string>('');
   const [boletoBarcode, setBoletoBarcode] = useState<string>('');
   
@@ -52,6 +54,28 @@ export default function Checkout() {
     turmaId?: string | null;
   } | null>(null);
   const [couponError, setCouponError] = useState<string>('');
+
+  // Contador de tempo do PIX
+  useEffect(() => {
+    if (!pixExpiresAt) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diff = pixExpiresAt.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setPixTimeRemaining('Expirado');
+        clearInterval(interval);
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setPixTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [pixExpiresAt]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -412,7 +436,7 @@ export default function Checkout() {
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
           itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
           if (!turma) clearCart();
-          toast({ title: 'Pagamento Aprovado!', descrição: 'Você já pode acessar seus cursos.' });
+          toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
           navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
@@ -431,6 +455,11 @@ export default function Checkout() {
         const pixData = await asaasService.getPixQrCode(payment.id);
         setPixQrCode(pixData.encodedImage);
         setPixCopyPaste(pixData.payload);
+        
+        // PIX expira em 30 minutos
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 30);
+        setPixExpiresAt(expiresAt);
 
         toast({ title: 'PIX Gerado!', description: 'Escaneie o QR Code ou copie o código PIX para pagar.' });
       } else if (paymentMethod === 'BOLETO') {
@@ -478,8 +507,8 @@ export default function Checkout() {
         });
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          itemsToPurchase.forEach((it) => purchaseCourse(currentUser.id, it.id));
-          if (!course) clearCart();
+          itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
+          if (!turma) clearCart();
           toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
           navigate('/aluno/dashboard');
         } else {
@@ -1122,36 +1151,94 @@ export default function Checkout() {
                     <TabsContent value="PIX" className="mt-4">
                       {pixQrCode ? (
                         <div className="space-y-4">
-                          <div className="bg-white p-4 rounded-xl flex justify-center">
+                          {/* Contador de tempo */}
+                          <div className={`p-4 rounded-xl text-center ${
+                            pixTimeRemaining === 'Expirado' 
+                              ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800' 
+                              : 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800'
+                          }`}>
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                              <Clock className={`w-5 h-5 ${pixTimeRemaining === 'Expirado' ? 'text-red-600' : 'text-blue-600'}`} />
+                              <span className="font-semibold text-lg">
+                                {pixTimeRemaining === 'Expirado' ? 'PIX Expirado' : `Tempo restante: ${pixTimeRemaining}`}
+                              </span>
+                            </div>
+                            {pixTimeRemaining === 'Expirado' ? (
+                              <p className="text-sm text-red-600 dark:text-red-400">
+                                Gere um novo PIX para continuar com a compra
+                              </p>
+                            ) : (
+                              <p className="text-sm text-blue-600 dark:text-blue-400">
+                                Complete o pagamento dentro do prazo para garantir sua matrícula
+                              </p>
+                            )}
+                          </div>
+
+                          {/* QR Code */}
+                          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl flex justify-center border-2 border-border">
                             <img src={`data:image/png;base64,${pixQrCode}`} alt="QR Code PIX" className="w-64 h-64" />
                           </div>
+
+                          {/* Código copia e cola */}
                           <div className="space-y-2">
-                            <Label>Código PIX Copia e Cola</Label>
+                            <Label className="text-base font-semibold">Código PIX Copia e Cola</Label>
                             <div className="flex gap-2">
                               <Input
                                 value={pixCopyPaste}
                                 readOnly
-                                className="font-mono text-xs"
+                                className="font-mono text-xs h-12"
                               />
                               <Button
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(pixCopyPaste);
-                                  toast({ title: 'Código copiado!' });
+                                  toast({ title: '✅ Código copiado!', description: 'Cole no app do seu banco' });
                                 }}
+                                className="h-12 px-6"
                               >
                                 Copiar
                               </Button>
                             </div>
                           </div>
-                          <p className="text-sm text-muted-foreground text-center">
-                            Abra o app do seu banco e escaneie o QR Code ou use o código Pix
-                          </p>
+
+                          {/* Instruções */}
+                          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                            <p className="font-semibold text-sm">📱 Como pagar:</p>
+                            <ol className="text-sm text-muted-foreground space-y-1 ml-4 list-decimal">
+                              <li>Abra o app do seu banco</li>
+                              <li>Escolha pagar com PIX</li>
+                              <li>Escaneie o QR Code ou cole o código</li>
+                              <li>Confirme o pagamento</li>
+                            </ol>
+                          </div>
+
+                          {/* Botão para trocar método */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => {
+                              setPixQrCode('');
+                              setPixCopyPaste('');
+                              setPixExpiresAt(null);
+                              setPixTimeRemaining('');
+                            }}
+                          >
+                            Escolher outro método de pagamento
+                          </Button>
                         </div>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <QrCode className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                          <p>Clique em "Gerar PIX" para criar o QR Code</p>
+                          <p className="mb-2 font-medium">Pagamento instantâneo via PIX</p>
+                          <p className="text-sm">Clique em "Gerar PIX" para criar o QR Code</p>
+                          {firstTurma?.discount_pix > 0 && (
+                            <div className="mt-4 inline-block bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
+                              <span className="text-green-600 dark:text-green-400 font-semibold">
+                                🎉 {firstTurma.discount_pix}% de desconto no PIX
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </TabsContent>
@@ -1160,71 +1247,138 @@ export default function Checkout() {
                     <TabsContent value="BOLETO" className="mt-4">
                       {boletoUrl ? (
                         <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Código de Barras</Label>
-                            <Input
-                              value={boletoBarcode}
-                              readOnly
-                              className="font-mono text-sm"
-                            />
+                          {/* Aviso de vencimento */}
+                          <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl text-center border-2 border-amber-200 dark:border-amber-800">
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                              <Clock className="w-5 h-5 text-amber-600" />
+                              <span className="font-semibold text-lg text-amber-700 dark:text-amber-400">
+                                Vencimento em 7 dias
+                              </span>
+                            </div>
+                            <p className="text-sm text-amber-600 dark:text-amber-500">
+                              Pague até o vencimento para garantir sua matrícula
+                            </p>
                           </div>
+
+                          {/* Código de barras */}
+                          <div className="space-y-2">
+                            <Label className="text-base font-semibold">Código de Barras</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={boletoBarcode}
+                                readOnly
+                                className="font-mono text-sm h-12"
+                              />
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(boletoBarcode);
+                                  toast({ title: '✅ Código copiado!', description: 'Cole no app do seu banco' });
+                                }}
+                                className="h-12 px-6"
+                              >
+                                Copiar
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Botão visualizar boleto */}
                           <Button
                             type="button"
                             onClick={() => window.open(boletoUrl, '_blank')}
-                            className="w-full"
-                            variant="outline"
+                            className="w-full h-12 gradient-bg"
                           >
-                            <Barcode className="w-4 h-4 mr-2" />
-                            Visualizar Boleto
+                            <Barcode className="w-5 h-5 mr-2" />
+                            Visualizar e Imprimir Boleto
                           </Button>
-                          <p className="text-sm text-muted-foreground text-center">
-                            Pague o boleto em qualquer banco, lotérica ou app bancário
-                          </p>
+
+                          {/* Instruções */}
+                          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                            <p className="font-semibold text-sm">🏦 Como pagar:</p>
+                            <ol className="text-sm text-muted-foreground space-y-1 ml-4 list-decimal">
+                              <li>Copie o código de barras acima</li>
+                              <li>Acesse o app do seu banco ou vá até uma lotérica</li>
+                              <li>Escolha "Pagar boleto"</li>
+                              <li>Cole o código ou escaneie o código de barras</li>
+                              <li>Confirme o pagamento</li>
+                            </ol>
+                          </div>
+
+                          {/* Botão para trocar método */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => {
+                              setBoletoUrl('');
+                              setBoletoBarcode('');
+                            }}
+                          >
+                            Escolher outro método de pagamento
+                          </Button>
                         </div>
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <Barcode className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                          <p>Clique em "Gerar Boleto" para criar a cobrança</p>
+                          <p className="mb-2 font-medium">Boleto bancário com vencimento em 7 dias</p>
+                          <p className="text-sm">Clique em "Gerar Boleto" para criar a cobrança</p>
                         </div>
                       )}
                     </TabsContent>
                   </Tabs>
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading || (subtotal > 0 && !asaasService.isConfigured())}
-                  className="w-full h-14 gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold text-lg rounded-xl"
-                >
-                  {loading ? (
-                      'Processando...'
-                    ) : paymentMethod === 'CREDIT_CARD_ONE' ? (
-                      <>
-                        <Check className="w-5 h-5 mr-2" />
-                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Finalizar Compra - R$ ${subtotal.toFixed(2)}`}
-                      </>
-                    ) : paymentMethod === 'CREDIT_CARD_INSTALL' ? (
-                      <>
-                        <Check className="w-5 h-5 mr-2" />
-                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Parcelado - ${installmentCount}x - R$ ${subtotal.toFixed(2)}`}
-                      </>
-                    ) : paymentMethod === 'PIX' ? (
-                      <>
-                        <QrCode className="w-5 h-5 mr-2" />
-                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar PIX - R$ ${subtotal.toFixed(2)}`}
-                      </>
-                    ) : paymentMethod === 'DEBIT_CARD' ? (
-                      <>
-                        <Check className="w-5 h-5 mr-2" />
-                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Débito - R$ ${subtotal.toFixed(2)}`}
-                      </>
-                    ) : (
-                      <>
-                        <Barcode className="w-5 h-5 mr-2" />
-                        {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar Boleto - R$ ${subtotal.toFixed(2)}`}
-                      </>
-                    )}
-                </Button>
+                {/* Mostrar botão diferente quando PIX/Boleto já foram gerados */}
+                {(paymentMethod === 'PIX' && pixQrCode) || (paymentMethod === 'BOLETO' && boletoUrl) ? (
+                  <div className="space-y-3">
+                    <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl text-center border-2 border-green-200 dark:border-green-800">
+                      <Check className="w-8 h-8 mx-auto mb-2 text-green-600" />
+                      <p className="font-semibold text-green-700 dark:text-green-400">
+                        {paymentMethod === 'PIX' ? 'PIX Gerado com Sucesso!' : 'Boleto Gerado com Sucesso!'}
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+                        {paymentMethod === 'PIX' 
+                          ? 'Efetue o pagamento para liberar seu acesso' 
+                          : 'Pague o boleto para liberar seu acesso'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={loading || (subtotal > 0 && !asaasService.isConfigured())}
+                    className="w-full h-14 gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold text-lg rounded-xl"
+                  >
+                    {loading ? (
+                        'Processando...'
+                      ) : paymentMethod === 'CREDIT_CARD_ONE' ? (
+                        <>
+                          <Check className="w-5 h-5 mr-2" />
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Finalizar Compra - R$ ${subtotal.toFixed(2)}`}
+                        </>
+                      ) : paymentMethod === 'CREDIT_CARD_INSTALL' ? (
+                        <>
+                          <Check className="w-5 h-5 mr-2" />
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Parcelado - ${installmentCount}x - R$ ${subtotal.toFixed(2)}`}
+                        </>
+                      ) : paymentMethod === 'PIX' ? (
+                        <>
+                          <QrCode className="w-5 h-5 mr-2" />
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar PIX - R$ ${subtotal.toFixed(2)}`}
+                        </>
+                      ) : paymentMethod === 'DEBIT_CARD' ? (
+                        <>
+                          <Check className="w-5 h-5 mr-2" />
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Débito - R$ ${subtotal.toFixed(2)}`}
+                        </>
+                      ) : (
+                        <>
+                          <Barcode className="w-5 h-5 mr-2" />
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Gerar Boleto - R$ ${subtotal.toFixed(2)}`}
+                        </>
+                      )}
+                  </Button>
+                )}
 
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Shield className="w-4 h-4" />

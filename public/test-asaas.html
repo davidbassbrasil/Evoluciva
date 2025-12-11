@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Edge Function Asaas</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste Edge Function - Asaas</h1>
+        
+        <div class="info">
+            <strong>ℹ️ Instruções:</strong><br>
+            1. Você precisa estar <strong>logado como aluno</strong> no site<br>
+            2. Clique em "Testar Edge Function" para verificar a conexão<br>
+            3. Se der erro, verifique as secrets no Supabase
+        </div>
+
+        <button id="testBtn">🚀 Testar Edge Function</button>
+        <button id="clearBtn">🗑️ Limpar</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://jvfjvzotrqhlfwzcnixj.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2Zmp2em90cnFobGZ3emNuaXhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwOTU1OTQsImV4cCI6MjA3OTY3MTU5NH0.jaQ3ntZPBY5rocrCtE2btD9AIayLd_-YvsnESaqqIKI';
+
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function testEdgeFunction() {
+            const btn = document.getElementById('testBtn');
+            const resultDiv = document.getElementById('result');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Testando...';
+            
+            try {
+                // 1. Verificar autenticação
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                
+                if (!session) {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ Erro: Usuário não autenticado</strong><br><br>
+                            Você precisa estar logado no site principal.<br>
+                            Acesse: <a href="http://localhost:5173/aluno/login" target="_blank">Login</a>
+                        </div>
+                    `;
+                    btn.disabled = false;
+                    btn.innerHTML = '🚀 Testar Edge Function';
+                    return;
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="result warning">
+                        ✅ Usuário autenticado: <code>${session.user.email}</code><br><br>
+                        🔄 Testando Edge Function...
+                    </div>
+                `;
+
+                // 2. Testar Edge Function
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/asaas-proxy`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        method: 'GET',
+                        endpoint: '/payments?limit=1'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <strong>✅ SUCESSO! Edge Function está funcionando!</strong><br><br>
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Resposta:</strong><br>
+                            <code>${JSON.stringify(data, null, 2)}</code><br><br>
+                            <strong>🎉 Seu checkout deve funcionar agora!</strong>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+                            <strong>❌ Edge Function retornou erro</strong><br><br>
+                            <strong>Status:</strong> ${response.status}<br>
+                            <strong>Erro:</strong> ${data.message || data.error || 'Erro desconhecido'}<br><br>
+                            <strong>Possíveis causas:</strong><br>
+                            1. Secrets não configuradas no Supabase<br>
+                            2. ASAAS_API_KEY inválida<br>
+                            3. ASAAS_ENV não configurada<br><br>
+                            <strong>Solução:</strong><br>
+                            Configure as secrets no Supabase Dashboard:<br>
+                            Project Settings → Edge Functions → Manage secrets
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Erro ao conectar com Edge Function</strong><br><br>
+                        <strong>Erro:</strong> ${error.message}<br><br>
+                        <strong>Possíveis causas:</strong><br>
+                        1. Edge Function não deployada<br>
+                        2. CORS não configurado<br>
+                        3. Problema de rede<br><br>
+                        <strong>Detalhes completos:</strong><br>
+                        <code>${JSON.stringify(error, null, 2)}</code>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🚀 Testar Edge Function';
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('result').innerHTML = '';
+        }
+
+        // Event listeners
+        document.getElementById('testBtn').addEventListener('click', testEdgeFunction);
+        document.getElementById('clearBtn').addEventListener('click', clearResults);
+    </script>
+</body>
+</html>

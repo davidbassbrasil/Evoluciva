@@ -7,8 +7,8 @@
 
 import { supabase } from './supabaseClient';
 
-// URL da Edge Function (process-payment)
-const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-payment`;
+// URL da Edge Function (asaas-proxy)
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-proxy`;
 
 interface AsaasCustomer {
   id?: string;
