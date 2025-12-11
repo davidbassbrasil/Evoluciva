@@ -45,8 +45,16 @@ export default function AdminAcesso() {
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openNewUserDialog, setOpenNewUserDialog] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+    role: 'moderator' as 'admin' | 'moderator',
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -194,6 +202,151 @@ export default function AdminAcesso() {
     }
   };
 
+  const createNewUser = async () => {
+    if (!newUserForm.full_name || !newUserForm.email || !newUserForm.password) {
+      toast({
+        title: 'Erro',
+        description: 'Preencha todos os campos',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newUserForm.password.length < 6) {
+      toast({
+        title: 'Erro',
+        description: 'A senha deve ter pelo menos 6 caracteres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Criar usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUserForm.email,
+        password: newUserForm.password,
+        options: {
+          data: {
+            full_name: newUserForm.full_name,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) {
+        throw new Error('Usuário não foi criado');
+      }
+
+      // Aguardar profile ser criado pelo trigger do Supabase
+      let profileExists = false;
+      let attempts = 0;
+      
+      while (!profileExists && attempts < 15) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', authData.user.id)
+          .single();
+        
+        if (profile) {
+          profileExists = true;
+          console.log('Profile criado:', profile);
+        }
+        attempts++;
+      }
+
+      if (!profileExists) {
+        throw new Error('Timeout ao aguardar criação do perfil');
+      }
+
+      // DELETAR o profile criado automaticamente e criar um novo com o role correto
+      const { error: deleteError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', authData.user.id);
+
+      if (deleteError) {
+        console.error('Erro ao deletar profile:', deleteError);
+      }
+
+      // Aguardar um pouco
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Criar profile com o role correto
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          email: newUserForm.email,
+          full_name: newUserForm.full_name,
+          role: newUserForm.role
+        })
+        .select()
+        .single();
+
+      console.log('Profile criado:', { newProfile, insertError });
+
+      if (insertError) {
+        console.error('Erro ao criar profile:', insertError);
+        throw new Error(`Erro ao criar perfil: ${insertError.message || JSON.stringify(insertError)}`);
+      }
+
+      // Se for moderador, criar permissões padrão (dashboard apenas)
+      if (newUserForm.role === 'moderator') {
+        const { error: permError } = await supabase
+          .from('user_permissions')
+          .insert({
+            user_id: authData.user.id,
+            permission_key: 'dashboard'
+          });
+
+        if (permError) {
+          console.error('Erro ao criar permissão padrão:', permError);
+          // Não bloqueia a criação, apenas avisa
+        }
+      }
+
+      toast({
+        title: 'Sucesso!',
+        description: `${newUserForm.role === 'admin' ? 'Administrador' : 'Moderador'} criado com sucesso!${newUserForm.role === 'moderator' ? ' Configure as permissões clicando em "Configurar Permissões".' : ''}`,
+      });
+
+      setOpenNewUserDialog(false);
+      setNewUserForm({
+        full_name: '',
+        email: '',
+        password: '',
+        role: 'moderator',
+      });
+      loadUsers();
+    } catch (error: any) {
+      console.error('Erro ao criar usuário:', error);
+      
+      let errorMessage = 'Não foi possível criar o usuário.';
+      
+      if (error.message?.includes('already registered')) {
+        errorMessage = 'Este e-mail já está cadastrado no sistema.';
+      } else if (error.message?.includes('Timeout')) {
+        errorMessage = 'O perfil está demorando para ser criado. Aguarde um momento e recarregue a página.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: 'Erro',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -204,6 +357,10 @@ export default function AdminAcesso() {
               Gerencie permissões de administradores e moderadores
             </p>
           </div>
+          <Button onClick={() => setOpenNewUserDialog(true)}>
+            <UserCog className="w-4 h-4 mr-2" />
+            Novo Usuário
+          </Button>
         </div>
 
         {/* Search */}
@@ -304,6 +461,116 @@ export default function AdminAcesso() {
             </div>
           </div>
         )}
+
+        {/* New User Dialog */}
+        <Dialog open={openNewUserDialog} onOpenChange={setOpenNewUserDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Novo Usuário Admin/Moderador</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Nome completo</Label>
+                <Input
+                  id="full_name"
+                  placeholder="Digite o nome completo"
+                  value={newUserForm.full_name}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, full_name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Função</Label>
+                <Select
+                  value={newUserForm.role}
+                  onValueChange={(value: 'admin' | 'moderator') => 
+                    setNewUserForm({ ...newUserForm, role: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-red-500" />
+                        <span>Administrador (Acesso Total)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="moderator">
+                      <div className="flex items-center gap-2">
+                        <UserCog className="w-4 h-4 text-blue-500" />
+                        <span>Moderador (Permissões Personalizadas)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
+                <p>
+                  {newUserForm.role === 'admin' 
+                    ? '✓ Terá acesso completo a todas as áreas do sistema'
+                    : '⚠️ Você poderá configurar as permissões após criar o usuário'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenNewUserDialog(false);
+                  setNewUserForm({
+                    full_name: '',
+                    email: '',
+                    password: '',
+                    role: 'moderator',
+                  });
+                }}
+                disabled={creating}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={createNewUser} disabled={creating}>
+                {creating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Criando...
+                  </>
+                ) : (
+                  <>
+                    <UserCog className="w-4 h-4 mr-2" />
+                    Criar Usuário
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Permissions Dialog */}
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>

@@ -1326,10 +1326,7 @@ export default function AdminAlunos() {
                             )}
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Mail className="w-3 h-3" />
-                            {profile.email || '-'}
-                          </div>
+                          <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>
                       <TableCell>

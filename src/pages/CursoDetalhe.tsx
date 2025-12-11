@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, User, CheckCircle, ShoppingCart, Calendar, Users as UsersIcon, Play } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, ShoppingCart, ShoppingBag, Calendar, Users as UsersIcon, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -488,7 +488,7 @@ export default function CursoDetalhe() {
 
                   <Button
                     variant="outline"
-                    className="w-full"
+                    className="w-full h-12 text-lg"
                     onClick={() => {
                       const currentUser = getCurrentUser();
                       if (!currentUser) {
@@ -504,6 +504,7 @@ export default function CursoDetalhe() {
                       navigate('/cart');
                     }}
                   >
+                    <ShoppingBag className="w-5 h-5 mr-2" />
                     Ir para o carrinho
                   </Button>
                 </div>

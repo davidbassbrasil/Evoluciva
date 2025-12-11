@@ -1,28 +1,31 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
 import supabase from '@/lib/supabaseClient';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-  { icon: Image, label: 'Banners', path: '/admin/banners' },
-  { icon: BookOpen, label: 'Cursos', path: '/admin/cursos' },
-  { icon: UsersRound, label: 'Turmas', path: '/admin/turmas' },
-  { icon: PlayCircle, label: 'Aulas', path: '/admin/aulas' },
-  { icon: Users, label: 'Professores', path: '/admin/professores' },
-  { icon: Tags, label: 'Tags', path: '/admin/tags' },
-  { icon: MessageSquare, label: 'Depoimentos', path: '/admin/depoimentos' },
-  { icon: HelpCircle, label: 'FAQ', path: '/admin/faq' },
-  { icon: Users, label: 'Alunos', path: '/admin/alunos' },
-  { icon: Wallet, label: 'Financeiro', path: '/admin/financeiro' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', permission: 'dashboard' },
+  { icon: Image, label: 'Banners', path: '/admin/banners', permission: 'banners' },
+  { icon: BookOpen, label: 'Cursos', path: '/admin/cursos', permission: 'cursos' },
+  { icon: UsersRound, label: 'Turmas', path: '/admin/turmas', permission: 'turmas' },
+  { icon: PlayCircle, label: 'Aulas', path: '/admin/aulas', permission: 'aulas' },
+  { icon: Users, label: 'Professores', path: '/admin/professores', permission: 'professores' },
+  { icon: Tags, label: 'Tags', path: '/admin/tags', permission: 'tags' },
+  { icon: MessageSquare, label: 'Depoimentos', path: '/admin/depoimentos', permission: 'depoimentos' },
+  { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', permission: 'faq' },
+  { icon: Users, label: 'Alunos', path: '/admin/alunos', permission: 'alunos' },
+  { icon: Wallet, label: 'Financeiro', path: '/admin/financeiro', permission: 'financeiro' },
+  { icon: Shield, label: 'Acesso', path: '/admin/acesso', permission: 'admin_only' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [userRole, setUserRole] = useState<string>('');
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -44,9 +47,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             .eq('id', user.id)
             .single();
           
-          if (error || !profile || profile.role !== 'admin') {
+          if (error || !profile) {
             navigate('/admin/login');
             return;
+          }
+
+          // Verificar se é admin ou moderator
+          if (profile.role !== 'admin' && profile.role !== 'moderator') {
+            navigate('/admin/login');
+            return;
+          }
+
+          setUserRole(profile.role);
+
+          // Se for moderador, carregar permissões
+          if (profile.role === 'moderator') {
+            const { data: permissions } = await supabase
+              .from('user_permissions')
+              .select('permission_key')
+              .eq('user_id', user.id);
+
+            const permKeys = permissions?.map(p => p.permission_key) || [];
+            console.log('🔑 Role:', profile.role);
+            console.log('🔑 Permissões do moderador:', permKeys);
+            setUserPermissions(permKeys);
+          } else {
+            console.log('🔑 Role:', profile.role, '(admin tem todas as permissões)');
           }
         } catch (e) {
           // If error checking profile, fallback to email check
@@ -54,6 +80,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             navigate('/admin/login');
             return;
           }
+          setUserRole('admin');
         }
       } else {
         // No Supabase: fallback to email check
@@ -61,6 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           navigate('/admin/login');
           return;
         }
+        setUserRole('admin');
       }
       
       setIsCheckingAuth(false);
@@ -68,6 +96,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     checkAuth();
   }, [navigate]);
+
+  const hasPermission = (permission: string) => {
+    // Admin tem todas as permissões
+    if (userRole === 'admin') return true;
+    
+    // Admin_only é apenas para admins
+    if (permission === 'admin_only') return false;
+    
+    // Moderador precisa ter a permissão específica
+    const has = userPermissions.includes(permission);
+    console.log(`🔍 Verificando permissão "${permission}":`, has ? '✅' : '❌');
+    return has;
+  };
 
   if (isCheckingAuth) {
     return (
@@ -100,22 +141,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <nav className="flex-1 p-4 space-y-1 overflow-auto">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
-                  location.pathname === item.path
-                    ? 'bg-primary text-primary-foreground shadow-glow'
-                    : 'hover:bg-secondary text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            ))}
+            {menuItems
+              .filter(item => hasPermission(item.permission))
+              .map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
+                    location.pathname === item.path
+                      ? 'bg-primary text-primary-foreground shadow-glow'
+                      : 'hover:bg-secondary text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              ))}
           </nav>
 
           <div className="p-4 border-t border-border">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, ShoppingCart, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getCart, removeFromCart, getCurrentUser } from '@/lib/localStorage';
@@ -159,18 +159,21 @@ export default function Cart() {
                 const displayOriginalPrice = modality === 'online' ? Number(turma.original_price_online) : Number(turma.original_price);
                 
                 return (
-                  <div key={itemId} className="bg-card p-4 rounded-2xl flex items-center justify-between border border-border/50">
-                    <div className="flex items-center gap-4">
-                      <img src={turma.course?.image} alt={turma.course?.title} className="w-24 h-16 object-cover rounded-lg" />
-                      <div>
-                        <h3 className="font-semibold">{turma.course?.title}</h3>
-                        <div className="flex items-center gap-2 mb-1">
+                  <div key={itemId} className="bg-card p-4 rounded-2xl flex items-start justify-between border border-border/50">
+                    <div className="flex items-start gap-4">
+                      <img src={turma.course?.image} alt={turma.course?.title} className="w-20 h-28 object-cover rounded-lg" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold mb-1">{turma.course?.title}</h3>
+                        <div className="flex items-center gap-2 mb-2">
                           <Badge variant="secondary" className="text-xs">{turma.name}</Badge>
                           <Badge variant="outline" className="text-xs">
                             {modality === 'online' ? 'Online' : 'Presencial'}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{turma.course?.instructor}</p>
+                        <p className="text-sm text-muted-foreground mb-1">{turma.course?.instructor}</p>
+                        {turma.course?.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">{turma.course.description}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -199,9 +202,15 @@ export default function Cart() {
                 <div className="text-2xl font-bold">R$ {total.toFixed(2)}</div>
               </div>
               <div className="flex flex-col gap-3">
-                <Button onClick={() => navigate('/checkout')} className="w-full gradient-bg text-primary-foreground">Finalizar Compra</Button>
+                <Button onClick={() => navigate('/checkout')} className="w-full gradient-bg text-primary-foreground h-12 text-base">
+                  <CreditCard className="w-5 h-5 mr-2" />
+                  Finalizar Compra
+                </Button>
                 <Link to="/cursos">
-                  <Button variant="ghost" className="w-full">Continuar comprando</Button>
+                  <Button variant="outline" className="w-full h-12 text-base">
+                    <ShoppingCart className="w-5 h-5 mr-2" />
+                    Continuar comprando
+                  </Button>
                 </Link>
               </div>
             </aside>

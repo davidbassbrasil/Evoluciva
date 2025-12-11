@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { getCourses, getUsers, getTestimonials, getBanners, getProfessors, getTags, getFAQs, getLessons } from '@/lib/localStorage';
+import { getCourses, getUsers, getTestimonials, getBanners, getProfessors, getTags, getFAQs, getLessons, getCurrentUser } from '@/lib/localStorage';
 import { Course, Testimonial, User } from '@/types';
 import { BookOpen, Users, MessageSquare, Image, TrendingUp, GraduationCap, Tag, HelpCircle, PlayCircle, Eye, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,42 @@ export default function AdminDashboard() {
   const [userPage, setUserPage] = useState(0);
   const USERS_PER_PAGE = 2;
   const [coursePrices, setCoursePrices] = useState<Record<string, number>>({});
+  const [userRole, setUserRole] = useState<string>('');
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Carregar permissões do usuário
+    const loadPermissions = async () => {
+      const user = getCurrentUser();
+      if (!user || !supabase) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        setUserRole(profile.role);
+
+        if (profile.role === 'moderator') {
+          const { data: permissions } = await supabase
+            .from('user_permissions')
+            .select('permission_key')
+            .eq('user_id', user.id);
+
+          setUserPermissions(permissions?.map(p => p.permission_key) || []);
+        }
+      }
+    };
+
+    loadPermissions();
+  }, []);
+
+  const hasPermission = (permission: string) => {
+    if (userRole === 'admin') return true;
+    return userPermissions.includes(permission);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -61,13 +97,13 @@ export default function AdminDashboard() {
       }
       let users: User[] = [];
       
-      // Try to fetch users from Supabase first
+      // Try to fetch users from Supabase first (apenas alunos - student role)
       if (supabase) {
         try {
           const { data, error } = await supabase
             .from('profiles')
             .select('id, full_name, email, purchased_courses')
-            .neq('role', 'admin');
+            .eq('role', 'student');
           
           if (!error && data) {
             users = data.map((p: any) => ({
@@ -218,20 +254,23 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  const mainCards = [
-    { icon: BookOpen, label: 'Cursos', value: stats.courses, color: 'bg-primary', link: '/admin/cursos' },
-    { icon: Users, label: 'Alunos', value: stats.users, color: 'bg-emerald-500', link: '/admin/alunos' },
-    { icon: PlayCircle, label: 'Aulas', value: stats.lessons, color: 'bg-violet-500', link: '/admin/cursos' },
-    { icon: TrendingUp, label: 'Financeiro', value: `R$ ${stats.totalRevenue.toFixed(2)}`, color: 'bg-amber-500', link: '/admin/financeiro' },
+  const allMainCards = [
+    { icon: BookOpen, label: 'Cursos', value: stats.courses, color: 'bg-primary', link: '/admin/cursos', permission: 'cursos' },
+    { icon: Users, label: 'Alunos', value: stats.users, color: 'bg-emerald-500', link: '/admin/alunos', permission: 'alunos' },
+    { icon: PlayCircle, label: 'Aulas', value: stats.lessons, color: 'bg-violet-500', link: '/admin/aulas', permission: 'aulas' },
+    { icon: TrendingUp, label: 'Financeiro', value: `R$ ${stats.totalRevenue.toFixed(2)}`, color: 'bg-amber-500', link: '/admin/financeiro', permission: 'financeiro' },
   ];
 
-  const secondaryCards = [
-    { icon: Image, label: 'Banners', value: stats.banners, link: '/admin/banners' },
-    { icon: GraduationCap, label: 'Professores', value: stats.professors, link: '/admin/professores' },
-    { icon: Tag, label: 'Tags', value: stats.tags, link: '/admin/tags' },
-    { icon: MessageSquare, label: 'Depoimentos', value: stats.testimonials, link: '/admin/depoimentos' },
-    { icon: HelpCircle, label: 'FAQ', value: stats.faqs, link: '/admin/faq' },
+  const allSecondaryCards = [
+    { icon: Image, label: 'Banners', value: stats.banners, link: '/admin/banners', permission: 'banners' },
+    { icon: GraduationCap, label: 'Professores', value: stats.professors, link: '/admin/professores', permission: 'professores' },
+    { icon: Tag, label: 'Tags', value: stats.tags, link: '/admin/tags', permission: 'tags' },
+    { icon: MessageSquare, label: 'Depoimentos', value: stats.testimonials, link: '/admin/depoimentos', permission: 'depoimentos' },
+    { icon: HelpCircle, label: 'FAQ', value: stats.faqs, link: '/admin/faq', permission: 'faq' },
   ];
+
+  const mainCards = allMainCards.filter(card => hasPermission(card.permission));
+  const secondaryCards = allSecondaryCards.filter(card => hasPermission(card.permission));
 
   return (
     <AdminLayout>
@@ -357,65 +396,41 @@ export default function AdminDashboard() {
           </div>
 
           {/* Recent Testimonials */}
-          <div className="bg-card rounded-2xl p-6 border border-border/50">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Depoimentos</h2>
-              <Link to="/admin/depoimentos">
-                <Button variant="ghost" size="sm">Ver todos</Button>
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {recentTestimonialsAll.slice(testimonialsPage * TESTIMONIALS_PER_PAGE, (testimonialsPage + 1) * TESTIMONIALS_PER_PAGE).map((t) => (
-                <div key={t.id} className="flex items-start gap-3">
-                  <img src={t.avatar} alt={t.name} className="w-8 h-8 rounded-full object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{t.name}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{t.text}</p>
+          {hasPermission('depoimentos') && (
+            <div className="bg-card rounded-2xl p-6 border border-border/50">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold">Depoimentos</h2>
+                <Link to="/admin/depoimentos">
+                  <Button variant="ghost" size="sm">Ver todos</Button>
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {recentTestimonialsAll.slice(testimonialsPage * TESTIMONIALS_PER_PAGE, (testimonialsPage + 1) * TESTIMONIALS_PER_PAGE).map((t) => (
+                  <div key={t.id} className="flex items-start gap-3">
+                    <img src={t.avatar} alt={t.name} className="w-8 h-8 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{t.name}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{t.text}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {recentTestimonialsAll.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">Nenhum depoimento</p>
-              )}
-            </div>
+                ))}
+                {recentTestimonialsAll.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum depoimento</p>
+                )}
+              </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">Página {testimonialsPage + 1} de {Math.max(1, Math.ceil(recentTestimonialsAll.length / TESTIMONIALS_PER_PAGE))}</div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => Math.max(0, p - 1))} disabled={testimonialsPage === 0}>Anterior</Button>
-                <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => p + 1)} disabled={(testimonialsPage + 1) * TESTIMONIALS_PER_PAGE >= recentTestimonialsAll.length}>Próxima</Button>
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">Página {testimonialsPage + 1} de {Math.max(1, Math.ceil(recentTestimonialsAll.length / TESTIMONIALS_PER_PAGE))}</div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => Math.max(0, p - 1))} disabled={testimonialsPage === 0}>Anterior</Button>
+                  <Button variant="outline" size="sm" onClick={() => setTestimonialsPage(p => p + 1)} disabled={(testimonialsPage + 1) * TESTIMONIALS_PER_PAGE >= recentTestimonialsAll.length}>Próxima</Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-8 bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
-        <h2 className="text-xl font-bold mb-4">Ações Rápidas</h2>
-        <div className="flex flex-wrap gap-3">
-          <Link to="/admin/cursos">
-            <Button className="gradient-bg text-primary-foreground">
-              <BookOpen className="w-4 h-4 mr-2" /> Novo Curso
-            </Button>
-          </Link>
-          <Link to="/admin/banners">
-            <Button variant="outline">
-              <Image className="w-4 h-4 mr-2" /> Editar Banners
-            </Button>
-          </Link>
-          <Link to="/admin/professores">
-            <Button variant="outline">
-              <GraduationCap className="w-4 h-4 mr-2" /> Novo Professor
-            </Button>
-          </Link>
-          <Link to="/" target="_blank">
-            <Button variant="outline">
-              <Eye className="w-4 h-4 mr-2" /> Ver Site
-            </Button>
-          </Link>
-        </div>
-      </div>
     </AdminLayout>
   );
 }

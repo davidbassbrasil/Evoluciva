@@ -47,13 +47,13 @@ export default function AdminLogin() {
           return;
         }
         
-        if (profile?.role === 'admin') {
+        if (profile?.role === 'admin' || profile?.role === 'moderator') {
           toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso' });
           setTimeout(() => navigate('/admin'), 100);
           return;
         }
         
-        toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de admin', variant: 'destructive' });
+        toast({ title: 'Acesso negado', description: 'Usuário não possui permissão de administrador', variant: 'destructive' });
         return;
       }
 

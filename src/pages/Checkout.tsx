@@ -900,9 +900,9 @@ export default function Checkout() {
                   return (
                     <>
                       <div className="flex gap-4 mb-6">
-                        <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-24 h-16 object-cover rounded-lg" />
+                        <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-20 h-28 object-cover rounded-lg" />
                         <div className="flex-1">
-                          <h3 className="font-semibold line-clamp-2">{item.turma.course?.title}</h3>
+                          <h3 className="font-semibold line-clamp-2 mb-1">{item.turma.course?.title}</h3>
                           <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
                             <span>{item.turma.name}</span>
                             <span className="px-2 py-0.5 bg-secondary rounded text-xs">
@@ -910,6 +910,9 @@ export default function Checkout() {
                             </span>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">{item.turma.course?.instructor}</p>
+                          {item.turma.course?.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.turma.course.description}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex justify-between items-center mb-6">
@@ -938,17 +941,20 @@ export default function Checkout() {
                         : Number(item.turma.original_price ?? item.turma.price ?? 0);
                       
                       return (
-                        <li key={item.turma.id} className="flex items-center gap-4">
-                          <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-20 h-12 object-cover rounded-md" />
+                        <li key={item.turma.id} className="flex items-start gap-4">
+                          <img src={item.turma.course?.image} alt={item.turma.course?.title} className="w-16 h-22 object-cover rounded-md" />
                           <div className="flex-1">
-                            <div className="font-medium">{item.turma.course?.title}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                            <div className="font-medium mb-1">{item.turma.course?.title}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2 mb-1">
                               <span>{item.turma.name}</span>
                               <span className="px-2 py-0.5 bg-secondary rounded text-xs">
                                 {item.modality === 'online' ? 'Online' : 'Presencial'}
                               </span>
                             </div>
-                            <div className="text-sm text-muted-foreground">{item.turma.course?.instructor}</div>
+                            <div className="text-sm text-muted-foreground mb-1">{item.turma.course?.instructor}</div>
+                            {item.turma.course?.description && (
+                              <div className="text-xs text-muted-foreground line-clamp-1">{item.turma.course.description}</div>
+                            )}
                           </div>
                           <div className="text-right">
                             {displayOriginalPrice > displayPrice && (
