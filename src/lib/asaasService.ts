@@ -152,6 +152,15 @@ class AsaasService {
 
       if (!response.ok) {
         console.error('Edge Function Error:', data);
+        console.error('Error details:', JSON.stringify(data, null, 2));
+        if (data.errors && Array.isArray(data.errors)) {
+          console.error('Asaas Errors:', data.errors);
+          // Extrair primeira mensagem de erro do Asaas
+          const firstError = data.errors[0];
+          if (firstError && firstError.description) {
+            throw new Error(firstError.description);
+          }
+        }
         throw new Error(data.message || data.error || 'Erro na API Asaas');
       }
 

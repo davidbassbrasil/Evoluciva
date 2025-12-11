@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
@@ -111,6 +111,15 @@ export default function AdminAlunos() {
   const [openDeleteStudent, setOpenDeleteStudent] = useState(false);
   const [openEnrollStudent, setOpenEnrollStudent] = useState(false);
   const [openViewEnrollments, setOpenViewEnrollments] = useState(false);
+  const [openFinanceiro, setOpenFinanceiro] = useState(false);
+  const [studentPayments, setStudentPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [refundValue, setRefundValue] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundDescription, setRefundDescription] = useState('');
+  const [processingRefund, setProcessingRefund] = useState(false);
   
   // Selected items
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
@@ -711,6 +720,161 @@ export default function AdminAlunos() {
     setOpenViewEnrollments(true);
   };
 
+  const openFinanceiroView = async (profile: Profile) => {
+    setSelectedProfile(profile);
+    setOpenFinanceiro(true);
+    setLoadingPayments(true);
+
+    try {
+      // Buscar pagamentos do aluno
+      const { data: paymentsData, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Buscar estornos para cada pagamento
+      const paymentsWithRefunds = await Promise.all(
+        (paymentsData || []).map(async (payment) => {
+          const { data: refunds } = await supabase
+            .from('refunds')
+            .select('id, refund_value, status, reason, description, created_at')
+            .eq('payment_id', payment.id)
+            .order('created_at', { ascending: false });
+
+          const total_refunded = refunds?.filter(r => ['COMPLETED', 'PROCESSING', 'APPROVED'].includes(r.status))
+            .reduce((sum, r) => sum + Number(r.refund_value), 0) || 0;
+
+          const { data: turma } = payment.turma_id
+            ? await supabase
+                .from('turmas')
+                .select('name, course:courses(title)')
+                .eq('id', payment.turma_id)
+                .single()
+            : { data: null };
+
+          return {
+            ...payment,
+            refunds: refunds || [],
+            total_refunded,
+            turma,
+          };
+        })
+      );
+
+      setStudentPayments(paymentsWithRefunds);
+    } catch (error: any) {
+      console.error('Erro ao carregar pagamentos:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os pagamentos',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  const handleRefund = async () => {
+    if (!selectedPayment) return;
+    
+    const value = parseFloat(refundValue);
+    if (isNaN(value) || value <= 0) {
+      toast({
+        title: 'Erro',
+        description: 'Informe um valor válido para o estorno',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!refundReason.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Informe o motivo do estorno',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setProcessingRefund(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase.from('refunds').insert({
+        payment_id: selectedPayment.id,
+        refund_value: value,
+        reason: refundReason,
+        description: refundDescription || null,
+        status: 'COMPLETED',
+        approved_by: user?.id,
+        approved_at: new Date().toISOString(),
+        refund_date: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Estorno registrado',
+        description: 'O estorno foi registrado no sistema com sucesso',
+      });
+
+      setShowRefundDialog(false);
+      setRefundValue('');
+      setRefundReason('');
+      setRefundDescription('');
+      
+      // Recarregar pagamentos
+      if (selectedProfile) {
+        openFinanceiroView(selectedProfile);
+      }
+    } catch (error: any) {
+      console.error('Erro ao criar estorno:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível registrar o estorno',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingRefund(false);
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  const getPaymentTypeName = (type: string) => {
+    const types: Record<string, string> = {
+      CREDIT_CARD: 'Cartão de Crédito',
+      CREDIT_CARD_INSTALLMENT: 'Cartão Parcelado',
+      DEBIT_CARD: 'Cartão de Débito',
+      PIX: 'PIX',
+      BOLETO: 'Boleto',
+      UNDEFINED: 'Não Definido',
+    };
+    return types[type] || type;
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, { label: string; className: string }> = {
+      CONFIRMED: { label: 'Confirmado', className: 'bg-green-500' },
+      RECEIVED: { label: 'Recebido', className: 'bg-green-500' },
+      RECEIVED_IN_CASH: { label: 'Recebido em Dinheiro', className: 'bg-green-600' },
+      PENDING: { label: 'Pendente', className: 'bg-yellow-500' },
+      OVERDUE: { label: 'Vencido', className: 'bg-red-500' },
+      REFUNDED: { label: 'Reembolsado', className: 'bg-gray-500' },
+    };
+    const config = variants[status] || { label: status, className: 'bg-gray-400' };
+    return <Badge className={config.className}>{config.label}</Badge>;
+  };
+
   // Render form fields inline to avoid re-creating component on state change
   const renderStudentFormFields = (isEdit: boolean) => (
     <>
@@ -1054,6 +1218,14 @@ export default function AdminAlunos() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openFinanceiroView(profile)}
+                            title="Financeiro"
+                          >
+                            <DollarSign className="w-4 h-4 text-blue-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openEnroll(profile)}
                             title="Matricular"
                           >
@@ -1257,6 +1429,229 @@ export default function AdminAlunos() {
                 Nova Matrícula
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Financeiro Dialog */}
+        <Dialog open={openFinanceiro} onOpenChange={setOpenFinanceiro}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Financeiro - {selectedProfile?.full_name}</DialogTitle>
+              <p className="text-sm text-muted-foreground">{selectedProfile?.email}</p>
+            </DialogHeader>
+            
+            {loadingPayments ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : studentPayments.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="font-medium">Nenhum pagamento encontrado</p>
+                <p className="text-sm">Este aluno ainda não realizou pagamentos</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Total Pago</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {formatCurrency(studentPayments.reduce((sum, p) => 
+                          ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(p.status) 
+                            ? sum + Number(p.value) - (p.total_refunded || 0)
+                            : sum, 0))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Total Estornado</div>
+                      <div className="text-2xl font-bold text-orange-600">
+                        {formatCurrency(studentPayments.reduce((sum, p) => sum + (p.total_refunded || 0), 0))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Pagamentos</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {studentPayments.length}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Curso/Turma</TableHead>
+                      <TableHead>Método</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {studentPayments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="text-sm">
+                          {new Date(payment.created_at).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-[200px]">
+                            <div className="font-medium truncate text-sm">
+                              {payment.turma?.course?.title || 'N/A'}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {payment.turma?.name || payment.description || '-'}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {getPaymentTypeName(payment.billing_type)}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {payment.total_refunded && payment.total_refunded > 0 ? (
+                            <div>
+                              <div className="text-muted-foreground line-through text-xs">
+                                {formatCurrency(Number(payment.value))}
+                              </div>
+                              <div className="text-green-600">
+                                {formatCurrency(Number(payment.value) - payment.total_refunded)}
+                              </div>
+                              <div className="text-xs text-orange-600">
+                                -{formatCurrency(payment.total_refunded)}
+                              </div>
+                            </div>
+                          ) : (
+                            formatCurrency(Number(payment.value))
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPayment(payment);
+                                setRefundValue(payment.value.toString());
+                                setShowRefundDialog(true);
+                              }}
+                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              title="Solicitar Estorno"
+                            >
+                              <Undo2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenFinanceiro(false)}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Refund Dialog */}
+        <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Solicitar Estorno</DialogTitle>
+            </DialogHeader>
+            {selectedPayment && (
+              <div className="space-y-4">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">Pagamento</p>
+                  <p className="font-medium">{selectedProfile?.full_name}</p>
+                  <p className="text-sm">{selectedPayment.turma?.name || selectedPayment.description}</p>
+                  <p className="text-lg font-bold text-green-600 mt-2">
+                    Valor: {formatCurrency(Number(selectedPayment.value))}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="refund-value">Valor do Estorno (R$)</Label>
+                  <Input
+                    id="refund-value"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={selectedPayment.value}
+                    value={refundValue}
+                    onChange={(e) => setRefundValue(e.target.value)}
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Máximo: {formatCurrency(Number(selectedPayment.value))}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="refund-reason">Motivo do Estorno *</Label>
+                  <Input
+                    id="refund-reason"
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    placeholder="Ex: Solicitação do cliente, erro no pagamento..."
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="refund-description">Descrição Detalhada (opcional)</Label>
+                  <Textarea
+                    id="refund-description"
+                    value={refundDescription}
+                    onChange={(e) => setRefundDescription(e.target.value)}
+                    placeholder="Informações adicionais sobre o estorno..."
+                    maxLength={500}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowRefundDialog(false);
+                      setRefundValue('');
+                      setRefundReason('');
+                      setRefundDescription('');
+                    }}
+                    disabled={processingRefund}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleRefund}
+                    disabled={processingRefund}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  >
+                    {processingRefund ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      'Solicitar Estorno'
+                    )}
+                  </Button>
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center">
+                  Este é um registro interno. O estorno na Asaas deve ser processado diretamente no painel da Asaas.
+                </p>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

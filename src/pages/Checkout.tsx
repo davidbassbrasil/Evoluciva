@@ -26,7 +26,7 @@ export default function Checkout() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CREDIT_CARD_ONE' | 'CREDIT_CARD_INSTALL' | 'DEBIT_CARD' | 'PIX' | 'BOLETO'>('CREDIT_CARD_ONE');
-  const [installmentCount, setInstallmentCount] = useState<number>(2);
+  const [installmentCount, setInstallmentCount] = useState<number>(1);
   const [pixQrCode, setPixQrCode] = useState<string>('');
   const [pixCopyPaste, setPixCopyPaste] = useState<string>('');
   const [pixExpiresAt, setPixExpiresAt] = useState<Date | null>(null);
@@ -177,9 +177,7 @@ export default function Checkout() {
             setPaymentMethod('BOLETO');
           }
           
-          if (data.allow_installments && data.max_installments) {
-            setInstallmentCount(Math.min(2, data.max_installments));
-          }
+          // Não setar installmentCount automaticamente, deixar o padrão (1)
         } else {
           // Cart checkout
           const cartItemIds = getCart();
@@ -408,14 +406,13 @@ export default function Checkout() {
       if (paymentMethod === 'CREDIT_CARD_ONE' || paymentMethod === 'CREDIT_CARD_INSTALL') {
         const [expiryMonth, expiryYear] = formData.expiry.split('/');
 
-        const payment = await asaasService.createCreditCardPayment({
+        const paymentData: any = {
           customer: customer.id,
           billingType: 'CREDIT_CARD',
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
-          installmentCount: paymentMethod === 'CREDIT_CARD_INSTALL' && installmentCount > 1 ? installmentCount : undefined,
           creditCard: {
             holderName: formData.cardName,
             number: formData.cardNumber.replace(/\s/g, ''),
@@ -431,9 +428,74 @@ export default function Checkout() {
             addressNumber: formData.addressNumber,
             phone: formData.phone.replace(/\D/g, ''),
           },
-        });
+        };
+
+        // Adicionar campos de parcelamento se for pagamento parcelado
+        if (paymentMethod === 'CREDIT_CARD_INSTALL' && installmentCount > 1) {
+          paymentData.installmentCount = installmentCount;
+          paymentData.installmentValue = Number((totalValue / installmentCount).toFixed(2));
+        }
+
+        console.log('📤 Dados do cartão sendo enviados:', paymentData);
+
+        const payment = await asaasService.createCreditCardPayment(paymentData);
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+          console.log('✅ Pagamento confirmado! Criando registros no banco...');
+          
+          // Buscar usuário autenticado do Supabase
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const userId = authUser?.id || currentUser.id;
+          
+          console.log('👤 User ID do localStorage:', currentUser.id);
+          console.log('👤 User ID do Supabase Auth:', authUser?.id);
+          console.log('📝 Usando user_id:', userId);
+          
+          // Criar registro do pagamento na tabela payments
+          const now = new Date();
+          const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
+            asaas_payment_id: payment.id,
+            user_id: userId,
+            turma_id: itemsToPurchase[0].turma.id,
+            value: totalValue,
+            status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
+            billing_type: paymentMethod === 'CREDIT_CARD_INSTALL' ? 'CREDIT_CARD_INSTALLMENT' : 'CREDIT_CARD',
+            installment_count: installmentCount > 1 ? installmentCount : null,
+            due_date: dueDate.toISOString().split('T')[0],
+            payment_date: now.toISOString(),
+            confirmed_date: now.toISOString(),
+            description: paymentData.description,
+            metadata: payment,
+          }).select().single();
+
+          if (paymentError) {
+            console.error('❌ Erro ao criar pagamento:', paymentError);
+            console.error('Detalhes completos do erro:', JSON.stringify(paymentError, null, 2));
+          } else {
+            console.log('✅ Pagamento registrado:', paymentRecord);
+          }
+
+          // Criar matrículas no Supabase
+          for (const item of itemsToPurchase) {
+            const { data: enrollment, error: enrollError } = await supabase.from('enrollments').insert({
+              profile_id: userId,
+              turma_id: item.turma.id,
+              modality: item.modality,
+              payment_status: 'paid',
+              payment_method: 'credit_card',
+              payment_id: paymentRecord?.id || payment.id,
+              amount_paid: totalValue / itemsToPurchase.length,
+              paid_at: new Date().toISOString(),
+            }).select().single();
+
+            if (enrollError) {
+              console.error('❌ Erro ao criar matrícula:', enrollError);
+            } else {
+              console.log('✅ Matrícula criada:', enrollment);
+            }
+          }
+          
+          // Registrar no localStorage
           itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
           if (!turma) clearCart();
           toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
@@ -484,7 +546,7 @@ export default function Checkout() {
 
         const payment = await asaasService.createDebitCardPayment({
           customer: customer.id,
-          billingType: 'DEBIT_CARD',
+          billingType: 'CREDIT_CARD' as any, // Asaas usa CREDIT_CARD para débito também
           value: totalValue,
           dueDate: dueDate.toISOString().split('T')[0],
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
@@ -507,6 +569,60 @@ export default function Checkout() {
         });
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
+          console.log('✅ Pagamento com débito confirmado! Criando registros no banco...');
+          
+          // Buscar usuário autenticado do Supabase
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          const userId = authUser?.id || currentUser.id;
+          
+          console.log('👤 User ID do localStorage:', currentUser.id);
+          console.log('👤 User ID do Supabase Auth:', authUser?.id);
+          console.log('📝 Usando user_id:', userId);
+          
+          // Criar registro do pagamento na tabela payments
+          const now = new Date();
+          const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
+            asaas_payment_id: payment.id,
+            user_id: userId,
+            turma_id: itemsToPurchase[0].turma.id,
+            value: totalValue,
+            status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
+            billing_type: 'DEBIT_CARD',
+            due_date: dueDate.toISOString().split('T')[0],
+            payment_date: now.toISOString(),
+            confirmed_date: now.toISOString(),
+            description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+            metadata: payment,
+          }).select().single();
+
+          if (paymentError) {
+            console.error('❌ Erro ao criar pagamento:', paymentError);
+            console.error('Detalhes completos do erro:', JSON.stringify(paymentError, null, 2));
+          } else {
+            console.log('✅ Pagamento registrado:', paymentRecord);
+          }
+
+          // Criar matrículas no Supabase
+          for (const item of itemsToPurchase) {
+            const { data: enrollment, error: enrollError } = await supabase.from('enrollments').insert({
+              profile_id: userId,
+              turma_id: item.turma.id,
+              modality: item.modality,
+              payment_status: 'paid',
+              payment_method: 'debit_card',
+              payment_id: paymentRecord?.id || payment.id,
+              amount_paid: totalValue / itemsToPurchase.length,
+              paid_at: new Date().toISOString(),
+            }).select().single();
+
+            if (enrollError) {
+              console.error('❌ Erro ao criar matrícula:', enrollError);
+            } else {
+              console.log('✅ Matrícula criada:', enrollment);
+            }
+          }
+          
+          // Registrar no localStorage
           itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
           if (!turma) clearCart();
           toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
@@ -775,7 +891,11 @@ export default function Checkout() {
                 <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
                   <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div className="text-sm">
-                    <strong>Modo Sandbox:</strong> Este é um ambiente de testes. Nenhuma cobrança real será feita.
+                    <strong>Modo Sandbox:</strong> Este é um ambiente de testes. Nenhuma cobrança real será feita. <br/>
+                    Número: 5162 3060 0829 8829
+Validade: 12/30
+CVV: 318
+Nome: APROVADO (ou qualquer nome)
                   </div>
                 </div>
               )}
@@ -849,8 +969,15 @@ export default function Checkout() {
                         type="text"
                         className="h-12 rounded-xl"
                         placeholder="00000-000"
+                        maxLength={9}
                         value={formData.postalCode}
-                        onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length >= 5) {
+                            value = value.slice(0, 5) + '-' + value.slice(5, 8);
+                          }
+                          setFormData({ ...formData, postalCode: value });
+                        }}
                         required
                       />
                     </div>
@@ -992,8 +1119,15 @@ export default function Checkout() {
                             type="text"
                             className="h-12 rounded-xl"
                             placeholder="MM/AA"
+                            maxLength={5}
                             value={formData.expiry}
-                            onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '');
+                              if (value.length >= 2) {
+                                value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                              }
+                              setFormData({ ...formData, expiry: value });
+                            }}
                             required={paymentMethod === 'CREDIT_CARD_ONE'}
                           />
                         </div>
@@ -1048,8 +1182,15 @@ export default function Checkout() {
                             type="text"
                             className="h-12 rounded-xl"
                             placeholder="MM/AA"
+                            maxLength={5}
                             value={formData.expiry}
-                            onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '');
+                              if (value.length >= 2) {
+                                value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                              }
+                              setFormData({ ...formData, expiry: value });
+                            }}
                             required={paymentMethod === 'CREDIT_CARD_INSTALL'}
                           />
                         </div>
@@ -1127,8 +1268,15 @@ export default function Checkout() {
                             type="text"
                             className="h-12 rounded-xl"
                             placeholder="MM/AA"
+                            maxLength={5}
                             value={formData.expiry}
-                            onChange={(e) => setFormData({ ...formData, expiry: e.target.value })}
+                            onChange={(e) => {
+                              let value = e.target.value.replace(/\D/g, '');
+                              if (value.length >= 2) {
+                                value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                              }
+                              setFormData({ ...formData, expiry: value });
+                            }}
                             required={paymentMethod === 'DEBIT_CARD'}
                           />
                         </div>
