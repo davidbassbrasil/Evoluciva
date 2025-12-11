@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
@@ -111,6 +111,7 @@ export default function AdminAlunos() {
   const [openDeleteStudent, setOpenDeleteStudent] = useState(false);
   const [openEnrollStudent, setOpenEnrollStudent] = useState(false);
   const [openViewEnrollments, setOpenViewEnrollments] = useState(false);
+  const [openDeleteEnrollment, setOpenDeleteEnrollment] = useState(false);
   const [openFinanceiro, setOpenFinanceiro] = useState(false);
   const [studentPayments, setStudentPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
@@ -124,6 +125,7 @@ export default function AdminAlunos() {
   // Selected items
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [selectedEnrollments, setSelectedEnrollments] = useState<Enrollment[]>([]);
+  const [selectedEnrollmentToDelete, setSelectedEnrollmentToDelete] = useState<Enrollment | null>(null);
   
   // Forms
   const [profileForm, setProfileForm] = useState<ProfileForm>(initialProfileForm);
@@ -132,6 +134,7 @@ export default function AdminAlunos() {
     modality: 'presential',
     payment_status: 'paid',
     notes: '',
+    paymentParts: [{ method: 'PIX', value: '' }], // Array de pagamentos
   });
   
   const { toast } = useToast();
@@ -492,6 +495,37 @@ export default function AdminAlunos() {
     }
   };
 
+  // Funções para gerenciar múltiplas formas de pagamento
+  const addPaymentPart = () => {
+    setEnrollForm(prev => ({
+      ...prev,
+      paymentParts: [...prev.paymentParts, { method: 'PIX', value: '' }]
+    }));
+  };
+
+  const removePaymentPart = (index: number) => {
+    setEnrollForm(prev => ({
+      ...prev,
+      paymentParts: prev.paymentParts.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updatePaymentPart = (index: number, field: 'method' | 'value', value: string) => {
+    setEnrollForm(prev => ({
+      ...prev,
+      paymentParts: prev.paymentParts.map((part, i) => 
+        i === index ? { ...part, [field]: value } : part
+      )
+    }));
+  };
+
+  const getTotalPaymentValue = () => {
+    return enrollForm.paymentParts.reduce((sum, part) => {
+      const value = parseFloat(part.value) || 0;
+      return sum + value;
+    }, 0);
+  };
+
   const handleEnrollStudent = async () => {
     if (!supabase || !selectedProfile) return;
     if (!enrollForm.turma_id) {
@@ -501,6 +535,25 @@ export default function AdminAlunos() {
 
     setLoading(true);
     try {
+      // Validar pagamentos múltiplos
+      if (enrollForm.payment_status === 'paid') {
+        // Validar cada parte do pagamento
+        for (let i = 0; i < enrollForm.paymentParts.length; i++) {
+          const part = enrollForm.paymentParts[i];
+          const value = parseFloat(part.value);
+          
+          if (!part.value || isNaN(value) || value <= 0) {
+            toast({ 
+              title: 'Erro', 
+              description: `Informe um valor válido para o pagamento ${i + 1}`,
+              variant: 'destructive' 
+            });
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       // Check if already enrolled
       const { data: existing } = await supabase
         .from('enrollments')
@@ -516,33 +569,108 @@ export default function AdminAlunos() {
         return;
       }
 
-      // Get turma to copy access_end_date
+      // Get turma to copy access_end_date and price
       const { data: turma } = await supabase
         .from('turmas')
-        .select('access_end_date')
+        .select('access_end_date, name, course:courses(title)')
         .eq('id', enrollForm.turma_id)
         .single();
 
-      const { error } = await supabase
+      const now = new Date();
+
+      // Criar matrícula
+      const totalPaid = enrollForm.payment_status === 'paid' ? getTotalPaymentValue() : 0;
+      
+      const { data: enrollment, error: enrollError } = await supabase
         .from('enrollments')
         .insert({
           profile_id: selectedProfile.id,
           turma_id: enrollForm.turma_id,
           modality: enrollForm.modality,
           payment_status: enrollForm.payment_status,
-          payment_method: enrollForm.payment_status === 'free' ? 'free' : 'admin',
-          amount_paid: 0,
-          enrolled_at: new Date().toISOString(),
-          paid_at: enrollForm.payment_status === 'paid' || enrollForm.payment_status === 'free' ? new Date().toISOString() : null,
+          payment_method: enrollForm.payment_status === 'free' ? 'free' : 'cash_local',
+          amount_paid: totalPaid,
+          enrolled_at: now.toISOString(),
+          paid_at: enrollForm.payment_status === 'paid' || enrollForm.payment_status === 'free' ? now.toISOString() : null,
           access_expires_at: turma?.access_end_date || null,
           notes: enrollForm.notes || null,
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (enrollError) throw enrollError;
 
-      toast({ title: 'Sucesso', description: 'Aluno matriculado com sucesso' });
+      // Se for caixa local, criar registro de pagamento para cada forma
+      if (enrollForm.payment_status === 'paid') {
+        let paymentErrors = [];
+        
+        for (let i = 0; i < enrollForm.paymentParts.length; i++) {
+          const part = enrollForm.paymentParts[i];
+          const partValue = parseFloat(part.value);
+
+          try {
+            const { data: paymentData, error: paymentError } = await supabase
+              .from('payments')
+              .insert({
+                user_id: selectedProfile.id,
+                turma_id: enrollForm.turma_id,
+                enrollment_id: enrollment.id,
+                value: partValue,
+                status: 'CONFIRMED',
+                billing_type: part.method,
+                due_date: now.toISOString().split('T')[0],
+                payment_date: now.toISOString(),
+                confirmed_date: now.toISOString(),
+                description: `Pagamento em Caixa Local (${part.method}) - ${turma?.name || 'Turma'}`,
+                metadata: {
+                  source: 'admin_cash_local',
+                  admin_notes: enrollForm.notes || '',
+                  payment_part: `${i + 1}/${enrollForm.paymentParts.length}`,
+                },
+              })
+              .select()
+              .single();
+
+            if (paymentError) {
+              paymentErrors.push({
+                index: i + 1,
+                method: part.method,
+                error: paymentError.message
+              });
+            }
+          } catch (err) {
+            paymentErrors.push({
+              index: i + 1,
+              method: part.method,
+              error: String(err)
+            });
+          }
+        }
+        
+        // Exibir erros se houver
+        if (paymentErrors.length > 0) {
+          toast({ 
+            title: '⚠️ Matrícula criada com avisos', 
+            description: `${paymentErrors.length} pagamento(s) não foram registrados. Verifique o console.`,
+            variant: 'destructive' 
+          });
+        }
+      }
+
+      toast({ 
+        title: 'Sucesso', 
+        description: enrollForm.payment_status === 'paid' 
+          ? `Aluno matriculado! ${enrollForm.paymentParts.length} pagamento(s) registrado(s).`
+          : 'Aluno matriculado com sucesso'
+      });
       setOpenEnrollStudent(false);
-      setEnrollForm({ turma_id: '', modality: 'presential', payment_status: 'paid', notes: '' });
+      setEnrollForm({ 
+        turma_id: '', 
+        modality: 'presential', 
+        payment_status: 'paid', 
+        notes: '',
+        paymentParts: [{ method: 'PIX', value: '' }],
+      });
       loadEnrollments();
     } catch (error: any) {
       toast({ title: 'Erro ao matricular aluno', description: error.message, variant: 'destructive' });
@@ -551,25 +679,30 @@ export default function AdminAlunos() {
     }
   };
 
-  const handleDeleteEnrollment = async (enrollmentId: string) => {
-    if (!supabase) return;
+  const handleDeleteEnrollment = async () => {
+    if (!supabase || !selectedEnrollmentToDelete) return;
     
+    setLoading(true);
     try {
       const { error } = await supabase
         .from('enrollments')
         .delete()
-        .eq('id', enrollmentId);
+        .eq('id', selectedEnrollmentToDelete.id);
 
       if (error) throw error;
 
-      toast({ title: 'Sucesso', description: 'Matrícula removida' });
+      toast({ title: 'Sucesso', description: 'Matrícula removida com sucesso' });
+      setOpenDeleteEnrollment(false);
+      setSelectedEnrollmentToDelete(null);
       loadEnrollments();
       // Update selected enrollments view
       if (selectedProfile) {
-        setSelectedEnrollments(prev => prev.filter(e => e.id !== enrollmentId));
+        setSelectedEnrollments(prev => prev.filter(e => e.id !== selectedEnrollmentToDelete.id));
       }
     } catch (error: any) {
       toast({ title: 'Erro ao remover matrícula', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -710,7 +843,13 @@ export default function AdminAlunos() {
 
   const openEnroll = (profile: Profile) => {
     setSelectedProfile(profile);
-    setEnrollForm({ turma_id: '', modality: 'presential', payment_status: 'paid', notes: '' });
+    setEnrollForm({ 
+      turma_id: '', 
+      modality: 'presential', 
+      payment_status: 'paid', 
+      notes: '', 
+      paymentParts: [{ method: 'PIX', value: '' }]
+    });
     setOpenEnrollStudent(true);
   };
 
@@ -857,6 +996,7 @@ export default function AdminAlunos() {
       DEBIT_CARD: 'Cartão de Débito',
       PIX: 'PIX',
       BOLETO: 'Boleto',
+      CASH: 'Dinheiro',
       UNDEFINED: 'Não Definido',
     };
     return types[type] || type;
@@ -1348,6 +1488,79 @@ export default function AdminAlunos() {
                 </Select>
               </div>
 
+              {enrollForm.payment_status === 'paid' && (
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Formas de Pagamento</Label>
+                    <Button 
+                      type="button"
+                      size="sm" 
+                      variant="outline"
+                      onClick={addPaymentPart}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar
+                    </Button>
+                  </div>
+
+                  {enrollForm.paymentParts.map((part, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-sm">Forma {index + 1}</Label>
+                        <Select 
+                          value={part.method} 
+                          onValueChange={(v) => updatePaymentPart(index, 'method', v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PIX">PIX</SelectItem>
+                            <SelectItem value="CASH">Dinheiro</SelectItem>
+                            <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
+                            <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
+                            <SelectItem value="BOLETO">Boleto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex-1 space-y-2">
+                        <Label className="text-sm">Valor (R$)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={part.value}
+                          onChange={(e) => updatePaymentPart(index, 'value', e.target.value)}
+                          placeholder="0,00"
+                        />
+                      </div>
+
+                      {enrollForm.paymentParts.length > 1 && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="mt-7"
+                          onClick={() => removePaymentPart(index)}
+                        >
+                          <Minus className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="pt-2 border-t">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-semibold">Total:</span>
+                      <span className="text-lg font-bold text-primary">
+                        R$ {getTotalPaymentValue().toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Observações</Label>
                 <Textarea
@@ -1413,7 +1626,10 @@ export default function AdminAlunos() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDeleteEnrollment(enrollment.id)}
+                      onClick={() => {
+                        setSelectedEnrollmentToDelete(enrollment);
+                        setOpenDeleteEnrollment(true);
+                      }}
                       title="Remover matrícula"
                     >
                       <Trash2 className="w-4 h-4 text-destructive" />
@@ -1427,6 +1643,45 @@ export default function AdminAlunos() {
               <Button onClick={() => { setOpenViewEnrollments(false); openEnroll(selectedProfile!); }}>
                 <UserPlus className="w-4 h-4 mr-2" />
                 Nova Matrícula
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Enrollment Confirmation Dialog */}
+        <Dialog open={openDeleteEnrollment} onOpenChange={setOpenDeleteEnrollment}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remover Matrícula</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja remover a matrícula de <strong>{selectedProfile?.full_name}</strong> da turma{' '}
+                <strong>{selectedEnrollmentToDelete?.turma?.name}</strong>?
+                {selectedEnrollmentToDelete?.turma?.course?.title && (
+                  <span> ({selectedEnrollmentToDelete.turma.course.title})</span>
+                )}
+                <br />
+                <br />
+                Esta ação não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setOpenDeleteEnrollment(false);
+                  setSelectedEnrollmentToDelete(null);
+                }}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteEnrollment} 
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                Remover Matrícula
               </Button>
             </DialogFooter>
           </DialogContent>

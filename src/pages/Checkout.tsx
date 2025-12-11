@@ -538,6 +538,26 @@ export default function Checkout() {
         const barcodeData = await asaasService.getBoletoIdentificationField(payment.id);
         setBoletoBarcode(barcodeData.identificationField);
 
+        // Criar registro do pagamento no Supabase com status PENDING
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.id || currentUser.id;
+        
+        const { error: paymentError } = await supabase.from('payments').insert({
+          asaas_payment_id: payment.id,
+          user_id: userId,
+          turma_id: itemsToPurchase[0].turma.id,
+          value: totalValue,
+          status: 'PENDING',
+          billing_type: 'BOLETO',
+          due_date: dueDate.toISOString().split('T')[0],
+          description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
+          metadata: payment,
+        });
+        
+        if (paymentError) {
+          console.error('Erro ao registrar pagamento Boleto:', paymentError);
+        }
+
         toast({ title: 'Boleto Gerado!', description: 'Você pode visualizar e pagar o boleto.' });
       }
 

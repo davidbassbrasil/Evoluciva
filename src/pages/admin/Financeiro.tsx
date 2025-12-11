@@ -396,6 +396,7 @@ export default function Financeiro() {
       DEBIT_CARD: 'Cartão de Débito',
       PIX: 'PIX',
       BOLETO: 'Boleto',
+      CASH: 'Dinheiro',
       UNDEFINED: 'Não Definido',
     };
     return types[type] || type;
@@ -698,6 +699,7 @@ export default function Financeiro() {
                   <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
                   <SelectItem value="BOLETO">Boleto</SelectItem>
+                  <SelectItem value="CASH">Dinheiro</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={turmaFilter} onValueChange={setTurmaFilter}>
@@ -864,7 +866,9 @@ export default function Financeiro() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">ID Asaas</p>
-                    <p className="font-mono text-sm">{selectedPayment.asaas_payment_id}</p>
+                    <p className="font-mono text-sm">
+                      {selectedPayment.asaas_payment_id || <span className="text-muted-foreground italic">Caixa Local</span>}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>

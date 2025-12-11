@@ -15,6 +15,19 @@ FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
+-- 1b. Permitir INSERT: Admins podem criar pagamentos para qualquer usuário
+CREATE POLICY "Admins can insert payments"
+ON payments
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  )
+);
+
 -- 2. Permitir SELECT: Usuários podem ver seus próprios pagamentos
 CREATE POLICY "Users can view own payments"
 ON payments
@@ -29,6 +42,26 @@ FOR UPDATE
 TO service_role
 USING (true)
 WITH CHECK (true);
+
+-- 3b. Permitir UPDATE: Admins podem atualizar qualquer pagamento
+CREATE POLICY "Admins can update payments"
+ON payments
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  )
+);
 
 -- 4. Permitir SELECT para admins (role = 'admin' no profiles)
 CREATE POLICY "Admins can view all payments"
