@@ -178,7 +178,7 @@ export default function AlunoDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
-        <div className="flex items-center justify-between w-full">
+        <div className="w-full md:container md:mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
           </Link>

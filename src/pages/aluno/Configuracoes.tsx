@@ -245,7 +245,7 @@ export default function AlunoConfiguracoes() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6">
-        <div className="flex items-center justify-between w-full">
+        <div className="w-full md:container md:mx-auto md:max-w-4xl flex items-center justify-between">
           <Link
             to="/aluno/dashboard"
             className="flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground transition-colors"
