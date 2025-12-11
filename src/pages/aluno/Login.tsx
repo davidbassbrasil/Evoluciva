@@ -362,6 +362,18 @@ export default function AlunoLogin() {
             </Button>
           </form>
 
+          {/* Forgot password link - only show on login */}
+          {isLogin && (
+            <div className="text-center mt-4">
+              <Link
+                to="/esqueci-senha"
+                className="text-sm text-primary hover:underline font-medium"
+              >
+                Esqueceu sua senha?
+              </Link>
+            </div>
+          )}
+
           {/* Toggle */}
           <div className="text-center mt-5">
             <p className="text-muted-foreground">

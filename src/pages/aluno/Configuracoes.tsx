@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, User, Mail, Lock, Eye, EyeOff, ChevronLeft, Save, Globe, MessageCircle, UserCircle, Key, Phone, Hash, MapPin, Home } from 'lucide-react';
+import { GraduationCap, User, Mail, Lock, Eye, EyeOff, ChevronLeft, Save, Globe, MessageCircle, UserCircle, Key, Phone, Hash, MapPin, Home, Receipt, Calendar, CreditCard, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,8 @@ export default function AlunoConfiguracoes() {
     newPassword: '',
     confirmPassword: '',
   });
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -95,6 +97,92 @@ export default function AlunoConfiguracoes() {
 
     loadUserData();
   }, [navigate]);
+
+  useEffect(() => {
+    if (activeTab === 'financeiro' && user?.id) {
+      loadPayments();
+    }
+  }, [activeTab, user?.id]);
+
+  const loadPayments = async () => {
+    if (!user?.id) return;
+    
+    setLoadingPayments(true);
+    try {
+      // Buscar enrollments (matrículas) do usuário que estão pagas com informações da turma
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .select(`
+          *,
+          turma:turma_id (
+            id,
+            name,
+            price,
+            access_end_date,
+            course:course_id (
+              title
+            )
+          )
+        `)
+        .eq('profile_id', user.id)
+        .eq('payment_status', 'paid')
+        .order('created_at', { ascending: false });
+
+      if (enrollmentsError) {
+        console.error('Erro ao buscar enrollments:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      // Buscar informações dos pagamentos (quando existir payment_id)
+      const paymentIds = enrollmentsData?.map(e => e.payment_id).filter(Boolean) || [];
+      let paymentsMap: Record<string, any> = {};
+      
+      if (paymentIds.length > 0) {
+        const { data: paymentsData } = await supabase
+          .from('payments')
+          .select('*')
+          .in('id', paymentIds)
+          .in('status', ['CONFIRMED', 'RECEIVED', 'REFUNDED']);
+        
+        if (paymentsData) {
+          paymentsMap = paymentsData.reduce((acc, payment) => {
+            acc[payment.id] = payment;
+            return acc;
+          }, {} as Record<string, any>);
+        }
+      }
+
+      // Combinar enrollments com informações dos pagamentos
+      const enrichedEnrollments = enrollmentsData?.map(enrollment => {
+        const payment = enrollment.payment_id ? paymentsMap[enrollment.payment_id] : null;
+        
+        return {
+          id: enrollment.id,
+          created_at: enrollment.created_at,
+          paid_at: enrollment.paid_at,
+          amount_paid: enrollment.amount_paid,
+          payment_method: enrollment.payment_method,
+          payment_status: enrollment.payment_status,
+          modality: enrollment.modality,
+          turma: enrollment.turma, // Já vem com os dados da relação
+          payment: payment,
+          // Se não tiver payment, pode ser cortesia ou caixa local
+          is_courtesy: enrollment.amount_paid === 0 || enrollment.amount_paid === null,
+        };
+      }) || [];
+
+      setPayments(enrichedEnrollments);
+    } catch (error) {
+      console.error('Erro ao carregar pagamentos:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar o histórico de pagamentos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
 
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, '').slice(0, 11);
@@ -239,6 +327,7 @@ export default function AlunoConfiguracoes() {
     { id: 'contato', label: 'Suporte', icon: MessageCircle },
     { id: 'dados', label: 'Meus Dados', icon: UserCircle },
     { id: 'senha', label: 'Senha', icon: Key },
+    { id: 'financeiro', label: 'Financeiro', icon: Receipt },
   ];
 
   return (
@@ -273,7 +362,7 @@ export default function AlunoConfiguracoes() {
 
           {/* Custom Responsive Tabs */}
           <div className="w-full mb-6">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -550,6 +639,165 @@ export default function AlunoConfiguracoes() {
                   {loading ? 'Alterando...' : 'Alterar Senha'}
                 </Button>
               </form>
+            )}
+
+            {activeTab === 'financeiro' && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <Receipt className="w-6 h-6 text-primary" />
+                  <h3 className="text-lg font-semibold">Histórico de Pagamentos</h3>
+                </div>
+
+                {loadingPayments ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Carregando pagamentos...</p>
+                  </div>
+                ) : payments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-xl font-bold mb-2">Nenhum pagamento encontrado</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Você ainda não realizou nenhuma compra.
+                    </p>
+                    <Link to="/cursos">
+                      <Button className="gradient-bg text-primary-foreground">
+                        <GraduationCap className="w-5 h-5 mr-2" />
+                        Explorar Cursos
+                      </Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {payments.map((enrollment) => {
+                      const getPaymentMethodLabel = (method: string) => {
+                        const methods: Record<string, string> = {
+                          'credit_card': 'Cartão de Crédito',
+                          'debit_card': 'Cartão de Débito',
+                          'pix': 'PIX',
+                          'boleto': 'Boleto',
+                          'cash': 'Dinheiro',
+                          'courtesy': 'Cortesia',
+                        };
+                        return methods[method] || method;
+                      };
+
+                      const paymentStatus = enrollment.payment?.status;
+                      const isRefunded = paymentStatus === 'REFUNDED';
+                      const amount = enrollment.amount_paid || 0;
+
+                      // Verificar se a turma está expirada
+                      const now = new Date();
+                      let isExpired = false;
+                      
+                      // Verificar data de fim de acesso da turma
+                      if (enrollment.turma?.access_end_date) {
+                        const accessEndDate = new Date(enrollment.turma.access_end_date);
+                        if (now > accessEndDate) {
+                          isExpired = true;
+                        }
+                      }
+                      
+                      // Verificar data de expiração individual do enrollment
+                      if (enrollment.access_expires_at) {
+                        const expiresAt = new Date(enrollment.access_expires_at);
+                        if (now > expiresAt) {
+                          isExpired = true;
+                        }
+                      }
+
+                      return (
+                        <div key={enrollment.id} className="bg-muted/30 rounded-xl p-4 border border-border/50 hover:border-primary/30 transition-colors">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <GraduationCap className="w-5 h-5 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-sm md:text-base truncate">
+                                    {enrollment.turma?.name || 'Curso não encontrado'}
+                                  </h4>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs md:text-sm text-muted-foreground">
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      <span>Pago em: {enrollment.paid_at ? new Date(enrollment.paid_at).toLocaleDateString('pt-BR') : new Date(enrollment.created_at).toLocaleDateString('pt-BR')}</span>
+                                    </div>
+                                    {enrollment.access_expires_at && (
+                                      <>
+                                        <span className="text-muted-foreground/50">•</span>
+                                        <div className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3" />
+                                          <span>Expira: {new Date(enrollment.access_expires_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-1 text-xs md:text-sm text-muted-foreground">
+                                      <CreditCard className="w-3 h-3" />
+                                      <span>{getPaymentMethodLabel(enrollment.payment_method)}</span>
+                                    </div>
+                                    {isExpired ? (
+                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-600">
+                                        Turma Expirada
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-600">
+                                        Turma Ativa
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between md:flex-col md:items-end gap-2">
+                              {enrollment.is_courtesy ? (
+                                <div className="flex items-center gap-1 text-lg md:text-xl font-bold text-green-600">
+                                  <span>Cortesia</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-lg md:text-xl font-bold text-primary">
+                                  <DollarSign className="w-4 h-4 md:w-5 md:h-5" />
+                                  <span>R$ {Number(amount).toFixed(2)}</span>
+                                </div>
+                              )}
+                              {isRefunded && (
+                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-600">
+                                  Estornado
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {enrollment.payment?.installment_count && enrollment.payment.installment_count > 1 && !isRefunded && (
+                            <div className="mt-3 pt-3 border-t border-border/30">
+                              <p className="text-xs text-muted-foreground">
+                                Parcelado em {enrollment.payment.installment_count}x de R$ {(Number(amount) / enrollment.payment.installment_count).toFixed(2)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Resumo Total */}
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <div className="bg-primary/5 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Total investido em cursos:</span>
+                          <span className="text-xl md:text-2xl font-bold text-primary">
+                            R$ {payments
+                              .filter(e => !e.is_courtesy && e.payment?.status !== 'REFUNDED')
+                              .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0)
+                              .toFixed(2)
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

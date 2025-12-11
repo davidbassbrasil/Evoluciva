@@ -61,7 +61,7 @@ export default function CursoPlayer() {
         // Check if user has access to this turma
         const { data: enrollData, error: enrollError } = await supabase
           .from('enrollments')
-          .select('id, turma:turmas (id, name, course_id, courses (title))')
+          .select('id, access_expires_at, turma:turmas (id, name, course_id, access_end_date, courses (title))')
           .eq('profile_id', currentUser.id)
           .eq('turma_id', turmaId)
           .single();
@@ -73,6 +73,39 @@ export default function CursoPlayer() {
         }
 
         const turma = (enrollData as any).turma;
+        const enrollment = enrollData as any;
+        
+        // Verificar se o acesso expirou
+        const now = new Date();
+        
+        // Verificar data de fim de acesso da turma
+        if (turma.access_end_date) {
+          const accessEndDate = new Date(turma.access_end_date);
+          if (now > accessEndDate) {
+            toast({
+              title: 'Acesso expirado',
+              description: 'O acesso a esta turma foi encerrado.',
+              variant: 'destructive',
+            });
+            navigate('/aluno/dashboard');
+            return;
+          }
+        }
+        
+        // Verificar data de expiração individual do enrollment
+        if (enrollment.access_expires_at) {
+          const expiresAt = new Date(enrollment.access_expires_at);
+          if (now > expiresAt) {
+            toast({
+              title: 'Acesso expirado',
+              description: 'Seu acesso a esta turma foi encerrado.',
+              variant: 'destructive',
+            });
+            navigate('/aluno/dashboard');
+            return;
+          }
+        }
+        
         setTurmaName(turma.name);
         setCourseName(turma.courses?.title || 'Curso');
 

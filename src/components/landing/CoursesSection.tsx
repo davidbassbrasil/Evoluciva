@@ -47,6 +47,12 @@ export function CoursesSection() {
             if (!turma.price && !turma.price_online) return false;
             if (turma.price <= 0 && (!turma.price_online || turma.price_online <= 0)) return false;
             
+            // Verificar se a turma já expirou completamente
+            if (turma.access_end_date) {
+              const accessEndDate = new Date(turma.access_end_date);
+              if (now > accessEndDate) return false;
+            }
+            
             // Se é coming_soon, sempre mostrar (para informação)
             if (turma.status === 'coming_soon') return true;
             

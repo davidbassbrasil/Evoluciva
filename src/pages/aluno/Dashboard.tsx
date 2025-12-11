@@ -66,11 +66,13 @@ export default function AlunoDashboard() {
           .select(`
             id,
             turma_id,
+            access_expires_at,
             turmas (
               id,
               name,
               course_id,
               lesson_live,
+              access_end_date,
               courses (
                 id,
                 title,
@@ -83,9 +85,33 @@ export default function AlunoDashboard() {
         if (error) throw error;
 
         if (enrollments && enrollments.length > 0) {
+          // Filtrar turmas com acesso expirado
+          const now = new Date();
+          const activeEnrollments = enrollments.filter((enrollment: any) => {
+            const turma = enrollment.turmas;
+            
+            // Verificar se a turma tem data de fim de acesso
+            if (turma?.access_end_date) {
+              const accessEndDate = new Date(turma.access_end_date);
+              if (now > accessEndDate) {
+                return false; // Acesso expirado pela turma
+              }
+            }
+            
+            // Verificar se o enrollment tem data de expiração individual
+            if (enrollment.access_expires_at) {
+              const expiresAt = new Date(enrollment.access_expires_at);
+              if (now > expiresAt) {
+                return false; // Acesso expirado pelo enrollment
+              }
+            }
+            
+            return true;
+          });
+
           // Calculate progress for each turma
           const turmasWithProgress = await Promise.all(
-            enrollments.map(async (enrollment: any) => {
+            activeEnrollments.map(async (enrollment: any) => {
               const turma = enrollment.turmas;
               const course = turma?.courses;
               
@@ -139,14 +165,38 @@ export default function AlunoDashboard() {
           .order('title', { ascending: true });
 
         if (coursesData) {
-          // Get turmas to fetch prices
+          // Get turmas to fetch prices (excluindo turmas expiradas)
           const { data: turmasData } = await supabase
             .from('turmas')
-            .select('course_id, price')
+            .select('course_id, price, access_end_date, sale_start_date, sale_end_date')
             .eq('status', 'active');
 
+          const now = new Date();
+          
+          // Filtrar turmas válidas (não expiradas e dentro do período de vendas)
+          const validTurmas = turmasData?.filter((t) => {
+            // Bloquear turmas com acesso expirado
+            if (t.access_end_date) {
+              const accessEndDate = new Date(t.access_end_date);
+              if (now > accessEndDate) return false;
+            }
+            
+            // Bloquear turmas fora do período de vendas
+            if (t.sale_start_date) {
+              const startDate = new Date(t.sale_start_date);
+              if (now < startDate) return false;
+            }
+            
+            if (t.sale_end_date) {
+              const endDate = new Date(t.sale_end_date);
+              if (now > endDate) return false;
+            }
+            
+            return true;
+          }) || [];
+
           const coursesWithPrices = coursesData.map((course) => {
-            const courseTurmas = turmasData?.filter((t) => t.course_id === course.id) || [];
+            const courseTurmas = validTurmas.filter((t) => t.course_id === course.id);
             let minPrice = 0;
             if (courseTurmas.length > 0) {
               const prices = courseTurmas
@@ -157,7 +207,9 @@ export default function AlunoDashboard() {
             return { ...course, price: minPrice };
           });
 
-          setAllCourses(coursesWithPrices);
+          // Filtrar apenas cursos que têm turmas válidas disponíveis
+          const availableCourses = coursesWithPrices.filter(c => c.price > 0);
+          setAllCourses(availableCourses);
         }
       } catch (err) {
         console.error('Error loading enrollments:', err);

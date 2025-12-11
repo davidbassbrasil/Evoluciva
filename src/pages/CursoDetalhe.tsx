@@ -71,6 +71,12 @@ export default function CursoDetalhe() {
             if (!turma.price && !turma.price_online) return false;
             if (turma.price <= 0 && (!turma.price_online || turma.price_online <= 0)) return false;
             
+            // Verificar se a turma já expirou completamente
+            if (turma.access_end_date) {
+              const accessEndDate = new Date(turma.access_end_date);
+              if (now > accessEndDate) return false;
+            }
+            
             const startDate = turma.sale_start_date ? new Date(turma.sale_start_date) : null;
             const endDate = turma.sale_end_date ? new Date(turma.sale_end_date) : null;
             

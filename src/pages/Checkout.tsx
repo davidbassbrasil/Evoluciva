@@ -164,6 +164,13 @@ export default function Checkout() {
             return;
           }
           
+          // Verificar se a turma já expirou completamente
+          if (data.access_end_date && now > new Date(data.access_end_date)) {
+            toast({ title: 'Turma encerrada', description: 'Esta turma não está mais disponível.', variant: 'destructive' });
+            navigate('/');
+            return;
+          }
+          
           setTurma(data);
           
           // Definir método de pagamento padrão baseado nas opções da turma
@@ -453,6 +460,9 @@ export default function Checkout() {
           
           // Criar registro do pagamento na tabela payments
           const now = new Date();
+          console.log('📅 [CARTÃO CRÉDITO] Data/hora atual:', now);
+          console.log('📅 ISO String:', now.toISOString());
+          
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
             user_id: userId,
@@ -477,18 +487,45 @@ export default function Checkout() {
 
           // Cancelar pagamentos pendentes anteriores para as mesmas turmas
           const turmaIds = itemsToPurchase.map(item => item.turma.id);
-          const { error: cancelError } = await supabase
+          console.log('🔍 [CARTÃO CRÉDITO] Tentando cancelar pagamentos pendentes...');
+          console.log('👤 userId:', userId);
+          console.log('📚 turmaIds:', turmaIds);
+          console.log('🆔 paymentRecord.id (não cancelar este):', paymentRecord?.id);
+
+          // Primeiro, verificar se existem pagamentos pendentes
+          const { data: pendingPayments, error: checkError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('user_id', userId)
+            .in('turma_id', turmaIds)
+            .eq('status', 'PENDING')
+            .neq('id', paymentRecord?.id);
+
+          console.log('📊 Pagamentos pendentes encontrados:', pendingPayments?.length || 0);
+          console.log('📋 Detalhes dos pendentes:', pendingPayments);
+
+          if (checkError) {
+            console.error('⚠️ Erro ao buscar pagamentos pendentes:', checkError);
+          }
+
+          const { data: canceledPayments, error: cancelError } = await supabase
             .from('payments')
             .update({ status: 'CANCELLED' })
             .eq('user_id', userId)
             .in('turma_id', turmaIds)
-            .in('status', ['PENDING', 'AWAITING_PAYMENT'])
-            .neq('id', paymentRecord?.id);
+            .eq('status', 'PENDING')
+            .neq('id', paymentRecord?.id)
+            .select();
 
           if (cancelError) {
-            console.warn('⚠️ Erro ao cancelar pagamentos pendentes:', cancelError);
+            console.error('❌ Erro ao cancelar pagamentos pendentes:', cancelError);
+            console.error('📝 Código do erro:', cancelError.code);
+            console.error('📝 Mensagem:', cancelError.message);
+            console.error('📝 Detalhes:', cancelError.details);
+            console.error('📝 Erro completo:', JSON.stringify(cancelError, null, 2));
           } else {
-            console.log('✅ Pagamentos pendentes anteriores cancelados');
+            console.log('✅ Pagamentos cancelados:', canceledPayments?.length || 0);
+            console.log('📋 Detalhes dos cancelados:', canceledPayments);
           }
 
           // Criar matrículas no Supabase
@@ -629,6 +666,9 @@ export default function Checkout() {
           
           // Criar registro do pagamento na tabela payments
           const now = new Date();
+          console.log('📅 [CARTÃO DÉBITO] Data/hora atual:', now);
+          console.log('📅 ISO String:', now.toISOString());
+          
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
             user_id: userId,
@@ -652,18 +692,45 @@ export default function Checkout() {
 
           // Cancelar pagamentos pendentes anteriores para as mesmas turmas
           const turmaIds = itemsToPurchase.map(item => item.turma.id);
-          const { error: cancelError } = await supabase
+          console.log('🔍 [CARTÃO DÉBITO] Tentando cancelar pagamentos pendentes...');
+          console.log('👤 userId:', userId);
+          console.log('📚 turmaIds:', turmaIds);
+          console.log('🆔 paymentRecord.id (não cancelar este):', paymentRecord?.id);
+
+          // Primeiro, verificar se existem pagamentos pendentes
+          const { data: pendingPayments, error: checkError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('user_id', userId)
+            .in('turma_id', turmaIds)
+            .eq('status', 'PENDING')
+            .neq('id', paymentRecord?.id);
+
+          console.log('📊 Pagamentos pendentes encontrados:', pendingPayments?.length || 0);
+          console.log('📋 Detalhes dos pendentes:', pendingPayments);
+
+          if (checkError) {
+            console.error('⚠️ Erro ao buscar pagamentos pendentes:', checkError);
+          }
+          
+          const { data: canceledPayments, error: cancelError } = await supabase
             .from('payments')
             .update({ status: 'CANCELLED' })
             .eq('user_id', userId)
             .in('turma_id', turmaIds)
-            .in('status', ['PENDING', 'AWAITING_PAYMENT'])
-            .neq('id', paymentRecord?.id);
+            .eq('status', 'PENDING')
+            .neq('id', paymentRecord?.id)
+            .select();
 
           if (cancelError) {
-            console.warn('⚠️ Erro ao cancelar pagamentos pendentes:', cancelError);
+            console.error('❌ Erro ao cancelar pagamentos pendentes:', cancelError);
+            console.error('📝 Código do erro:', cancelError.code);
+            console.error('📝 Mensagem:', cancelError.message);
+            console.error('📝 Detalhes:', cancelError.details);
+            console.error('📝 Erro completo:', JSON.stringify(cancelError, null, 2));
           } else {
-            console.log('✅ Pagamentos pendentes anteriores cancelados');
+            console.log('✅ Pagamentos cancelados:', canceledPayments?.length || 0);
+            console.log('📋 Detalhes dos cancelados:', canceledPayments);
           }
 
           // Criar matrículas no Supabase
@@ -1468,8 +1535,9 @@ Nome: APROVADO (ou qualquer nome)
                               </span>
                             </div>
                             <p className="text-sm text-amber-600 dark:text-amber-500">
-                              Pague até o vencimento para garantir sua matrícula
+                              Pague até o vencimento para garantir sua matrícula!
                             </p>
+                            <p className="text-sm text-amber-600 dark:text-amber-500">Após gerar o boleto, o banco pode levar até 48 horas úteis para confirmar o pagamento. Assim que a compensação for realizada, seu acesso será liberado automaticamente.</p>
                           </div>
 
                           {/* Código de barras */}

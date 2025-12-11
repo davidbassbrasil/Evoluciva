@@ -57,6 +57,12 @@ export default function Cursos() {
             if (!t.price && !t.price_online) return false;
             if (t.price <= 0 && (!t.price_online || t.price_online <= 0)) return false;
             
+            // Verificar se a turma já expirou completamente
+            if (t.access_end_date) {
+              const accessEndDate = new Date(t.access_end_date);
+              if (now > accessEndDate) return false;
+            }
+            
             // Se é coming_soon, sempre mostrar (para informação)
             if (t.status === 'coming_soon') return true;
             
