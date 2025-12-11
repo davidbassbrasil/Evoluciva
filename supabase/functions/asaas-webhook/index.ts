@@ -63,7 +63,7 @@ serve(async (req: Request) => {
     // Parse payload
     const payload: WebhookPayload = await req.json();
     
-    const eventType = payload?.event ?? 'unknown';
+    const eventType = payload?.event ?? 'UNKNOWN';
     const paymentId = payload?.payment?.id ?? null;
     
     // IP real do cliente
@@ -72,23 +72,29 @@ serve(async (req: Request) => {
                 'unknown';
     
     console.log(`📩 Webhook recebido: ${eventType} - Payment: ${paymentId} - IP: ${ip}`);
+    console.log('📦 Payload completo:', JSON.stringify(payload));
 
     // Registrar webhook log
+    const logEntry = {
+      event_type: eventType,
+      asaas_payment_id: paymentId,
+      payload: payload,
+      headers: Object.fromEntries(req.headers.entries()),
+      source_ip: ip,
+      user_agent: req.headers.get('user-agent'),
+    };
+    
+    console.log('💾 Tentando inserir log:', JSON.stringify(logEntry));
+    
     const { data: logData, error: logError } = await supabase
       .from('webhook_logs')
-      .insert({
-        event_type: eventType,
-        asaas_payment_id: paymentId,
-        payload: payload,
-        headers: Object.fromEntries(req.headers.entries()),
-        source_ip: ip,
-        user_agent: req.headers.get('user-agent'),
-      })
+      .insert(logEntry)
       .select()
       .single();
 
     if (logError) {
-      console.error('❌ Erro ao salvar log:', logError);
+      console.error('❌ Erro ao salvar log:', JSON.stringify(logError));
+      console.error('❌ Detalhes do erro:', logError.message, logError.details, logError.hint);
     } else {
       console.log('✅ Log salvo com ID:', logData?.id);
     }

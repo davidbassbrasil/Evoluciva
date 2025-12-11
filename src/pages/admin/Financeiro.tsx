@@ -6,15 +6,30 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { format, startOfMonth, endOfMonth, startOfYear, startOfDay, endOfDay, subDays, startOfToday, endOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+interface WebhookLog {
+  id: string;
+  event_type: string;
+  asaas_payment_id?: string;
+  payment_id?: string;
+  payload: any;
+  processed: boolean;
+  processed_at?: string;
+  error_message?: string;
+  retry_count: number;
+  source_ip?: string;
+  created_at: string;
+}
 
 interface Payment {
   id: string;
@@ -75,6 +90,16 @@ export default function Financeiro() {
   const [refundDescription, setRefundDescription] = useState('');
   const [processingRefund, setProcessingRefund] = useState(false);
   
+  // Webhook logs
+  const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
+  const [filteredWebhookLogs, setFilteredWebhookLogs] = useState<WebhookLog[]>([]);
+  const [webhookLoading, setWebhookLoading] = useState(false);
+  const [webhookSearchTerm, setWebhookSearchTerm] = useState('');
+  const [webhookStatusFilter, setWebhookStatusFilter] = useState<string>('all');
+  const [selectedWebhookLog, setSelectedWebhookLog] = useState<WebhookLog | null>(null);
+  const [showWebhookDetails, setShowWebhookDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('payments');
+  
   // Filtros de data
   const [dateFrom, setDateFrom] = useState<Date>(startOfToday());
   const [dateTo, setDateTo] = useState<Date>(endOfToday());
@@ -97,6 +122,7 @@ export default function Financeiro() {
 
   useEffect(() => {
     loadPayments();
+    loadWebhookLogs();
   }, []);
 
   useEffect(() => {
@@ -106,6 +132,10 @@ export default function Financeiro() {
   useEffect(() => {
     loadTurmas();
   }, []);
+
+  useEffect(() => {
+    filterWebhookLogs();
+  }, [webhookLogs, webhookSearchTerm, webhookStatusFilter]);
 
   const loadTurmas = async () => {
     try {
@@ -126,6 +156,55 @@ export default function Financeiro() {
     } catch (error) {
       console.error('Erro ao carregar turmas:', error);
     }
+  };
+
+  const loadWebhookLogs = async () => {
+    setWebhookLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('webhook_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setWebhookLogs(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar webhook logs:', error);
+      toast({
+        title: 'Erro ao carregar logs',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setWebhookLoading(false);
+    }
+  };
+
+  const filterWebhookLogs = () => {
+    let filtered = [...webhookLogs];
+
+    // Filtrar por busca
+    if (webhookSearchTerm) {
+      filtered = filtered.filter(log => 
+        log.event_type.toLowerCase().includes(webhookSearchTerm.toLowerCase()) ||
+        log.asaas_payment_id?.toLowerCase().includes(webhookSearchTerm.toLowerCase()) ||
+        log.id.toLowerCase().includes(webhookSearchTerm.toLowerCase())
+      );
+    }
+
+    // Filtrar por status
+    if (webhookStatusFilter !== 'all') {
+      if (webhookStatusFilter === 'processed') {
+        filtered = filtered.filter(log => log.processed);
+      } else if (webhookStatusFilter === 'error') {
+        filtered = filtered.filter(log => !log.processed && log.error_message);
+      } else if (webhookStatusFilter === 'pending') {
+        filtered = filtered.filter(log => !log.processed && !log.error_message);
+      }
+    }
+
+    setFilteredWebhookLogs(filtered);
   };
 
   // Aplicar preset de data
@@ -451,8 +530,17 @@ export default function Financeiro() {
             <p className="text-muted-foreground">Acompanhe pagamentos, receitas e transações</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={loadPayments} disabled={loading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                loadPayments();
+                if (activeTab === 'webhooks') {
+                  loadWebhookLogs();
+                }
+              }} 
+              disabled={loading || webhookLoading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${(loading || webhookLoading) ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
             <Button onClick={exportToCSV} disabled={loading || filteredPayments.length === 0}>
@@ -462,12 +550,26 @@ export default function Financeiro() {
           </div>
         </div>
 
-        {/* Filtros de Data */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Filtrar por Período</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="payments" className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              Pagamentos
+            </TabsTrigger>
+            <TabsTrigger value="webhooks" className="flex items-center gap-2">
+              <Webhook className="w-4 h-4" />
+              Logs Webhook
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="payments" className="space-y-6">
+            {/* Filtros de Data */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filtrar por Período</CardTitle>
+              </CardHeader>
+              <CardContent>
             <div className="flex flex-wrap gap-2 items-center">
               <div className="flex gap-2">
                 <Button 
@@ -1073,6 +1175,224 @@ export default function Financeiro() {
                 <p className="text-xs text-muted-foreground text-center">
                   Este é um registro interno. O estorno na Asaas deve ser processado diretamente no painel da Asaas.
                 </p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+          </TabsContent>
+
+          {/* Tab de Webhook Logs */}
+          <TabsContent value="webhooks" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Logs de Webhook Asaas</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Últimos 100 webhooks recebidos do gateway Asaas
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadWebhookLogs}
+                    disabled={webhookLoading}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${webhookLoading ? 'animate-spin' : ''}`} />
+                    Atualizar
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Filtros Webhook */}
+                <div className="flex flex-col md:flex-row gap-4 mb-6">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por evento, ID de pagamento, ID do log..."
+                      value={webhookSearchTerm}
+                      onChange={(e) => setWebhookSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Select value={webhookStatusFilter} onValueChange={setWebhookStatusFilter}>
+                    <SelectTrigger className="w-full md:w-[200px]">
+                      <Activity className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="processed">Processados</SelectItem>
+                      <SelectItem value="error">Com Erro</SelectItem>
+                      <SelectItem value="pending">Pendentes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Tabela Webhook Logs */}
+                {webhookLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredWebhookLogs.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Webhook className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p className="font-medium">Nenhum log encontrado</p>
+                    <p className="text-sm">
+                      {webhookLogs.length === 0
+                        ? 'Os webhooks do Asaas aparecerão aqui'
+                        : 'Tente ajustar os filtros de busca'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data/Hora</TableHead>
+                          <TableHead>Evento</TableHead>
+                          <TableHead>Payment ID</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Tentativas</TableHead>
+                          <TableHead>IP Origem</TableHead>
+                          <TableHead>Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredWebhookLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-mono text-xs">
+                              {format(new Date(log.created_at), "dd/MM/yy HH:mm:ss", { locale: ptBR })}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {log.event_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {log.asaas_payment_id || '-'}
+                            </TableCell>
+                            <TableCell>
+                              {log.processed ? (
+                                <Badge className="bg-green-500">
+                                  Processado
+                                </Badge>
+                              ) : log.error_message ? (
+                                <Badge variant="destructive">
+                                  Erro
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">
+                                  Pendente
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={log.retry_count > 0 ? 'destructive' : 'secondary'}>
+                                {log.retry_count}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {log.source_ip || '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedWebhookLog(log);
+                                  setShowWebhookDetails(true);
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Dialog de Detalhes do Webhook */}
+        <Dialog open={showWebhookDetails} onOpenChange={setShowWebhookDetails}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Detalhes do Webhook</DialogTitle>
+            </DialogHeader>
+            {selectedWebhookLog && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Log ID</p>
+                    <p className="font-mono text-sm">{selectedWebhookLog.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Evento</p>
+                    <Badge variant="outline">{selectedWebhookLog.event_type}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Payment ID (Asaas)</p>
+                    <p className="font-mono text-sm">{selectedWebhookLog.asaas_payment_id || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Payment ID (Interno)</p>
+                    <p className="font-mono text-sm">{selectedWebhookLog.payment_id || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Recebido em</p>
+                    <p className="text-sm">
+                      {format(new Date(selectedWebhookLog.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    {selectedWebhookLog.processed ? (
+                      <Badge className="bg-green-500">Processado</Badge>
+                    ) : selectedWebhookLog.error_message ? (
+                      <Badge variant="destructive">Erro</Badge>
+                    ) : (
+                      <Badge variant="secondary">Pendente</Badge>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">IP de Origem</p>
+                    <p className="font-mono text-sm">{selectedWebhookLog.source_ip || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Tentativas</p>
+                    <Badge variant={selectedWebhookLog.retry_count > 0 ? 'destructive' : 'secondary'}>
+                      {selectedWebhookLog.retry_count}
+                    </Badge>
+                  </div>
+                </div>
+
+                {selectedWebhookLog.processed_at && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Processado em</p>
+                    <p className="text-sm">
+                      {format(new Date(selectedWebhookLog.processed_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+                    </p>
+                  </div>
+                )}
+
+                {selectedWebhookLog.error_message && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-sm font-medium text-destructive mb-1">Mensagem de Erro</p>
+                    <p className="text-sm text-destructive/80">{selectedWebhookLog.error_message}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Payload (JSON)</p>
+                  <pre className="p-3 bg-muted rounded-lg text-xs overflow-x-auto max-h-96">
+                    {JSON.stringify(selectedWebhookLog.payload, null, 2)}
+                  </pre>
+                </div>
               </div>
             )}
           </DialogContent>
