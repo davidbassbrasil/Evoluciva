@@ -81,7 +81,7 @@ export function CoursesSection() {
   };
 
   return (
-    <section id="cursos" className="py-12 md:py-20 bg-background">
+    <section id="cursos" className="pt-10 pb-8 md:pt-20 md:pb-20 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-8 md:mb-12">
           <Badge variant="secondary" className="mb-4 px-4 py-1 text-sm font-medium">

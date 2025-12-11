@@ -159,7 +159,7 @@ export function FloatingNav() {
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-0">
           <Button
             variant="ghost"
             size="icon"
@@ -212,7 +212,7 @@ export function FloatingNav() {
         </div>
 
         {/* Mobile Menu Button */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="md:hidden flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
