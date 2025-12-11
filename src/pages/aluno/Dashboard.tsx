@@ -216,18 +216,19 @@ export default function AlunoDashboard() {
 
         {/* My Courses */}
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-3">
             <h2 className="text-2xl font-bold">Minhas Turmas</h2>
             {enrolledTurmas.some(t => t.lesson_live) && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {enrolledTurmas.filter(t => t.lesson_live).map((turma) => (
                   <a
                     key={turma.turma_id}
                     href={turma.lesson_live}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="block w-full sm:inline-block sm:w-auto"
                   >
-                    <Button className="bg-red-600 text-white animate-pulse shadow-lg hover:shadow-xl transition-shadow">
+                    <Button className="bg-red-600 text-white animate-pulse shadow-lg hover:shadow-xl transition-shadow w-full sm:w-auto justify-center text-sm md:text-base whitespace-nowrap">
                       <Video className="w-4 h-4 mr-2" />
                       Aula ao Vivo - {turma.turma_name}
                     </Button>

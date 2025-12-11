@@ -69,15 +69,15 @@ export function HeroBanner() {
         <>
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-foreground/20 backdrop-blur-sm text-background hover:bg-foreground/30 transition-all"
+            className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 p-2 md:p-3 rounded-full bg-foreground/20 backdrop-blur-sm text-background hover:bg-foreground/30 transition-all"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-4 h-4 md:w-6 md:h-6" />
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-foreground/20 backdrop-blur-sm text-background hover:bg-foreground/30 transition-all"
+            className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 p-2 md:p-3 rounded-full bg-foreground/20 backdrop-blur-sm text-background hover:bg-foreground/30 transition-all"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-4 h-4 md:w-6 md:h-6" />
           </button>
         </>
       )}
