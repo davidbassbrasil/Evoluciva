@@ -559,7 +559,7 @@ export default function Financeiro() {
             </TabsTrigger>
             <TabsTrigger value="webhooks" className="flex items-center gap-2">
               <Webhook className="w-4 h-4" />
-              Logs Webhook
+              Logs Webhook Asaas
             </TabsTrigger>
           </TabsList>
 
