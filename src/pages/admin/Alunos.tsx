@@ -1170,15 +1170,14 @@ export default function AdminAlunos() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="paid">Pago</SelectItem>
+                    <SelectItem value="paid">Caixa Local</SelectItem>
                     <SelectItem value="free">Gratuito (cortesia)</SelectItem>
-                    <SelectItem value="pending">Pendente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Observações (opcional)</Label>
+                <Label>Observações</Label>
                 <Textarea
                   value={enrollForm.notes}
                   onChange={(e) => setEnrollForm({ ...enrollForm, notes: e.target.value })}
