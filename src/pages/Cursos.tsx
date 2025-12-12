@@ -15,6 +15,7 @@ export default function Cursos() {
   const [filteredTurmas, setFilteredTurmas] = useState<Turma[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+  const [modeFilter, setModeFilter] = useState<'all' | 'presencial' | 'online'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export default function Cursos() {
 
   useEffect(() => {
     let result = turmas;
-    
+
     if (searchTerm) {
       result = result.filter(turma => 
         turma.course?.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,13 +98,23 @@ export default function Cursos() {
         turma.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     if (selectedEstado) {
       result = result.filter(turma => turma.course?.estado === selectedEstado);
     }
-    
+
+    if (modeFilter && modeFilter !== 'all') {
+      result = result.filter(turma => {
+        const hasPresencial = Boolean(turma.price) || typeof turma.presential_slots !== 'undefined';
+        const hasOnline = Boolean(turma.price_online);
+        if (modeFilter === 'presencial') return hasPresencial;
+        if (modeFilter === 'online') return hasOnline;
+        return true;
+      });
+    }
+
     setFilteredTurmas(result);
-  }, [searchTerm, selectedEstado, turmas]);
+  }, [searchTerm, selectedEstado, turmas, modeFilter]);
 
   const states = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE', 'CE', 'DF', 'GO', 'PA', 'AM', 'MT', 'MS', 'ES', 'PB', 'RN', 'AL', 'SE', 'PI', 'MA', 'TO', 'RO', 'AC', 'AP', 'RR'];
 
@@ -124,7 +135,7 @@ export default function Cursos() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="flex flex-col md:flex-row gap-4 mb-8 items-start">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input
@@ -134,6 +145,20 @@ export default function Cursos() {
                 className="pl-10"
               />
             </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setModeFilter(modeFilter === 'presencial' ? 'all' : 'presencial')}
+                className={`px-3 py-2 rounded-md text-sm border w-32 md:w-36 flex items-center justify-center ${modeFilter === 'presencial' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border'}`}>
+                Presencial
+              </button>
+              <button
+                onClick={() => setModeFilter(modeFilter === 'online' ? 'all' : 'online')}
+                className={`px-3 py-2 rounded-md text-sm border w-32 md:w-36 flex items-center justify-center ${modeFilter === 'online' ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-muted-foreground border-border'}`}>
+                Online
+              </button>
+            </div>
+
             <Select
               value={selectedEstado || "all"}
               onValueChange={(value) => setSelectedEstado(value === "all" ? null : value)}
@@ -254,7 +279,7 @@ export default function Cursos() {
               <p className="text-xl text-muted-foreground mb-4">
                 Nenhuma turma encontrada
               </p>
-              <Button onClick={() => { setSearchTerm(''); setSelectedEstado(null); }}>
+              <Button onClick={() => { setSearchTerm(''); setSelectedEstado(null); setModeFilter('all'); }}>
                 Limpar filtros
               </Button>
             </div>

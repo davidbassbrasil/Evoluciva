@@ -4,6 +4,14 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0'
 
+// Criar cliente Supabase uma vez (reutilizado em warm starts)
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  db: { schema: 'public' },
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
 // Tipos
 interface AsaasRequestBody {
   method?: string;
@@ -58,12 +66,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Criar cliente Supabase para validar token
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
     // Extrair token
     const token = authHeader.replace('Bearer ', '');
     
