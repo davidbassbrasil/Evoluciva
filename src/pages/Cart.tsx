@@ -305,7 +305,7 @@ export default function Cart() {
               {/* Seção de Upsell */}
               {upsellCourses.length > 0 && (
                 <div className="mt-8">
-                  <h2 className="text-xl font-bold mb-4">Outros Concursos</h2>
+                  <h2 className="text-xl font-bold mb-4">Veja esses outros cursos</h2>
                   <div className="grid gap-4">
                     {upsellCourses.map((course) => (
                       <div key={course.id} className="bg-card p-4 rounded-2xl border border-border/50 hover:border-primary/50 transition-colors">
