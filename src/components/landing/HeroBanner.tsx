@@ -38,7 +38,7 @@ export function HeroBanner() {
   if (banners.length === 0) {
     return (
       <section className="relative h-[75vh] min-h-[520px] bg-muted flex items-center justify-center">
-        <p className="text-muted-foreground">Nenhum banner configurado</p>
+        <p className="text-muted-foreground">Carregando...</p>
       </section>
     );
   }
