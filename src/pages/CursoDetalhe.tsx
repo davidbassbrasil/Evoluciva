@@ -198,9 +198,6 @@ export default function CursoDetalhe() {
             <div className="lg:col-span-2 space-y-8">
               {/* Course Header */}
               <div>
-                <Badge variant="secondary" className="mb-4">
-                  {course.category}
-                </Badge>
                 <h1 className="text-3xl md:text-4xl font-bold mb-4">
                   {course.title}
                 </h1>
