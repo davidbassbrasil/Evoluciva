@@ -69,8 +69,19 @@ export default function Cursos() {
             if (endDate && now > endDate) return false;
             return true;
           });
-          setTurmas(availableTurmas);
-          setFilteredTurmas(availableTurmas);
+          
+          // Agrupar por curso - pegar apenas a primeira turma de cada curso
+          const uniqueCourses = new Map();
+          availableTurmas.forEach((turma: any) => {
+            if (turma.course?.id && !uniqueCourses.has(turma.course.id)) {
+              uniqueCourses.set(turma.course.id, turma);
+            }
+          });
+          
+          const uniqueTurmas = Array.from(uniqueCourses.values());
+          
+          setTurmas(uniqueTurmas);
+          setFilteredTurmas(uniqueTurmas);
         }
       } catch (err) {
         console.error('Error loading turmas:', err);

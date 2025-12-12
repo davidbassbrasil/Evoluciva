@@ -8,13 +8,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, CreditCard, Percent } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, CreditCard, Percent, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 
 interface TurmaForm {
   name: string;
   course_id: string;
+  start_date: string;
   sale_start_date: string;
   sale_end_date: string;
   access_end_date: string;
@@ -55,6 +56,7 @@ export default function AdminTurmas() {
   const [form, setForm] = useState<TurmaForm>({
     name: '',
     course_id: '',
+    start_date: '',
     sale_start_date: '',
     sale_end_date: '',
     access_end_date: '',
@@ -133,6 +135,7 @@ export default function AdminTurmas() {
     setForm({
       name: '',
       course_id: '',
+      start_date: '',
       sale_start_date: '',
       sale_end_date: '',
       access_end_date: '',
@@ -170,6 +173,7 @@ export default function AdminTurmas() {
       const turmaData = {
         name: form.name,
         course_id: form.course_id,
+        start_date: form.start_date || null,
         sale_start_date: form.sale_start_date || null,
         sale_end_date: form.sale_end_date || null,
         access_end_date: form.access_end_date || null,
@@ -238,11 +242,43 @@ export default function AdminTurmas() {
     }
   };
 
+  const handleDuplicate = (turma: Turma) => {
+    setSelected(null); // Não é edição, é nova turma
+    setForm({
+      name: turma.name + ' (Cópia)',
+      course_id: turma.course_id,
+      start_date: '', // Limpar data para forçar o usuário a definir nova data
+      sale_start_date: turma.sale_start_date || '',
+      sale_end_date: turma.sale_end_date || '',
+      access_end_date: turma.access_end_date || '',
+      presential_slots: String(turma.presential_slots || 0),
+      online_slots: String(turma.online_slots || 0),
+      status: turma.status,
+      price: String(turma.price || ''),
+      price_online: String(turma.price_online || ''),
+      original_price: String(turma.original_price || ''),
+      original_price_online: String(turma.original_price_online || ''),
+      allow_credit_card: turma.allow_credit_card,
+      allow_installments: turma.allow_installments,
+      max_installments: String(turma.max_installments || 12),
+      allow_debit_card: turma.allow_debit_card,
+      allow_pix: turma.allow_pix,
+      allow_boleto: turma.allow_boleto,
+      discount_cash: String(turma.discount_cash || 0),
+      discount_pix: String(turma.discount_pix || 0),
+      discount_debit: String(turma.discount_debit || 0),
+      coupon_code: turma.coupon_code || '',
+      coupon_discount: String(turma.coupon_discount || 0),
+    });
+    setOpen(true);
+  };
+
   const handleEdit = (turma: Turma) => {
     setSelected(turma);
     setForm({
       name: turma.name,
       course_id: turma.course_id,
+      start_date: turma.start_date || '',
       sale_start_date: turma.sale_start_date || '',
       sale_end_date: turma.sale_end_date || '',
       access_end_date: turma.access_end_date || '',
@@ -346,6 +382,18 @@ export default function AdminTurmas() {
                   <Calendar className="w-4 h-4" />
                   Datas de Controle
                 </h3>
+                <div className="mb-4">
+                  <Label className="text-base font-semibold">Data de Início das Aulas *</Label>
+                  <Input
+                    type="date"
+                    value={form.start_date}
+                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Data em que as aulas desta turma começam. Será exibida na página do curso.
+                  </p>
+                </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label>Início das Vendas</Label>
@@ -665,6 +713,13 @@ export default function AdminTurmas() {
                   <p className="text-sm text-muted-foreground mb-2">{turma.course_title}</p>
                   
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    {turma.start_date && (
+                      <span className="flex items-center gap-1 font-semibold text-primary">
+                        <Calendar className="w-3 h-3" />
+                        Início das Aulas: {new Date(turma.start_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </span>
+                    )}
+                    
                     {(turma.sale_start_date || turma.sale_end_date) && (
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
@@ -701,6 +756,14 @@ export default function AdminTurmas() {
                 </div>
                 
                 <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => handleDuplicate(turma)}
+                    title="Duplicar turma com nova data"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
                   <Button variant="outline" size="icon" onClick={() => handleEdit(turma)}>
                     <Pencil className="w-4 h-4" />
                   </Button>

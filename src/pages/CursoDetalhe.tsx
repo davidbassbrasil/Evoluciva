@@ -376,6 +376,12 @@ export default function CursoDetalhe() {
                                 <Badge className="bg-orange-500 text-xs">Em Breve</Badge>
                               )}
                             </div>
+                            {turma.start_date && (
+                              <div className="text-xs text-primary font-medium mb-2 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                Início: {new Date(turma.start_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                              </div>
+                            )}
                             <div className="text-xs text-muted-foreground space-y-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">Presencial:</span>{' '}

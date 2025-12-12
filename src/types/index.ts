@@ -24,6 +24,7 @@ export interface Turma {
   id: string;
   name: string;
   course_id: string;
+  start_date: string | null;
   sale_start_date: string | null;
   sale_end_date: string | null;
   access_end_date: string | null;

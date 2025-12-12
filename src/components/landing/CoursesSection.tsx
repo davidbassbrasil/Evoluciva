@@ -41,7 +41,7 @@ export function CoursesSection() {
 
           // Filtrar por curso ativo e datas de venda/acesso
           const now = new Date();
-          const filtered = limited.filter((turma: any) => {
+          const filtered = sorted.filter((turma: any) => {
             // Filtrar se o curso está desativado
             if (!turma.course?.active) return false;
             
@@ -64,7 +64,18 @@ export function CoursesSection() {
             return true;
           });
           
-          setTurmas(filtered);
+          // Agrupar por curso - pegar apenas a primeira turma de cada curso
+          const uniqueCourses = new Map();
+          filtered.forEach((turma: any) => {
+            if (turma.course?.id && !uniqueCourses.has(turma.course.id)) {
+              uniqueCourses.set(turma.course.id, turma);
+            }
+          });
+          
+          // Limitar a 7 cursos únicos
+          const uniqueTurmas = Array.from(uniqueCourses.values()).slice(0, 7);
+          
+          setTurmas(uniqueTurmas);
         }
       } catch (err) {
         console.error('Error loading turmas from Supabase:', err);

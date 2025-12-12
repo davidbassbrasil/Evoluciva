@@ -159,12 +159,12 @@ export default function Cart() {
                 const displayOriginalPrice = modality === 'online' ? Number(turma.original_price_online) : Number(turma.original_price);
                 
                 return (
-                  <div key={itemId} className="bg-card p-4 rounded-2xl flex items-start justify-between border border-border/50">
-                    <div className="flex items-start gap-4">
-                      <img src={turma.course?.image} alt={turma.course?.title} className="w-20 h-28 object-cover rounded-lg" />
-                      <div className="flex-1">
-                        <h3 className="font-semibold mb-1">{turma.course?.title}</h3>
-                        <div className="flex items-center gap-2 mb-2">
+                  <div key={itemId} className="bg-card p-4 rounded-2xl border border-border/50">
+                    <div className="flex flex-col sm:flex-row items-start gap-4">
+                      <img src={turma.course?.image} alt={turma.course?.title} className="w-20 h-28 object-cover rounded-lg shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold mb-1 line-clamp-2">{turma.course?.title}</h3>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <Badge variant="secondary" className="text-xs">{turma.name}</Badge>
                           <Badge variant="outline" className="text-xs">
                             {modality === 'online' ? 'Online' : 'Presencial'}
@@ -172,24 +172,24 @@ export default function Cart() {
                         </div>
                         <p className="text-sm text-muted-foreground mb-1">{turma.course?.instructor}</p>
                         {turma.course?.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">{turma.course.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2 break-words">{turma.course.description}</p>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        {displayOriginalPrice > displayPrice && (
-                          <div className="text-muted-foreground text-sm line-through">
-                            R$ {displayOriginalPrice.toFixed(2)}
+                      <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:gap-2 w-full sm:w-auto shrink-0">
+                        <div className="text-left sm:text-right flex-1 sm:flex-initial">
+                          {displayOriginalPrice > displayPrice && (
+                            <div className="text-muted-foreground text-sm line-through">
+                              R$ {displayOriginalPrice.toFixed(2)}
+                            </div>
+                          )}
+                          <div className="text-lg font-bold text-primary whitespace-nowrap">
+                            R$ {displayPrice.toFixed(2)}
                           </div>
-                        )}
-                        <div className="text-lg font-bold text-primary">
-                          R$ {displayPrice.toFixed(2)}
                         </div>
+                        <button onClick={() => handleRemove(itemId)} className="p-2 rounded-lg hover:bg-secondary shrink-0">
+                          <Trash2 className="w-5 h-5 text-muted-foreground" />
+                        </button>
                       </div>
-                      <button onClick={() => handleRemove(itemId)} className="p-2 rounded-lg hover:bg-secondary">
-                        <Trash2 className="w-5 h-5 text-muted-foreground" />
-                      </button>
                     </div>
                   </div>
                 );
