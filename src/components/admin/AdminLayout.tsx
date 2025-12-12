@@ -14,7 +14,7 @@ const menuItems = [
   { icon: UsersRound, label: 'Turmas', path: '/admin/turmas', permission: 'turmas' },
   { icon: PlayCircle, label: 'Aulas', path: '/admin/aulas', permission: 'aulas' },
   { icon: Users, label: 'Professores', path: '/admin/professores', permission: 'professores' },
-  { icon: Tags, label: 'Tags', path: '/admin/tags', permission: 'tags' },
+  { icon: Tags, label: 'Tags • Matérias', path: '/admin/tags', permission: 'tags' },
   { icon: MessageSquare, label: 'Depoimentos', path: '/admin/depoimentos', permission: 'depoimentos' },
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', permission: 'faq' },
   { icon: Users, label: 'Alunos', path: '/admin/alunos', permission: 'alunos' },
