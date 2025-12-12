@@ -83,7 +83,8 @@ export default function AdminDashboard() {
             usersResult,
             lessonsResult,
             turmasResult,
-            paymentsResult
+            paymentsResult,
+            enrollmentsResult
           ] = await Promise.all([
             // Buscar cursos (limit reduzido para dashboard)
             supabase
@@ -116,23 +117,49 @@ export default function AdminDashboard() {
             supabase
               .from('payments')
               .select('value')
-              .in('status', ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'])
+              .in('status', ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']),
+            
+            // ✨ Buscar matrículas para contar cursos reais dos alunos
+            supabase
+              .from('enrollments')
+              .select('profile_id, turma_id, turmas(course_id)')
           ]);
 
           // Processar cursos
           const courses = (coursesResult.data || []) as Course[];
           
-          // Processar usuários
-          const users = (usersResult.data || []).map((p: any) => ({
-            id: p.id,
-            name: p.full_name || '',
-            email: p.email || '',
-            password: '',
-            avatar: '',
-            purchasedCourses: Array.isArray(p.purchased_courses) ? p.purchased_courses : [],
-            progress: {},
-            createdAt: p.created_at || new Date().toISOString(),
-          })) as User[];
+          // Processar enrollments para contar cursos únicos por aluno
+          const enrollments = enrollmentsResult.data || [];
+          const userCoursesMap: Record<string, Set<string>> = {};
+          enrollments.forEach((e: any) => {
+            const profileId = e.profile_id;
+            const courseId = e.turmas?.course_id;
+            if (profileId && courseId) {
+              if (!userCoursesMap[profileId]) {
+                userCoursesMap[profileId] = new Set();
+              }
+              userCoursesMap[profileId].add(courseId);
+            }
+          });
+          
+          // Processar usuários com contagem real de matrículas
+          const users = (usersResult.data || []).map((p: any) => {
+            const enrolledCourses = userCoursesMap[p.id] ? Array.from(userCoursesMap[p.id]) : [];
+            const purchasedFromProfile = Array.isArray(p.purchased_courses) ? p.purchased_courses : [];
+            // Mesclar cursos de enrollments e purchased_courses (remover duplicatas)
+            const allCourses = Array.from(new Set([...enrolledCourses, ...purchasedFromProfile]));
+            
+            return {
+              id: p.id,
+              name: p.full_name || '',
+              email: p.email || '',
+              password: '',
+              avatar: '',
+              purchasedCourses: allCourses,
+              progress: {},
+              createdAt: p.created_at || new Date().toISOString(),
+            };
+          }) as User[];
           
           // Contagem de aulas
           const lessonsCount = lessonsResult.count || 0;
@@ -355,7 +382,7 @@ export default function AdminDashboard() {
           {/* Recent Users */}
           <div className="bg-card rounded-2xl p-6 border border-border/50">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Novos Alunos</h2>
+              <h2 className="text-lg font-bold">Alunos</h2>
               <Link to="/admin/alunos">
                 <Button variant="ghost" size="sm">Ver todos</Button>
               </Link>
