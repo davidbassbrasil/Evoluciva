@@ -67,79 +67,76 @@ export default function AdminAulas() {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadTurmas();
-    loadLessons();
+    loadData();
   }, []);
 
-  const loadTurmas = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('turmas')
-        .select(`
-          id,
-          name,
-          course_id,
-          lesson_live,
-          courses (
-            title
-          )
-        `)
-        .order('name');
-      
-      if (error) throw error;
-      
-      const turmasWithCourse = (data || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        course_id: t.course_id,
-        course_title: (t as any).courses?.title || 'Sem curso',
-        lesson_live: (t as any).lesson_live
-      }));
-      
-      setTurmas(turmasWithCourse);
-    } catch (error: any) {
-      toast({ title: 'Erro ao carregar turmas', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const loadLessons = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('lessons')
-        .select(`
-          *,
-          turmas (
-            id,
-            name,
-            course_id,
-            courses (
-              title
+      // ✨ OTIMIZAÇÃO: Executar turmas + lessons em paralelo
+      const [turmasResult, lessonsResult] = await Promise.all([
+        supabase
+          .from('turmas')
+          .select('id, name, course_id, lesson_live, courses (title)')
+          .order('name'),
+        
+        supabase
+          .from('lessons')
+          .select(`
+            *,
+            turmas (
+              id,
+              name,
+              course_id,
+              courses (
+                title
+              )
             )
-          )
-        `)
-        .order('module_title')
-        .order('lesson_order');
-      
-      if (error) throw error;
-      
-      const lessonsWithTurma = (data || []).map(l => ({
-        ...l,
-        turma: l.turmas ? {
-          id: (l.turmas as any).id,
-          name: (l.turmas as any).name,
-          course_id: (l.turmas as any).course_id,
-          course_title: (l.turmas as any).courses?.title || 'Sem curso'
-        } : undefined
-      }));
-      
-      setLessons(lessonsWithTurma);
+          `)
+          .order('module_title')
+          .order('lesson_order')
+      ]);
+
+      // Processar turmas
+      if (!turmasResult.error && turmasResult.data) {
+        const turmasWithCourse = turmasResult.data.map(t => ({
+          id: t.id,
+          name: t.name,
+          course_id: t.course_id,
+          course_title: (t as any).courses?.title || 'Sem curso',
+          lesson_live: (t as any).lesson_live
+        }));
+        setTurmas(turmasWithCourse);
+      } else if (turmasResult.error) {
+        toast({ title: 'Erro ao carregar turmas', description: turmasResult.error.message, variant: 'destructive' });
+      }
+
+      // Processar lessons
+      if (!lessonsResult.error && lessonsResult.data) {
+        const lessonsWithTurma = lessonsResult.data.map(l => ({
+          ...l,
+          turma: l.turmas ? {
+            id: (l.turmas as any).id,
+            name: (l.turmas as any).name,
+            course_id: (l.turmas as any).course_id,
+            course_title: (l.turmas as any).courses?.title || 'Sem curso'
+          } : undefined
+        }));
+        setLessons(lessonsWithTurma);
+      } else if (lessonsResult.error) {
+        toast({ title: 'Erro ao carregar aulas', description: lessonsResult.error.message, variant: 'destructive' });
+      }
+
     } catch (error: any) {
-      toast({ title: 'Erro ao carregar aulas', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao carregar dados', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
+
+  // Funções antigas removidas - agora tudo carrega em paralelo no loadData
+  const loadTurmas = async () => { /* deprecated */ };
+  const loadLessons = async () => { /* deprecated */ };
 
   const loadModulesForTurma = async (turmaId: string) => {
     try {

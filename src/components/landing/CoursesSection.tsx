@@ -14,27 +14,19 @@ export function CoursesSection() {
     const load = async () => {
       if (!supabase) return;
       try {
+        // ✨ OTIMIZAÇÃO: Buscar apenas campos necessários + limitar a 7 turmas para home
         const { data, error } = await supabase
           .from('turmas')
           .select(`
-            *,
+            id, name, price, price_online, original_price, original_price_online,
+            presential_slots, status, sale_start_date, sale_end_date, access_end_date,
             course:courses (
-              id,
-              title,
-              description,
-              image,
-              instructor,
-              category,
-              slug,
-              full_description,
-              whats_included,
-              duration,
-              lessons,
-              active
+              id, title, description, image, instructor, slug, active
             )
           `)
           .in('status', ['active', 'coming_soon'])
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(7);
 
         if (!error && data) {
           // Filtrar por curso ativo, preços definidos e datas de venda

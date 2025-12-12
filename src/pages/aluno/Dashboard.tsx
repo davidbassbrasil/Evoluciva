@@ -110,93 +110,92 @@ export default function AlunoDashboard() {
             return true;
           });
 
-          // Calculate progress for each turma
-          const turmasWithProgress = await Promise.all(
-            activeEnrollments.map(async (enrollment: any) => {
-              const turma = enrollment.turmas;
-              const course = turma?.courses;
-              
-              // Get total lessons for this turma
-              const { data: lessons } = await supabase
-                .from('lessons')
-                .select('id')
-                .eq('turma_id', enrollment.turma_id);
-              
-              const totalLessons = lessons?.length || 0;
-              
-              // Get completed lessons
-              let completedLessons = 0;
-              if (totalLessons > 0 && lessons) {
-                const { data: completedProgress } = await supabase
-                  .from('lesson_progress')
-                  .select('id')
-                  .eq('profile_id', currentUser.id)
-                  .eq('completed', true)
-                  .in('lesson_id', lessons.map(l => l.id));
-                
-                completedLessons = completedProgress?.length || 0;
-              }
-              
-              const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-              
-              return {
-                id: enrollment.id,
-                turma_id: enrollment.turma_id,
-                turma_name: turma?.name || 'Turma',
-                course_id: course?.id || '',
-                course_title: course?.title || 'Curso',
-                course_image: course?.image || '/placeholder.jpg',
-                total_lessons: totalLessons,
-                completed_lessons: completedLessons,
-                progress,
-                lesson_live: turma?.lesson_live
-              };
-            })
-          );
+          // ✨ OTIMIZAÇÃO: Buscar TODAS lessons e progress de uma vez (não por turma)
+          const turmaIds = activeEnrollments.map((e: any) => e.turma_id);
+          
+          const [lessonsResult, progressResult] = await Promise.all([
+            // Buscar todas as lessons de todas as turmas do aluno de uma vez
+            supabase
+              .from('lessons')
+              .select('id, turma_id')
+              .in('turma_id', turmaIds),
+            
+            // Buscar todo o progresso do aluno de uma vez
+            supabase
+              .from('lesson_progress')
+              .select('lesson_id, completed')
+              .eq('profile_id', currentUser.id)
+              .eq('completed', true)
+          ]);
+
+          const allLessons = lessonsResult.data || [];
+          const allProgress = progressResult.data || [];
+          const completedLessonIds = new Set(allProgress.map(p => p.lesson_id));
+          
+          // Agrupar lessons por turma_id
+          const lessonsByTurma: Record<string, string[]> = {};
+          allLessons.forEach(lesson => {
+            if (!lessonsByTurma[lesson.turma_id]) {
+              lessonsByTurma[lesson.turma_id] = [];
+            }
+            lessonsByTurma[lesson.turma_id].push(lesson.id);
+          });
+
+          // Calcular progresso para cada turma (sem queries adicionais)
+          const turmasWithProgress = activeEnrollments.map((enrollment: any) => {
+            const turma = enrollment.turmas;
+            const course = turma?.courses;
+            
+            const lessonIds = lessonsByTurma[enrollment.turma_id] || [];
+            const totalLessons = lessonIds.length;
+            const completedLessons = lessonIds.filter(id => completedLessonIds.has(id)).length;
+            const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            
+            return {
+              id: enrollment.id,
+              turma_id: enrollment.turma_id,
+              turma_name: turma?.name || 'Turma',
+              course_id: course?.id || '',
+              course_title: course?.title || 'Curso',
+              course_image: course?.image || '/placeholder.jpg',
+              total_lessons: totalLessons,
+              completed_lessons: completedLessons,
+              progress,
+              lesson_live: turma?.lesson_live
+            };
+          });
           
           setEnrolledTurmas(turmasWithProgress);
         }
 
-        // Load all active courses for recommendations
-        const { data: coursesData } = await supabase
-          .from('courses')
-          .select('id, title, slug, image')
-          .eq('active', true)
-          .order('display_order', { ascending: true, nullsFirst: false })
-          .order('title', { ascending: true });
-
-        if (coursesData) {
-          // Get turmas to fetch prices (excluindo turmas expiradas)
-          const { data: turmasData } = await supabase
+        // ✨ OTIMIZAÇÃO: Buscar cursos + turmas em paralelo + limitar a 10 recomendações
+        const [coursesResult, turmasResult] = await Promise.all([
+          supabase
+            .from('courses')
+            .select('id, title, slug, image')
+            .eq('active', true)
+            .order('display_order', { ascending: true, nullsFirst: false })
+            .order('title', { ascending: true })
+            .limit(10),
+          
+          supabase
             .from('turmas')
             .select('course_id, price, access_end_date, sale_start_date, sale_end_date')
-            .eq('status', 'active');
+            .eq('status', 'active')
+        ]);
 
+        if (coursesResult.data && turmasResult.data) {
           const now = new Date();
           
           // Filtrar turmas válidas (não expiradas e dentro do período de vendas)
-          const validTurmas = turmasData?.filter((t) => {
-            // Bloquear turmas com acesso expirado
-            if (t.access_end_date) {
-              const accessEndDate = new Date(t.access_end_date);
-              if (now > accessEndDate) return false;
-            }
-            
-            // Bloquear turmas fora do período de vendas
-            if (t.sale_start_date) {
-              const startDate = new Date(t.sale_start_date);
-              if (now < startDate) return false;
-            }
-            
-            if (t.sale_end_date) {
-              const endDate = new Date(t.sale_end_date);
-              if (now > endDate) return false;
-            }
-            
+          const validTurmas = turmasResult.data.filter((t) => {
+            if (t.access_end_date && now > new Date(t.access_end_date)) return false;
+            if (t.sale_start_date && now < new Date(t.sale_start_date)) return false;
+            if (t.sale_end_date && now > new Date(t.sale_end_date)) return false;
             return true;
-          }) || [];
+          });
 
-          const coursesWithPrices = coursesData.map((course) => {
+          const coursesWithPrices = coursesResult.data.map((course) => {
             const courseTurmas = validTurmas.filter((t) => t.course_id === course.id);
             let minPrice = 0;
             if (courseTurmas.length > 0) {

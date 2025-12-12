@@ -75,180 +75,172 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadData = async () => {
-      // Load courses from Supabase first, fallback to localStorage
-      let courses: Course[] = [];
+      // ✨ OTIMIZAÇÃO: Executar todas as queries em PARALELO
       if (supabase) {
         try {
-          const { data: coursesData, error: coursesError } = await supabase
-            .from('courses')
-            .select('*')
-            .order('created_at', { ascending: false });
+          const [
+            coursesResult,
+            usersResult,
+            lessonsResult,
+            turmasResult,
+            paymentsResult
+          ] = await Promise.all([
+            // Buscar cursos (limit reduzido para dashboard)
+            supabase
+              .from('courses')
+              .select('id, title, price, image, description, instructor, category, slug, created_at')
+              .order('created_at', { ascending: false })
+              .limit(100),
+            
+            // Buscar apenas contagem de alunos + lista limitada para UI
+            supabase
+              .from('profiles')
+              .select('id, full_name, email, purchased_courses, created_at')
+              .eq('role', 'student')
+              .order('created_at', { ascending: false })
+              .limit(50),
+            
+            // Buscar apenas contagem de aulas
+            supabase
+              .from('lessons')
+              .select('id', { count: 'exact', head: true }),
+            
+            // Buscar turmas ativas (para preços)
+            supabase
+              .from('turmas')
+              .select('id, course_id, price, price_online')
+              .eq('status', 'active')
+              .limit(100),
+            
+            // Buscar receita diretamente dos pagamentos confirmados
+            supabase
+              .from('payments')
+              .select('value')
+              .in('status', ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'])
+          ]);
 
-          if (!coursesError && Array.isArray(coursesData)) {
-            courses = coursesData as Course[];
-          } else {
-            courses = getCourses();
-          }
-        } catch (e) {
-          courses = getCourses();
-        }
-      } else {
-        courses = getCourses();
-      }
-      let users: User[] = [];
-      
-      // Try to fetch users from Supabase first (apenas alunos - student role)
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('id, full_name, email, purchased_courses')
-            .eq('role', 'student');
+          // Processar cursos
+          const courses = (coursesResult.data || []) as Course[];
           
-          if (!error && data) {
-            users = data.map((p: any) => ({
-              id: p.id,
-              name: p.full_name || '',
-              email: p.email || '',
-              password: '',
-              avatar: '',
-              purchasedCourses: Array.isArray(p.purchased_courses) ? p.purchased_courses : [],
-              progress: {},
-              createdAt: new Date().toISOString(),
-            }));
-          } else {
-            // Fallback to localStorage
-            users = getUsers().filter(u => u.email !== 'admin@admin.com');
-          }
-        } catch (e) {
+          // Processar usuários
+          const users = (usersResult.data || []).map((p: any) => ({
+            id: p.id,
+            name: p.full_name || '',
+            email: p.email || '',
+            password: '',
+            avatar: '',
+            purchasedCourses: Array.isArray(p.purchased_courses) ? p.purchased_courses : [],
+            progress: {},
+            createdAt: p.created_at || new Date().toISOString(),
+          })) as User[];
+          
+          // Contagem de aulas
+          const lessonsCount = lessonsResult.count || 0;
+          
+          // Build a map course_id -> min active turma price
+          const turmas = turmasResult.data || [];
+          const priceMap: Record<string, number> = {};
+          turmas.forEach((t: any) => {
+            if (!t) return;
+            const cid = t.course_id;
+            const p = Number(t.price) || 0;
+            if (!priceMap[cid] || priceMap[cid] === 0) priceMap[cid] = p;
+            else if (p > 0) priceMap[cid] = Math.min(priceMap[cid], p);
+          });
+          setCoursePrices(priceMap);
+          
+          // Calcular receita real dos pagamentos confirmados
+          const payments = paymentsResult.data || [];
+          let totalRevenue = 0;
+          payments.forEach((p: any) => {
+            totalRevenue += Number(p.value) || 0;
+          });
+
+          // Temporarily disable revenue reporting until prices/configuration is finalized
+          const displayRevenue = 0;
+          
+          const testimonials = getTestimonials();
+          
+          setStats({
+            courses: courses.length,
+            users: users.length,
+            testimonials: testimonials.length,
+            banners: getBanners().length,
+            professors: getProfessors().length,
+            tags: getTags().length,
+            faqs: getFAQs().length,
+            lessons: lessonsCount,
+            totalRevenue: displayRevenue,
+          });
+
+          // recent courses: prefer most recent by created_at (courses already ordered)
+          // Limit displayed items per page
+          // store full lists and reset pages
+          setRecentCoursesAll(courses);
+          setCoursePage(0);
+          setRecentTestimonialsAll(testimonials);
+          setTestimonialsPage(0);
+          setRecentUsersAll(users); // já vem ordenado por created_at desc, limitado a 50
+          setUserPage(0);
+
+          // initial visible slices
+          setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+          setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+          setRecentUsers(users.slice(0, USERS_PER_PAGE));
+          
+        } catch (error) {
+          console.error('Erro ao carregar dados do dashboard:', error);
           // Fallback to localStorage
-          users = getUsers().filter(u => u.email !== 'admin@admin.com');
+          const courses = getCourses();
+          const users = getUsers().filter(u => u.email !== 'admin@admin.com');
+          const testimonials = getTestimonials();
+          const lessons = getLessons();
+          
+          setStats({
+            courses: courses.length,
+            users: users.length,
+            testimonials: testimonials.length,
+            banners: getBanners().length,
+            professors: getProfessors().length,
+            tags: getTags().length,
+            faqs: getFAQs().length,
+            lessons: lessons.length,
+            totalRevenue: 0,
+          });
+          
+          setRecentCoursesAll(courses);
+          setRecentTestimonialsAll(testimonials);
+          setRecentUsersAll(users.slice(-20).reverse());
+          setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+          setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+          setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
         }
       } else {
-        // No Supabase, use localStorage
-        users = getUsers().filter(u => u.email !== 'admin@admin.com');
-      }
-      
-      const testimonials = getTestimonials();
-      // Fetch lessons from Supabase when available so dashboard shows up-to-date count
-      let lessons: any[] = [];
-      if (supabase) {
-        try {
-          const { data: lessonsData, error: lessonsError } = await supabase
-            .from('lessons')
-            .select('id');
-          if (!lessonsError && Array.isArray(lessonsData)) {
-            lessons = lessonsData;
-          } else {
-            lessons = getLessons();
-          }
-        } catch (e) {
-          lessons = getLessons();
-        }
-      } else {
-        lessons = getLessons();
-      }
-
-      // Load turmas (to get prices per course)
-      let turmas: any[] = [];
-      if (supabase) {
-        try {
-          const { data: turmasData, error: turmasError } = await supabase
-            .from('turmas')
-            .select('id, course_id, price, price_online, status');
-          if (!turmasError && Array.isArray(turmasData)) {
-            turmas = turmasData;
-          }
-        } catch (e) {
-          // ignore, fallback to no turmas
-          turmas = [];
-        }
-      }
-
-      // Build a map course_id -> min active turma price
-      const priceMap: Record<string, number> = {};
-      turmas.forEach((t) => {
-        if (!t || t.status !== 'active') return;
-        const cid = t.course_id;
-        const p = Number(t.price) || 0;
-        if (!priceMap[cid] || priceMap[cid] === 0) priceMap[cid] = p;
-        else if (p > 0) priceMap[cid] = Math.min(priceMap[cid], p);
-      });
-      setCoursePrices(priceMap);
-      
-      // If Supabase is available, fetch enrollments for the loaded users to count courses per user
-      const userCourseSets: Record<string, Set<string>> = {};
-      if (supabase && users.length > 0) {
-        try {
-          const ids = users.map(u => u.id);
-          const { data: enrollmentsData, error: enrollErr } = await supabase
-            .from('enrollments')
-            .select('profile_id, turma:turmas (course_id)')
-            .in('profile_id', ids);
-
-          if (!enrollErr && Array.isArray(enrollmentsData)) {
-            enrollmentsData.forEach((e: any) => {
-              const pid = e.profile_id;
-              const cid = e.turma && e.turma.course_id ? e.turma.course_id : null;
-              if (!pid) return;
-              if (!userCourseSets[pid]) userCourseSets[pid] = new Set<string>();
-              if (cid) userCourseSets[pid].add(cid);
-            });
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      // Calculate total revenue from purchased courses using turma price when available
-      let totalRevenue = 0;
-      users.forEach(user => {
-        // combine purchasedCourses (from profile) with enrollments-derived course ids
-        const fromProfile = Array.isArray(user.purchasedCourses) ? user.purchasedCourses : [];
-        const fromEnroll = userCourseSets[user.id] ? Array.from(userCourseSets[user.id]) : [];
-        const merged = Array.from(new Set([...fromProfile, ...fromEnroll]));
-        // update user.purchasedCourses for downstream UI
-        user.purchasedCourses = merged;
-
-        merged.forEach(courseId => {
-          const course = courses.find(c => c.id === courseId);
-          const priceFromTurma = priceMap[courseId];
-          if (priceFromTurma && priceFromTurma > 0) {
-            totalRevenue += priceFromTurma;
-          } else if (course) {
-            totalRevenue += Number(course.price || 0);
-          }
+        // Fallback sem Supabase
+        const courses = getCourses();
+        const users = getUsers().filter(u => u.email !== 'admin@admin.com');
+        const testimonials = getTestimonials();
+        const lessons = getLessons();
+        
+        setStats({
+          courses: courses.length,
+          users: users.length,
+          testimonials: testimonials.length,
+          banners: getBanners().length,
+          professors: getProfessors().length,
+          tags: getTags().length,
+          faqs: getFAQs().length,
+          lessons: lessons.length,
+          totalRevenue: 0,
         });
-      });
-
-      // Temporarily disable revenue reporting until prices/configuration is finalized
-      const displayRevenue = 0;
-      setStats({
-        courses: courses.length,
-        users: users.length,
-        testimonials: testimonials.length,
-        banners: getBanners().length,
-        professors: getProfessors().length,
-        tags: getTags().length,
-        faqs: getFAQs().length,
-        lessons: lessons.length,
-        totalRevenue: displayRevenue,
-      });
-
-      // recent courses: prefer most recent by created_at (courses already ordered)
-      // Limit displayed items per page
-      // store full lists and reset pages
-      setRecentCoursesAll(courses);
-      setCoursePage(0);
-      setRecentTestimonialsAll(testimonials);
-      setTestimonialsPage(0);
-      setRecentUsersAll(users.slice(-20).reverse()); // keep recent users (up to 20) in memory
-      setUserPage(0);
-
-      // initial visible slices
-      setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
-      setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
-      setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
+        
+        setRecentCoursesAll(courses);
+        setRecentTestimonialsAll(testimonials);
+        setRecentUsersAll(users.slice(-20).reverse());
+        setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+        setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+        setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
+      }
     };
     
     loadData();

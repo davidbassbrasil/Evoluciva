@@ -80,53 +80,54 @@ export default function AdminTurmas() {
   const { toast } = useToast();
 
   useEffect(() => {
-    loadCourses();
-    loadTurmas();
+    loadData();
   }, []);
 
-  const loadCourses = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .order('title');
-      
-      if (error) throw error;
-      setCourses(data || []);
-    } catch (error: any) {
-      toast({ title: 'Erro ao carregar cursos', description: error.message, variant: 'destructive' });
-    }
-  };
+      // ✨ OTIMIZAÇÃO: Executar courses + turmas em paralelo
+      const [coursesResult, turmasResult] = await Promise.all([
+        supabase
+          .from('courses')
+          .select('*')
+          .order('title'),
+        
+        supabase
+          .from('turmas')
+          .select('*, course:courses (title, image)')
+          .order('created_at', { ascending: false })
+      ]);
 
-  const loadTurmas = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('turmas')
-        .select(`
-          *,
-          course:courses (
-            title,
-            image
-          )
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      const formatted = (data || []).map((t: any) => ({
-        ...t,
-        course_title: t.course?.title || '',
-        course_image: t.course?.image || '',
-      }));
-      
-      setTurmas(formatted);
+      // Processar courses
+      if (!coursesResult.error && coursesResult.data) {
+        setCourses(coursesResult.data || []);
+      } else if (coursesResult.error) {
+        toast({ title: 'Erro ao carregar cursos', description: coursesResult.error.message, variant: 'destructive' });
+      }
+
+      // Processar turmas
+      if (!turmasResult.error && turmasResult.data) {
+        const formatted = turmasResult.data.map((t: any) => ({
+          ...t,
+          course_title: t.course?.title || '',
+          course_image: t.course?.image || '',
+        }));
+        setTurmas(formatted);
+      } else if (turmasResult.error) {
+        toast({ title: 'Erro ao carregar turmas', description: turmasResult.error.message, variant: 'destructive' });
+      }
+
     } catch (error: any) {
-      toast({ title: 'Erro ao carregar turmas', description: error.message, variant: 'destructive' });
+      toast({ title: 'Erro ao carregar dados', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
+
+  // Funções antigas removidas - agora tudo carrega em paralelo no loadData
+  const loadCourses = async () => { /* deprecated */ };
+  const loadTurmas = async () => { /* deprecated */ };
 
   const resetForm = () => {
     setForm({

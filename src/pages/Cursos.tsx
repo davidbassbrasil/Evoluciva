@@ -27,26 +27,19 @@ export default function Cursos() {
 
       setLoading(true);
       try {
+        // ✨ OTIMIZAÇÃO: Buscar apenas campos necessários (não precisa de duration, lessons, full_description)
         const { data, error } = await supabase
           .from('turmas')
           .select(`
-            *,
+            id, name, price, price_online, original_price, original_price_online,
+            presential_slots, status, sale_start_date, sale_end_date, access_end_date,
             course:courses (
-              id,
-              title,
-              description,
-              image,
-              instructor,
-              category,
-              slug,
-              estado,
-              duration,
-              lessons,
-              active
+              id, title, description, image, instructor, slug, estado, active
             )
           `)
           .in('status', ['active', 'coming_soon'])
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(100);
 
         if (!error && data) {
           const now = new Date();

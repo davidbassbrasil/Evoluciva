@@ -141,101 +141,86 @@ export default function AdminAlunos() {
 
   // Load data
   useEffect(() => {
-    loadProfiles();
-    loadTurmas();
-    loadEnrollments();
+    loadProfiles(); // Agora carrega tudo em paralelo (profiles + turmas + enrollments)
   }, []);
 
   const loadProfiles = async () => {
     if (!supabase) return;
     try {
-      // Debug: check current supabase auth user
-      try {
-        const authRes = await supabase.auth.getUser();
-        console.log('supabase.auth.getUser():', authRes);
-        const uid = (authRes && authRes.data && authRes.data.user && authRes.data.user.id) || null;
-        setAuthUserId(uid);
-      } catch (e) {
-        console.warn('Could not call supabase.auth.getUser():', e);
-        setAuthUserId(null);
-      }
-      // Buscar todos os profiles que não são admin (role != 'admin' OU role é null)
-      const { data, error, count } = await supabase
-        .from('profiles')
-        .select(
-          `id, full_name, email, whatsapp, cpf, address, number, complement, state, city, cep, role, created_at, updated_at`,
-          { count: 'exact' }
-        )
-        .order('full_name');
+      // ✨ OTIMIZAÇÃO: Executar auth check + queries em paralelo
+      const [authRes, profilesResult, turmasResult, enrollmentsResult] = await Promise.all([
+        // Auth user check
+        supabase.auth.getUser().catch(e => {
+          console.warn('Could not call supabase.auth.getUser():', e);
+          return { data: { user: null }, error: e };
+        }),
+        
+        // Profiles (apenas alunos)
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, whatsapp, cpf, address, number, complement, state, city, cep, role, created_at, updated_at', { count: 'exact' })
+          .eq('role', 'student')
+          .order('full_name'),
+        
+        // Turmas
+        supabase
+          .from('turmas')
+          .select('id, name, course_id, status, course:courses (id, title, image)')
+          .order('name'),
+        
+        // Enrollments
+        supabase
+          .from('enrollments')
+          .select(`
+            *,
+            turma:turmas (
+              id, name, course_id, status,
+              course:courses (id, title, image)
+            )
+          `)
+          .order('enrolled_at', { ascending: false })
+      ]);
+
+      // Auth user ID
+      const uid = authRes?.data?.user?.id || null;
+      setAuthUserId(uid);
       
-      if (error) {
-        console.error('Erro na query profiles:', error);
-        setProfilesError(error.message || String(error));
+      // Processar profiles
+      if (profilesResult.error) {
+        console.error('Erro na query profiles:', profilesResult.error);
+        setProfilesError(profilesResult.error.message || String(profilesResult.error));
         setRawProfiles([]);
         setProfiles([]);
-        return;
+      } else {
+        console.log('Profiles carregados (count):', profilesResult.count, profilesResult.data);
+        setProfilesError(null);
+        setRawProfiles(profilesResult.data || []);
+        setProfiles(profilesResult.data || []);
       }
-      console.log('Profiles carregados (count):', count, data);
-      setProfilesError(null);
-      setRawProfiles(data || []);
-      // Filtrar para mostrar apenas alunos (role student)
-      const students = (data || []).filter((p: Profile) => p.role === 'student');
-      console.log('Profiles alunos:', students);
-      setProfiles(students);
-      // If we are admin but we only got ourself back (RLS might be blocking), show message in UI
-      // We keep rawProfiles separately; UI will render a helpful message in that case.
+      
+      // Processar turmas
+      if (!turmasResult.error && turmasResult.data) {
+        const mapped = turmasResult.data.map((t: any) => ({
+          ...t,
+          course: Array.isArray(t.course) ? t.course[0] : t.course
+        })) as Turma[];
+        setTurmas(mapped);
+      }
+      
+      // Processar enrollments
+      if (!enrollmentsResult.error && enrollmentsResult.data) {
+        setEnrollments(enrollmentsResult.data || []);
+      }
+      
     } catch (error: any) {
-      console.error('Erro ao carregar profiles:', error);
-      toast({ title: 'Erro ao carregar alunos', description: error.message, variant: 'destructive' });
+      console.error('Erro ao carregar dados:', error);
+      toast({ title: 'Erro ao carregar dados', description: error.message, variant: 'destructive' });
     }
   };
 
-  const loadTurmas = async () => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('turmas')
-        .select(`
-          id, name, course_id, status,
-          course:courses (id, title, image)
-        `)
-        .order('name');
-      
-      if (error) throw error;
-      // Supabase returns course as array when using select, we need first element
-      const mapped = (data || []).map((t: any) => ({
-        ...t,
-        course: Array.isArray(t.course) ? t.course[0] : t.course
-      })) as Turma[];
-      setTurmas(mapped);
-    } catch (error: any) {
-      toast({ title: 'Erro ao carregar turmas', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const loadEnrollments = async () => {
-    if (!supabase) return;
-    try {
-      // Avoid embedding `profiles` (there are multiple FKs to profiles: profile_id and created_by)
-      // which causes PostgREST error PGRST201. We'll fetch turma embedded and keep profile_id
-      // and resolve profile data on the client using `profiles` state.
-      const { data, error } = await supabase
-        .from('enrollments')
-        .select(`
-          *,
-          turma:turmas (
-            id, name, course_id, status,
-            course:courses (id, title, image)
-          )
-        `)
-        .order('enrolled_at', { ascending: false });
-      
-      if (error) throw error;
-      setEnrollments(data || []);
-    } catch (error: any) {
-      console.error('Erro ao carregar matrículas:', error);
-    }
-  };
+  // Funções antigas removidas - agora tudo carrega em paralelo no loadProfiles
+  const loadTurmas = async () => { /* deprecated - agora no loadProfiles */ };
+  const loadEnrollments = async () => { /* deprecated - agora no loadProfiles */ };
 
   // Computed values
   const filteredProfiles = useMemo(() => {
