@@ -382,7 +382,7 @@ export default function AdminDashboard() {
           {/* Recent Users */}
           <div className="bg-card rounded-2xl p-6 border border-border/50">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Alunos</h2>
+              <h2 className="text-lg font-bold">Novos Alunos</h2>
               <Link to="/admin/alunos">
                 <Button variant="ghost" size="sm">Ver todos</Button>
               </Link>

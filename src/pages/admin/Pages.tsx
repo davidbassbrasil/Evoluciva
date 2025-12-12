@@ -1129,7 +1129,7 @@ export function AdminTags() {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Matérias / Tags</h1>
+        <h1 className="text-2xl font-bold mb-4">Matérias / Tags do Site</h1>
         <p className="text-muted-foreground">
           Gerencie as matérias exibidas na página principal
         </p>

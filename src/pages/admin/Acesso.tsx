@@ -31,7 +31,7 @@ const AVAILABLE_PERMISSIONS: Permission[] = [
   { key: 'turmas', label: 'Turmas', description: 'Gerenciar turmas e matrículas' },
   { key: 'aulas', label: 'Aulas', description: 'Adicionar e editar aulas' },
   { key: 'professores', label: 'Professores', description: 'Gerenciar professores' },
-  { key: 'tags', label: 'Tags', description: 'Gerenciar tags de cursos' },
+  { key: 'tags', label: 'Matérias', description: 'Gerenciar tags de cursos' },
   { key: 'depoimentos', label: 'Depoimentos', description: 'Gerenciar depoimentos' },
   { key: 'faq', label: 'FAQ', description: 'Gerenciar perguntas frequentes' },
   { key: 'alunos', label: 'Alunos', description: 'Gerenciar alunos e matrículas' },
