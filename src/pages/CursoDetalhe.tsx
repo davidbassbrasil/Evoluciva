@@ -269,7 +269,7 @@ export default function CursoDetalhe() {
                 <h2 className="text-2xl font-bold mb-4">Sobre o Curso</h2>
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
                   {course.full_description ? (
-                    <div className="text-muted-foreground whitespace-pre-line">
+                    <div className="text-muted-foreground whitespace-pre-line font-sans" style={{ unicodeBidi: 'plaintext' }}>
                       {course.full_description}
                     </div>
                   ) : (
