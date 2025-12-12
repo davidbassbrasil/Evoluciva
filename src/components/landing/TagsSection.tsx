@@ -114,7 +114,7 @@ export function TagsSection() {
                       )}
                       
                       <div className="text-sm text-primary font-medium group-hover:underline flex items-center gap-1">
-                        Ver cursos
+                        Ver curso
                         <span className="group-hover:translate-x-1 transition-transform">→</span>
                       </div>
                     </div>
