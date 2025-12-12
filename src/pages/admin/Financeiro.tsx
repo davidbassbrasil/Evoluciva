@@ -130,6 +130,12 @@ export default function Financeiro() {
   }, [payments, searchTerm, statusFilter, typeFilter, turmaFilter, dateFrom, dateTo]);
 
   useEffect(() => {
+    if (payments.length > 0) {
+      calculateStats(payments);
+    }
+  }, [dateFrom, dateTo, payments]);
+
+  useEffect(() => {
     loadTurmas();
   }, []);
 
