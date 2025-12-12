@@ -12,12 +12,20 @@ import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
 
+interface Professor {
+  id: string;
+  name: string;
+  specialty: string;
+  image: string;
+}
+
 export default function CursoDetalhe() {
   const { courseId } = useParams();
   const [searchParams] = useSearchParams();
   const turmaIdFromUrl = searchParams.get('turma');
   const navigate = useNavigate();
   const [course, setCourse] = useState<Course | null>(null);
+  const [professors, setProfessors] = useState<Professor[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [selectedTurma, setSelectedTurma] = useState<Turma | null>(null);
   const [selectedModality, setSelectedModality] = useState<'presential' | 'online'>('presential');
@@ -54,6 +62,19 @@ export default function CursoDetalhe() {
 
         if (error) throw error;
         setCourse(data);
+        
+        // Carregar professores vinculados
+        const { data: professorLinks } = await supabase
+          .from('professor_courses')
+          .select('professor_id, professors(id, name, specialty, image)')
+          .eq('course_id', data.id);
+        
+        if (professorLinks && professorLinks.length > 0) {
+          const profs = professorLinks
+            .map(link => link.professors)
+            .filter(Boolean) as Professor[];
+          setProfessors(profs);
+        }
         
         // Carregar turmas disponíveis para este curso
         const { data: turmasData, error: turmasError } = await supabase
@@ -212,6 +233,27 @@ export default function CursoDetalhe() {
                   </div>
                 </div>
               </div>
+
+              {/* Professor Cards */}
+              {professors.length > 0 && (
+                <div className="bg-card rounded-2xl p-4 border border-border/50">
+                  <div className="flex flex-wrap gap-4">
+                    {professors.map((prof) => (
+                      <div key={prof.id} className="flex items-center gap-3">
+                        <img 
+                          src={prof.image} 
+                          alt={prof.name}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-primary/20"
+                        />
+                        <div>
+                          <h3 className="font-semibold text-sm">{prof.name}</h3>
+                          <p className="text-xs text-muted-foreground">{prof.specialty}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Course Image */}
               <div className="aspect-[3/4] rounded-2xl overflow-hidden">

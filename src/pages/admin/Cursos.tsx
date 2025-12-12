@@ -17,13 +17,22 @@ interface CourseForm {
   full_description: string;
   whats_included: string;
   instructor: string;
+  professor_ids: string[];
   estado: string;
   active: boolean;
   display_order: string;
 }
 
+interface Professor {
+  id: string;
+  name: string;
+  specialty: string;
+  image: string;
+}
+
 export default function AdminCursos() {
   const [courses, setCoursesState] = useState<Course[]>([]);
+  const [professors, setProfessors] = useState<Professor[]>([]);
   const [open, setOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [form, setForm] = useState<CourseForm>({ 
@@ -32,6 +41,7 @@ export default function AdminCursos() {
     full_description: '', 
     whats_included: '', 
     instructor: '', 
+    professor_ids: [],
     estado: '', 
     active: true, 
     display_order: '0' 
@@ -44,7 +54,24 @@ export default function AdminCursos() {
 
   useEffect(() => { 
     loadCourses();
+    loadProfessors();
   }, []);
+
+  const loadProfessors = async () => {
+    if (!supabase) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('professors')
+        .select('id, name, specialty, image')
+        .order('name');
+
+      if (error) throw error;
+      setProfessors(data || []);
+    } catch (err: any) {
+      console.error('Error loading professors:', err);
+    }
+  };
 
   const loadCourses = async () => {
     if (!supabase) {
@@ -165,6 +192,8 @@ export default function AdminCursos() {
         featured: selectedCourse?.featured || false,
       };
 
+      let courseIdToUpdate: string;
+
       if (selectedCourse) {
         // Update
         const { error } = await supabase
@@ -173,15 +202,42 @@ export default function AdminCursos() {
           .eq('id', selectedCourse.id);
 
         if (error) throw error;
+        courseIdToUpdate = selectedCourse.id;
         toast({ title: 'Curso atualizado com sucesso!' });
       } else {
         // Insert
-        const { error } = await supabase
+        const { data: newCourse, error } = await supabase
           .from('courses')
-          .insert([courseData]);
+          .insert([courseData])
+          .select()
+          .single();
 
         if (error) throw error;
+        courseIdToUpdate = newCourse.id;
         toast({ title: 'Curso criado com sucesso!', description: `Link: /curso/${slug}` });
+      }
+
+      // Atualizar relacionamentos com professores
+      // 1. Deletar relacionamentos antigos
+      await supabase
+        .from('professor_courses')
+        .delete()
+        .eq('course_id', courseIdToUpdate);
+
+      // 2. Inserir novos relacionamentos
+      if (form.professor_ids.length > 0) {
+        const professorCourses = form.professor_ids.map(profId => ({
+          professor_id: profId,
+          course_id: courseIdToUpdate
+        }));
+
+        const { error: relError } = await supabase
+          .from('professor_courses')
+          .insert(professorCourses);
+
+        if (relError) {
+          console.error('Erro ao vincular professores:', relError);
+        }
       }
 
       await loadCourses();
@@ -220,14 +276,24 @@ export default function AdminCursos() {
     }
   };
 
-  const handleEdit = (course: Course) => {
+  const handleEdit = async (course: Course) => {
     setSelectedCourse(course);
+    
+    // Carregar professores vinculados
+    const { data: professorLinks } = await supabase
+      .from('professor_courses')
+      .select('professor_id')
+      .eq('course_id', course.id);
+    
+    const professorIds = professorLinks?.map(link => link.professor_id) || [];
+    
     setForm({
       title: course.title,
       description: course.description,
       full_description: course.full_description || '',
       whats_included: course.whats_included || '',
       instructor: course.instructor,
+      professor_ids: professorIds,
       estado: course.estado || '',
       active: course.active ?? true,
       display_order: String(course.display_order ?? 0),
@@ -240,7 +306,7 @@ export default function AdminCursos() {
   const handleCloseDialog = () => {
     setOpen(false);
     setSelectedCourse(null);
-    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', estado: '', active: true, display_order: '0' });
+    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', professor_ids: [], estado: '', active: true, display_order: '0' });
     setImageFile(null);
     setImagePreview('');
   };
@@ -358,6 +424,43 @@ export default function AdminCursos() {
                   value={form.instructor}
                   onChange={(e) => setForm({ ...form, instructor: e.target.value })}
                 />
+              </div>
+
+              {/* Selecionar Professores Cadastrados */}
+              <div className="space-y-2">
+                <Label>Vincular Professores (Opcional)</Label>
+                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto space-y-2">
+                  {professors.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum professor cadastrado</p>
+                  ) : (
+                    professors.map((prof) => (
+                      <label key={prof.id} className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={form.professor_ids.includes(prof.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, professor_ids: [...form.professor_ids, prof.id] });
+                            } else {
+                              setForm({ ...form, professor_ids: form.professor_ids.filter(id => id !== prof.id) });
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex items-center gap-2">
+                          <img src={prof.image} alt={prof.name} className="w-8 h-8 rounded-full object-cover" />
+                          <div>
+                            <p className="text-sm font-medium">{prof.name}</p>
+                            <p className="text-xs text-muted-foreground">{prof.specialty}</p>
+                          </div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione um ou mais professores para exibir na página do curso
+                </p>
               </div>
 
               {/* Estado */}
