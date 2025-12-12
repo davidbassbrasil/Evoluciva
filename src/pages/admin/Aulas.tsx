@@ -198,7 +198,7 @@ export default function AdminAulas() {
       toast({ title: 'Aula ao vivo ativada!', description: 'Os alunos já podem acessar.' });
       setOpenLive(false);
       setLiveForm({ turma_id: '', lesson_live: '' });
-      loadTurmas(); // Recarregar turmas para atualizar o indicador
+      await loadData(); // Recarregar turmas para atualizar o indicador
     } catch (error: any) {
       toast({ title: 'Erro ao salvar aula ao vivo', description: error.message, variant: 'destructive' });
     } finally {
@@ -216,7 +216,7 @@ export default function AdminAulas() {
       if (error) throw error;
       
       toast({ title: 'Aula ao vivo encerrada' });
-      loadTurmas();
+      await loadData();
     } catch (error: any) {
       toast({ title: 'Erro ao encerrar aula', description: error.message, variant: 'destructive' });
     }
@@ -259,7 +259,7 @@ export default function AdminAulas() {
 
       setOpen(false);
       resetForm();
-      loadLessons();
+      await loadData();
     } catch (error: any) {
       toast({ title: 'Erro ao salvar aula', description: error.message, variant: 'destructive' });
     } finally {
@@ -278,7 +278,7 @@ export default function AdminAulas() {
       
       if (error) throw error;
       toast({ title: 'Aula excluída com sucesso!' });
-      loadLessons();
+      await loadData();
     } catch (error: any) {
       toast({ title: 'Erro ao excluir aula', description: error.message, variant: 'destructive' });
     }

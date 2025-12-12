@@ -471,8 +471,7 @@ export default function AdminAlunos() {
       toast({ title: 'Sucesso', description: 'Aluno excluído com sucesso' });
       setOpenDeleteStudent(false);
       setSelectedProfile(null);
-      loadProfiles();
-      loadEnrollments();
+      await loadProfiles();
     } catch (error: any) {
       toast({ title: 'Erro ao excluir aluno', description: error.message, variant: 'destructive' });
     } finally {
@@ -656,7 +655,7 @@ export default function AdminAlunos() {
         notes: '',
         paymentParts: [{ method: 'PIX', value: '' }],
       });
-      loadEnrollments();
+      await loadProfiles();
     } catch (error: any) {
       toast({ title: 'Erro ao matricular aluno', description: error.message, variant: 'destructive' });
     } finally {
@@ -679,7 +678,7 @@ export default function AdminAlunos() {
       toast({ title: 'Sucesso', description: 'Matrícula removida com sucesso' });
       setOpenDeleteEnrollment(false);
       setSelectedEnrollmentToDelete(null);
-      loadEnrollments();
+      await loadProfiles();
       // Update selected enrollments view
       if (selectedProfile) {
         setSelectedEnrollments(prev => prev.filter(e => e.id !== selectedEnrollmentToDelete.id));

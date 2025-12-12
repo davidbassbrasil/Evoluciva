@@ -73,177 +73,150 @@ export default function AdminDashboard() {
     return userPermissions.includes(permission);
   };
 
-  useEffect(() => {
-    const loadData = async () => {
-      // ✨ OTIMIZAÇÃO: Executar todas as queries em PARALELO
-      if (supabase) {
-        try {
-          const [
-            coursesResult,
-            usersResult,
-            lessonsResult,
-            turmasResult,
-            paymentsResult,
-            enrollmentsResult
-          ] = await Promise.all([
-            // Buscar cursos (limit reduzido para dashboard)
-            supabase
-              .from('courses')
-              .select('id, title, price, image, description, instructor, category, slug, created_at')
-              .order('created_at', { ascending: false })
-              .limit(100),
-            
-            // Buscar apenas contagem de alunos + lista limitada para UI
-            supabase
-              .from('profiles')
-              .select('id, full_name, email, purchased_courses, created_at')
-              .eq('role', 'student')
-              .order('created_at', { ascending: false })
-              .limit(50),
-            
-            // Buscar apenas contagem de aulas
-            supabase
-              .from('lessons')
-              .select('id', { count: 'exact', head: true }),
-            
-            // Buscar turmas ativas (para preços)
-            supabase
-              .from('turmas')
-              .select('id, course_id, price, price_online')
-              .eq('status', 'active')
-              .limit(100),
-            
-            // Buscar receita diretamente dos pagamentos confirmados
-            supabase
-              .from('payments')
-              .select('value')
-              .in('status', ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']),
-            
-            // ✨ Buscar matrículas para contar cursos reais dos alunos
-            supabase
-              .from('enrollments')
-              .select('profile_id, turma_id, turmas(course_id)')
-          ]);
-
-          // Processar cursos
-          const courses = (coursesResult.data || []) as Course[];
+  const loadData = async () => {
+    // ✨ OTIMIZAÇÃO: Executar todas as queries em PARALELO
+    if (supabase) {
+      try {
+        const [
+          coursesResult,
+          usersResult,
+          lessonsResult,
+          turmasResult,
+          paymentsResult,
+          enrollmentsResult
+        ] = await Promise.all([
+          // Buscar cursos (limit reduzido para dashboard)
+          supabase
+            .from('courses')
+            .select('id, title, price, image, description, instructor, category, slug, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100),
           
-          // Processar enrollments para contar cursos únicos por aluno
-          const enrollments = enrollmentsResult.data || [];
-          const userCoursesMap: Record<string, Set<string>> = {};
-          enrollments.forEach((e: any) => {
-            const profileId = e.profile_id;
-            const courseId = e.turmas?.course_id;
-            if (profileId && courseId) {
-              if (!userCoursesMap[profileId]) {
-                userCoursesMap[profileId] = new Set();
-              }
-              userCoursesMap[profileId].add(courseId);
+          // Buscar apenas contagem de alunos + lista limitada para UI
+          supabase
+            .from('profiles')
+            .select('id, full_name, email, purchased_courses, created_at')
+            .eq('role', 'student')
+            .order('created_at', { ascending: false })
+            .limit(50),
+          
+          // Buscar apenas contagem de aulas
+          supabase
+            .from('lessons')
+            .select('id', { count: 'exact', head: true }),
+          
+          // Buscar turmas ativas (para preços)
+          supabase
+            .from('turmas')
+            .select('id, course_id, price, price_online')
+            .eq('status', 'active')
+            .limit(100),
+          
+          // Buscar receita diretamente dos pagamentos confirmados
+          supabase
+            .from('payments')
+            .select('value')
+            .in('status', ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH']),
+          
+          // ✨ Buscar matrículas para contar cursos reais dos alunos
+          supabase
+            .from('enrollments')
+            .select('profile_id, turma_id, turmas(course_id)')
+        ]);
+
+        // Processar cursos
+        const courses = (coursesResult.data || []) as Course[];
+        
+        // Processar enrollments para contar cursos únicos por aluno
+        const enrollments = enrollmentsResult.data || [];
+        const userCoursesMap: Record<string, Set<string>> = {};
+        enrollments.forEach((e: any) => {
+          const profileId = e.profile_id;
+          const courseId = e.turmas?.course_id;
+          if (profileId && courseId) {
+            if (!userCoursesMap[profileId]) {
+              userCoursesMap[profileId] = new Set();
             }
-          });
+            userCoursesMap[profileId].add(courseId);
+          }
+        });
+        
+        // Processar usuários com contagem real de matrículas
+        const users = (usersResult.data || []).map((p: any) => {
+          const enrolledCourses = userCoursesMap[p.id] ? Array.from(userCoursesMap[p.id]) : [];
+          const purchasedFromProfile = Array.isArray(p.purchased_courses) ? p.purchased_courses : [];
+          // Mesclar cursos de enrollments e purchased_courses (remover duplicatas)
+          const allCourses = Array.from(new Set([...enrolledCourses, ...purchasedFromProfile]));
           
-          // Processar usuários com contagem real de matrículas
-          const users = (usersResult.data || []).map((p: any) => {
-            const enrolledCourses = userCoursesMap[p.id] ? Array.from(userCoursesMap[p.id]) : [];
-            const purchasedFromProfile = Array.isArray(p.purchased_courses) ? p.purchased_courses : [];
-            // Mesclar cursos de enrollments e purchased_courses (remover duplicatas)
-            const allCourses = Array.from(new Set([...enrolledCourses, ...purchasedFromProfile]));
-            
-            return {
-              id: p.id,
-              name: p.full_name || '',
-              email: p.email || '',
-              password: '',
-              avatar: '',
-              purchasedCourses: allCourses,
-              progress: {},
-              createdAt: p.created_at || new Date().toISOString(),
-            };
-          }) as User[];
-          
-          // Contagem de aulas
-          const lessonsCount = lessonsResult.count || 0;
-          
-          // Build a map course_id -> min active turma price
-          const turmas = turmasResult.data || [];
-          const priceMap: Record<string, number> = {};
-          turmas.forEach((t: any) => {
-            if (!t) return;
-            const cid = t.course_id;
-            const p = Number(t.price) || 0;
-            if (!priceMap[cid] || priceMap[cid] === 0) priceMap[cid] = p;
-            else if (p > 0) priceMap[cid] = Math.min(priceMap[cid], p);
-          });
-          setCoursePrices(priceMap);
-          
-          // Calcular receita real dos pagamentos confirmados
-          const payments = paymentsResult.data || [];
-          let totalRevenue = 0;
-          payments.forEach((p: any) => {
-            totalRevenue += Number(p.value) || 0;
-          });
+          return {
+            id: p.id,
+            name: p.full_name || '',
+            email: p.email || '',
+            password: '',
+            avatar: '',
+            purchasedCourses: allCourses,
+            progress: {},
+            createdAt: p.created_at || new Date().toISOString(),
+          };
+        }) as User[];
+        
+        // Contagem de aulas
+        const lessonsCount = lessonsResult.count || 0;
+        
+        // Build a map course_id -> min active turma price
+        const turmas = turmasResult.data || [];
+        const priceMap: Record<string, number> = {};
+        turmas.forEach((t: any) => {
+          if (!t) return;
+          const cid = t.course_id;
+          const p = Number(t.price) || 0;
+          if (!priceMap[cid] || priceMap[cid] === 0) priceMap[cid] = p;
+          else if (p > 0) priceMap[cid] = Math.min(priceMap[cid], p);
+        });
+        setCoursePrices(priceMap);
+        
+        // Calcular receita real dos pagamentos confirmados
+        const payments = paymentsResult.data || [];
+        let totalRevenue = 0;
+        payments.forEach((p: any) => {
+          totalRevenue += Number(p.value) || 0;
+        });
 
-          // Temporarily disable revenue reporting until prices/configuration is finalized
-          const displayRevenue = 0;
-          
-          const testimonials = getTestimonials();
-          
-          setStats({
-            courses: courses.length,
-            users: users.length,
-            testimonials: testimonials.length,
-            banners: getBanners().length,
-            professors: getProfessors().length,
-            tags: getTags().length,
-            faqs: getFAQs().length,
-            lessons: lessonsCount,
-            totalRevenue: displayRevenue,
-          });
+        // Temporarily disable revenue reporting until prices/configuration is finalized
+        const displayRevenue = 0;
+        
+        const testimonials = getTestimonials();
+        
+        setStats({
+          courses: courses.length,
+          users: users.length,
+          testimonials: testimonials.length,
+          banners: getBanners().length,
+          professors: getProfessors().length,
+          tags: getTags().length,
+          faqs: getFAQs().length,
+          lessons: lessonsCount,
+          totalRevenue: displayRevenue,
+        });
 
-          // recent courses: prefer most recent by created_at (courses already ordered)
-          // Limit displayed items per page
-          // store full lists and reset pages
-          setRecentCoursesAll(courses);
-          setCoursePage(0);
-          setRecentTestimonialsAll(testimonials);
-          setTestimonialsPage(0);
-          setRecentUsersAll(users); // já vem ordenado por created_at desc, limitado a 50
-          setUserPage(0);
+        // recent courses: prefer most recent by created_at (courses already ordered)
+        // Limit displayed items per page
+        // store full lists and reset pages
+        setRecentCoursesAll(courses);
+        setCoursePage(0);
+        setRecentTestimonialsAll(testimonials);
+        setTestimonialsPage(0);
+        setRecentUsersAll(users); // já vem ordenado por created_at desc, limitado a 50
+        setUserPage(0);
 
-          // initial visible slices
-          setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
-          setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
-          setRecentUsers(users.slice(0, USERS_PER_PAGE));
-          
-        } catch (error) {
-          console.error('Erro ao carregar dados do dashboard:', error);
-          // Fallback to localStorage
-          const courses = getCourses();
-          const users = getUsers().filter(u => u.email !== 'admin@admin.com');
-          const testimonials = getTestimonials();
-          const lessons = getLessons();
-          
-          setStats({
-            courses: courses.length,
-            users: users.length,
-            testimonials: testimonials.length,
-            banners: getBanners().length,
-            professors: getProfessors().length,
-            tags: getTags().length,
-            faqs: getFAQs().length,
-            lessons: lessons.length,
-            totalRevenue: 0,
-          });
-          
-          setRecentCoursesAll(courses);
-          setRecentTestimonialsAll(testimonials);
-          setRecentUsersAll(users.slice(-20).reverse());
-          setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
-          setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
-          setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
-        }
-      } else {
-        // Fallback sem Supabase
+        // initial visible slices
+        setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+        setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+        setRecentUsers(users.slice(0, USERS_PER_PAGE));
+        
+      } catch (error) {
+        console.error('Erro ao carregar dados do dashboard:', error);
+        // Fallback to localStorage
         const courses = getCourses();
         const users = getUsers().filter(u => u.email !== 'admin@admin.com');
         const testimonials = getTestimonials();
@@ -268,9 +241,48 @@ export default function AdminDashboard() {
         setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
         setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
       }
-    };
-    
+    } else {
+      // Fallback sem Supabase
+      const courses = getCourses();
+      const users = getUsers().filter(u => u.email !== 'admin@admin.com');
+      const testimonials = getTestimonials();
+      const lessons = getLessons();
+      
+      setStats({
+        courses: courses.length,
+        users: users.length,
+        testimonials: testimonials.length,
+        banners: getBanners().length,
+        professors: getProfessors().length,
+        tags: getTags().length,
+        faqs: getFAQs().length,
+        lessons: lessons.length,
+        totalRevenue: 0,
+      });
+      
+      setRecentCoursesAll(courses);
+      setRecentTestimonialsAll(testimonials);
+      setRecentUsersAll(users.slice(-20).reverse());
+      setRecentCourses(courses.slice(0, COURSES_PER_PAGE));
+      setRecentTestimonials(testimonials.slice(0, TESTIMONIALS_PER_PAGE));
+      setRecentUsers(users.slice(-USERS_PER_PAGE).reverse());
+    }
+  };
+
+  useEffect(() => {
     loadData();
+  }, []);
+
+  // Auto-refresh quando a aba volta a ficar visível
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   const allMainCards = [

@@ -210,7 +210,7 @@ export default function AdminTurmas() {
         toast({ title: 'Turma criada com sucesso!' });
       }
 
-      await loadTurmas();
+      await loadData();
       setOpen(false);
       resetForm();
     } catch (error: any) {
@@ -232,7 +232,7 @@ export default function AdminTurmas() {
       if (error) throw error;
       
       toast({ title: 'Turma excluída com sucesso' });
-      await loadTurmas();
+      await loadData();
     } catch (error: any) {
       toast({ title: 'Erro ao excluir turma', description: error.message, variant: 'destructive' });
     }
