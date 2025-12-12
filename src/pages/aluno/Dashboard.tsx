@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, Play, Clock, BookOpen, Settings, LogOut, ChevronRight, CheckCircle, Video } from 'lucide-react';
+import { GraduationCap, Play, Clock, BookOpen, Settings, LogOut, ChevronRight, ChevronLeft, CheckCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoPng from '@/assets/logo_.png';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +36,12 @@ export default function AlunoDashboard() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const enrolledScrollRef = useRef<HTMLDivElement | null>(null);
+  const recommendedScrollRef = useRef<HTMLDivElement | null>(null);
+  const [enrolledIndex, setEnrolledIndex] = useState(0);
+  const [recommendedIndex, setRecommendedIndex] = useState(0);
+  const [showEnrolledArrows, setShowEnrolledArrows] = useState(false);
+  const [showRecommendedArrows, setShowRecommendedArrows] = useState(false);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -226,6 +232,84 @@ export default function AlunoDashboard() {
     navigate('/');
   };
 
+  // Sync enrolled carousel index on scroll
+  useEffect(() => {
+    const container = enrolledScrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const cardWidth = 400;
+      const index = Math.round(container.scrollLeft / cardWidth);
+      const clamped = Math.max(0, Math.min(index, Math.max(0, enrolledTurmas.length - 1)));
+      setEnrolledIndex(clamped);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    try { container.scrollTo({ left: 0 }); } catch (e) {}
+    handleScroll();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [enrolledTurmas.length]);
+
+  // Show/hide enrolled arrows depending on visible columns
+  useEffect(() => {
+    const container = enrolledScrollRef.current;
+    const update = () => {
+      if (!container) {
+        setShowEnrolledArrows(false);
+        return;
+      }
+      const first = container.querySelector('.snap-start') as HTMLElement | null;
+      const cardWidth = first?.offsetWidth || 320;
+      const visible = Math.max(1, Math.floor(container.clientWidth / cardWidth));
+      setShowEnrolledArrows(enrolledTurmas.length > visible);
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [enrolledTurmas.length]);
+
+  // Sync recommended carousel index on scroll
+  useEffect(() => {
+    const container = recommendedScrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const cardWidth = 400;
+      const index = Math.round(container.scrollLeft / cardWidth);
+      const clamped = Math.max(0, Math.min(index, Math.max(0, 5)));
+      setRecommendedIndex(clamped);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    try { container.scrollTo({ left: 0 }); } catch (e) {}
+    handleScroll();
+
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Show/hide recommended arrows depending on visible columns
+  useEffect(() => {
+    const container = recommendedScrollRef.current;
+    const update = () => {
+      if (!container) {
+        setShowRecommendedArrows(false);
+        return;
+      }
+      const filtered = allCourses.filter((c) => !enrolledTurmas.some(t => t.course_id === c.id));
+      const count = Math.min(5, filtered.length) + 1; // +1 for 'Explorar Mais' card
+      const first = container.querySelector('.snap-start') as HTMLElement | null;
+      const cardWidth = first?.offsetWidth || 320;
+      const visible = Math.max(1, Math.floor(container.clientWidth / cardWidth));
+      setShowRecommendedArrows(count > visible);
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [allCourses.length, enrolledTurmas.length]);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -308,65 +392,102 @@ export default function AlunoDashboard() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {enrolledTurmas.map((turma) => (
-                <div
-                  key={turma.id}
-                  className="group bg-card rounded-2xl overflow-hidden border border-border/50 hover:shadow-xl transition-all duration-300 hover-lift"
+            <div className="relative">
+              {showEnrolledArrows && (
+                <button
+                  onClick={() => {
+                    if (!enrolledScrollRef.current) return;
+                    enrolledScrollRef.current.scrollBy({ left: -400, behavior: 'smooth' });
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-card shadow-lg hidden md:flex items-center justify-center -translate-x-1/2"
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden">
-                    <img
-                      src={turma.course_image}
-                      alt={turma.course_title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-4 left-4 right-4">
-                      <Badge className="mb-2 bg-primary/80">
-                        {turma.turma_name}
-                      </Badge>
-                      <h3 className="text-white font-bold line-clamp-1 drop-shadow-md">
-                        {turma.course_title}
-                      </h3>
-                    </div>
-                    <Link
-                      to={`/aluno/curso/${turma.turma_id}`}
-                      className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-glow">
-                        <Play className="w-8 h-8 text-primary-foreground ml-1" />
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              {showEnrolledArrows && (
+                <button
+                  onClick={() => {
+                    if (!enrolledScrollRef.current) return;
+                    enrolledScrollRef.current.scrollBy({ left: 400, behavior: 'smooth' });
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-card shadow-lg hidden md:flex items-center justify-center translate-x-1/2"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+
+              <div
+                ref={enrolledScrollRef}
+                className="flex flex-row gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 pl-4 md:pl-6 pr-4 md:pr-6"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {enrolledTurmas.map((turma) => (
+                  <div key={turma.id} className="flex-shrink-0 w-[320px] md:w-[380px] snap-start">
+                    <div className="group bg-card rounded-2xl overflow-hidden border border-border/50 hover:shadow-xl transition-all duration-300 hover-lift">
+                      <div className="relative aspect-[3/4] overflow-hidden">
+                        <img src={turma.course_image} alt={turma.course_title} className="w-full h-full object-cover" />
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <Badge className="mb-2 bg-primary/80">{turma.turma_name}</Badge>
+                          <h3 className="text-white font-bold line-clamp-1 drop-shadow-md">{turma.course_title}</h3>
+                        </div>
+                        <Link to={`/aluno/curso/${turma.turma_id}`} className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-glow">
+                            <Play className="w-8 h-8 text-primary-foreground ml-1" />
+                          </div>
+                        </Link>
                       </div>
-                    </Link>
+
+                      <div className="p-5">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                          <div className="flex items-center gap-1">
+                            <BookOpen className="w-4 h-4" />
+                            {turma.total_lessons} {turma.total_lessons === 1 ? 'aula' : 'aulas'}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            {turma.completed_lessons} concluídas
+                          </div>
+                        </div>
+
+                        <div className="mb-4">
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="text-muted-foreground">Progresso</span>
+                            <span className="font-semibold">{turma.progress}%</span>
+                          </div>
+                          <Progress value={turma.progress} className="h-2" />
+                        </div>
+
+                        <Link to={`/aluno/curso/${turma.turma_id}`}>
+                          <Button className="w-full gradient-bg text-primary-foreground">
+                            {turma.progress > 0 ? 'Continuar' : 'Começar'}
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="p-5">
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="w-4 h-4" />
-                        {turma.total_lessons} {turma.total_lessons === 1 ? 'aula' : 'aulas'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="w-4 h-4" />
-                        {turma.completed_lessons} concluídas
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-semibold">{turma.progress}%</span>
-                      </div>
-                      <Progress value={turma.progress} className="h-2" />
-                    </div>
-
-                    <Link to={`/aluno/curso/${turma.turma_id}`}>
-                      <Button className="w-full gradient-bg text-primary-foreground">
-                        {turma.progress > 0 ? 'Continuar' : 'Começar'}
-                        <ChevronRight className="w-4 h-4 ml-1" />
-                      </Button>
-                    </Link>
+              {/* Bolinhas indicadoras para mobile */}
+              {enrolledTurmas.length > 0 && (
+                <div className="mt-2 flex items-center justify-center gap-1 md:hidden">
+                  <div className="flex gap-1">
+                    {[...Array(enrolledTurmas.length)].map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (!enrolledScrollRef.current) return;
+                          const cardWidth = 400;
+                          enrolledScrollRef.current.scrollTo({ left: cardWidth * index, behavior: 'smooth' });
+                        }}
+                        className={`w-2 h-2 rounded-full transition-all ${index === enrolledIndex ? 'bg-primary w-4' : 'bg-primary/30'}`}
+                      />
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </section>
@@ -375,35 +496,96 @@ export default function AlunoDashboard() {
         {enrolledTurmas.length < allCourses.length && allCourses.length > 0 && (
           <section>
             <h2 className="text-2xl font-bold mb-6">Cursos Recomendados</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {allCourses
-                .filter((c) => !enrolledTurmas.some(t => t.course_id === c.id))
-                .slice(0, 4)
-                .map((course) => (
-                  <div
-                    key={course.id}
-                    className="bg-card rounded-xl overflow-hidden border border-border/50 hover:shadow-lg transition-all group"
-                  >
-                    <div className="relative aspect-[3/4] overflow-hidden">
-                      <img
-                        src={course.image || '/placeholder.jpg'}
-                        alt={course.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h4 className="font-semibold text-sm line-clamp-2 mb-2">{course.title}</h4>
-                      <div className="flex items-center justify-between">
-                        <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span>
-                        <Link to={`/curso/${course.slug || course.id}`}>
-                          <Button size="sm" variant="outline">
-                            Ver mais
-                          </Button>
-                        </Link>
+
+            <div className="relative">
+              {showRecommendedArrows && (
+                <button
+                  onClick={() => {
+                    if (!recommendedScrollRef.current) return;
+                    recommendedScrollRef.current.scrollBy({ left: -400, behavior: 'smooth' });
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-card shadow-lg hidden md:flex items-center justify-center -translate-x-1/2"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              {showRecommendedArrows && (
+                <button
+                  onClick={() => {
+                    if (!recommendedScrollRef.current) return;
+                    recommendedScrollRef.current.scrollBy({ left: 400, behavior: 'smooth' });
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-card shadow-lg hidden md:flex items-center justify-center translate-x-1/2"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+
+              <div
+                ref={recommendedScrollRef}
+                className="flex flex-row gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 pl-4 md:pl-6 pr-4 md:pr-6"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {allCourses
+                  .filter((c) => !enrolledTurmas.some(t => t.course_id === c.id))
+                  .slice(0, 5)
+                  .map((course) => (
+                    <div key={course.id} className="flex-shrink-0 w-[320px] md:w-[380px] snap-start">
+                      <div className="bg-card rounded-xl overflow-hidden border border-border/50 hover:shadow-lg transition-all group">
+                        <div className="relative aspect-[3/4] overflow-hidden">
+                          <img src={course.image || '/placeholder.jpg'} alt={course.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                        </div>
+                        <div className="p-4">
+                          <h4 className="font-semibold text-sm line-clamp-2 mb-2">{course.title}</h4>
+                          <div className="flex items-center justify-between">
+                            <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span>
+                            <Link to={`/curso/${course.slug || course.id}`}>
+                              <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
+                                Ver mais
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  ))}
+
+                {/* Card explorar mais cursos */}
+                <div className="flex-shrink-0 w-[320px] md:w-[380px] snap-start">
+                  <Link to="/cursos" className="block h-full">
+                    <div className="group bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border-2 border-primary/10 hover:border-primary/50 h-full flex flex-col items-center justify-center p-8 min-h-[280px]">
+                      <div className="text-center">
+                        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                          <ChevronRight className="w-10 h-10 text-primary" />
+                        </div>
+                        <h3 className="font-bold text-2xl mb-4 group-hover:text-primary transition-colors">Explorar Mais Cursos</h3>
+                        <p className="text-muted-foreground mb-6">Descubra todos os nossos cursos e escolha o melhor para sua aprovação!</p>
+                        <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">Explorar Todos</Button>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Bolinhas indicadoras para mobile */}
+              {true && (
+                <div className="mt-2 flex items-center justify-center gap-1 md:hidden">
+                  <div className="flex gap-1">
+                    {[...Array(Math.min(5, allCourses.filter((c) => !enrolledTurmas.some(t => t.course_id === c.id)).length) + 1)].map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (!recommendedScrollRef.current) return;
+                          const cardWidth = 400;
+                          recommendedScrollRef.current.scrollTo({ left: cardWidth * index, behavior: 'smooth' });
+                        }}
+                        className={`w-2 h-2 rounded-full transition-all ${index === recommendedIndex ? 'bg-primary w-4' : 'bg-primary/30'}`}
+                      />
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
             </div>
           </section>
         )}

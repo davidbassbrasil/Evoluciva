@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import whatsAppImg from '@/assets/WhatsApp.svg.png';
+import whatsAppImg from '@/assets/WhatsApp.svg';
 
 export function FloatingButtons() {
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -24,7 +24,7 @@ export function FloatingButtons() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-center gap-3">
+    <div className="fixed bottom-8 right-6 z-50 flex flex-col items-center gap-3">
       <Button
         onClick={scrollToTop}
         size="icon"
@@ -40,9 +40,9 @@ export function FloatingButtons() {
       <Button
         onClick={openWhatsApp}
         size="icon"
-        className="w-14 h-14 rounded-full bg-transparent hover:bg-transparent shadow-none border-0 p-0 flex items-center justify-center"
+        className="w-12 h-12 rounded-full bg-transparent hover:bg-transparent shadow-none border-0 p-0 flex items-center justify-center"
       >
-        <img src={whatsAppImg} alt="WhatsApp" className="w-14 h-14" />
+        <img src={whatsAppImg} alt="WhatsApp" className="w-12 h-12" />
       </Button>
     </div>
   );
