@@ -426,15 +426,15 @@ export default function AdminCursos() {
                 <Label htmlFor="full_description">Descrição Completa do Curso</Label>
                 <Textarea
                   id="full_description"
-                  placeholder="Descreva detalhadamente o conteúdo, objetivos e benefícios do curso (pode usar emojis 😊)"
+                  placeholder="Descreva detalhadamente o conteúdo... Use **negrito**, *itálico*, # Títulos, - listas 😊"
                   value={form.full_description}
                   onChange={(e) => setForm({ ...form, full_description: e.target.value })}
                   rows={6}
-                  className="font-sans"
+                  className="font-sans font-mono text-sm"
                   style={{ unicodeBidi: 'plaintext' }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Esta descrição aparecerá na página individual do curso. Suporta emojis e caracteres especiais.
+                  Suporta <strong>Markdown</strong>: **negrito**, *itálico*, # Títulos, - listas, emojis 😊
                 </p>
               </div>
 
