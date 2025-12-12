@@ -4,7 +4,7 @@ import { Trash2, Loader2, ShoppingCart, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getCart, removeFromCart, getCurrentUser } from '@/lib/localStorage';
-import { Turma } from '@/types';
+import { Turma, Course } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function Cart() {
   const [items, setItems] = useState<Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>>([]);
+  const [upsellCourses, setUpsellCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -91,6 +92,59 @@ export default function Cart() {
             .filter(Boolean) as Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>;
           
           setItems(orderedItems);
+
+          // Carregar cursos de upsell
+          const courseIdsInCart = orderedItems.map(item => item.item.course.id);
+          
+          if (courseIdsInCart.length > 0) {
+            // Buscar cursos configurados como upsell para os cursos no carrinho
+            const { data: upsellLinks } = await supabase
+              .from('course_upsells')
+              .select('upsell_course_id')
+              .in('course_id', courseIdsInCart);
+
+            if (upsellLinks && upsellLinks.length > 0) {
+              const upsellCourseIds = [...new Set(upsellLinks.map(link => link.upsell_course_id))];
+              
+              // Filtrar cursos que já não estão no carrinho
+              const filteredUpsellIds = upsellCourseIds.filter(id => !courseIdsInCart.includes(id));
+
+              if (filteredUpsellIds.length > 0) {
+                // Buscar turmas dos cursos de upsell para obter preços
+                const { data: upsellTurmas } = await supabase
+                  .from('turmas')
+                  .select(`
+                    id,
+                    price,
+                    original_price,
+                    price_online,
+                    original_price_online,
+                    course:courses (*)
+                  `)
+                  .in('course_id', filteredUpsellIds);
+
+                if (upsellTurmas && upsellTurmas.length > 0) {
+                  // Pegar primeira turma de cada curso
+                  const uniqueCourses = new Map();
+                  upsellTurmas.forEach(turma => {
+                    if (!uniqueCourses.has(turma.course.id)) {
+                      uniqueCourses.set(turma.course.id, {
+                        ...turma.course,
+                        price: turma.price,
+                        original_price: turma.original_price,
+                        price_online: turma.price_online,
+                        original_price_online: turma.original_price_online,
+                        turma_id: turma.id
+                      });
+                    }
+                  });
+                  
+                  const upsellCoursesWithPrice = Array.from(uniqueCourses.values()).slice(0, 3);
+                  setUpsellCourses(upsellCoursesWithPrice);
+                }
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Error loading cart items:', err);
@@ -102,9 +156,62 @@ export default function Cart() {
     loadCartItems();
   }, [navigate, toast]);
 
-  const handleRemove = (itemId: string) => {
+  const handleRemove = async (itemId: string) => {
     removeFromCart(itemId);
-    setItems((s) => s.filter(i => i.itemId !== itemId));
+    const newItems = items.filter(i => i.itemId !== itemId);
+    setItems(newItems);
+
+    // Recarregar upsells após remover item
+    if (supabase && newItems.length > 0) {
+      const courseIdsInCart = newItems.map(item => item.item.course.id);
+      
+      const { data: upsellLinks } = await supabase
+        .from('course_upsells')
+        .select('upsell_course_id')
+        .in('course_id', courseIdsInCart);
+
+      if (upsellLinks && upsellLinks.length > 0) {
+        const upsellCourseIds = [...new Set(upsellLinks.map(link => link.upsell_course_id))];
+        const filteredUpsellIds = upsellCourseIds.filter(id => !courseIdsInCart.includes(id));
+
+        if (filteredUpsellIds.length > 0) {
+          const { data: upsellTurmas } = await supabase
+            .from('turmas')
+            .select(`
+              id,
+              price,
+              original_price,
+              price_online,
+              original_price_online,
+              course:courses (*)
+            `)
+            .in('course_id', filteredUpsellIds);
+
+          if (upsellTurmas && upsellTurmas.length > 0) {
+            const uniqueCourses = new Map();
+            upsellTurmas.forEach(turma => {
+              if (!uniqueCourses.has(turma.course.id)) {
+                uniqueCourses.set(turma.course.id, {
+                  ...turma.course,
+                  price: turma.price,
+                  original_price: turma.original_price,
+                  price_online: turma.price_online,
+                  original_price_online: turma.original_price_online,
+                  turma_id: turma.id
+                });
+              }
+            });
+            
+            const upsellCoursesWithPrice = Array.from(uniqueCourses.values()).slice(0, 3);
+            setUpsellCourses(upsellCoursesWithPrice);
+          }
+        } else {
+          setUpsellCourses([]);
+        }
+      }
+    } else if (newItems.length === 0) {
+      setUpsellCourses([]);
+    }
   };
 
   const total = items.reduce((acc, item) => {
@@ -194,6 +301,51 @@ export default function Cart() {
                   </div>
                 );
               })}
+
+              {/* Seção de Upsell */}
+              {upsellCourses.length > 0 && (
+                <div className="mt-8">
+                  <h2 className="text-xl font-bold mb-4">Outros Concursos</h2>
+                  <div className="grid gap-4">
+                    {upsellCourses.map((course) => (
+                      <div key={course.id} className="bg-card p-4 rounded-2xl border border-border/50 hover:border-primary/50 transition-colors">
+                        <div className="flex gap-4">
+                          <img src={course.image} alt={course.title} className="w-20 h-28 object-cover rounded-lg shrink-0" />
+                          <div className="flex-1 min-w-0 flex flex-col">
+                            <div>
+                              <h3 className="font-semibold mb-1 line-clamp-2">{course.title}</h3>
+                              <p className="text-sm text-muted-foreground mb-1">{course.instructor}</p>
+                              {course.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 break-words">{course.description}</p>
+                              )}
+                            </div>
+                            <div className="flex items-end justify-between mt-auto pt-2">
+                              <div className="text-left">
+                                {course.original_price > course.price && (
+                                  <div className="text-muted-foreground text-sm line-through">
+                                    R$ {Number(course.original_price).toFixed(2)}
+                                  </div>
+                                )}
+                                <div className="text-lg font-bold text-primary whitespace-nowrap">
+                                  R$ {Number(course.price).toFixed(2)}
+                                </div>
+                              </div>
+                              <Link to={`/curso/${course.slug}`}>
+                                <Button 
+                                  size="sm"
+                                  className="gradient-bg text-primary-foreground whitespace-nowrap"
+                                >
+                                  Ver Curso
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <aside className="bg-card p-6 rounded-2xl border border-border/50 h-max mt-4">

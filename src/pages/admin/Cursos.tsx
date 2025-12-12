@@ -18,6 +18,7 @@ interface CourseForm {
   whats_included: string;
   instructor: string;
   professor_ids: string[];
+  upsell_course_ids: string[];
   estado: string;
   active: boolean;
   display_order: string;
@@ -42,6 +43,7 @@ export default function AdminCursos() {
     whats_included: '', 
     instructor: '', 
     professor_ids: [],
+    upsell_course_ids: [],
     estado: '', 
     active: true, 
     display_order: '0' 
@@ -240,6 +242,30 @@ export default function AdminCursos() {
         }
       }
 
+      // Atualizar relacionamentos com cursos de upsell
+      // 1. Deletar relacionamentos antigos
+      await supabase
+        .from('course_upsells')
+        .delete()
+        .eq('course_id', courseIdToUpdate);
+
+      // 2. Inserir novos relacionamentos
+      if (form.upsell_course_ids.length > 0) {
+        const courseUpsells = form.upsell_course_ids.map((upsellId, index) => ({
+          course_id: courseIdToUpdate,
+          upsell_course_id: upsellId,
+          display_order: index
+        }));
+
+        const { error: upsellError } = await supabase
+          .from('course_upsells')
+          .insert(courseUpsells);
+
+        if (upsellError) {
+          console.error('Erro ao vincular cursos de upsell:', upsellError);
+        }
+      }
+
       await loadCourses();
       handleCloseDialog();
     } catch (err: any) {
@@ -287,6 +313,15 @@ export default function AdminCursos() {
     
     const professorIds = professorLinks?.map(link => link.professor_id) || [];
     
+    // Carregar cursos de upsell vinculados
+    const { data: upsellLinks } = await supabase
+      .from('course_upsells')
+      .select('upsell_course_id')
+      .eq('course_id', course.id)
+      .order('display_order', { ascending: true });
+    
+    const upsellCourseIds = upsellLinks?.map(link => link.upsell_course_id) || [];
+    
     setForm({
       title: course.title,
       description: course.description,
@@ -294,6 +329,7 @@ export default function AdminCursos() {
       whats_included: course.whats_included || '',
       instructor: course.instructor,
       professor_ids: professorIds,
+      upsell_course_ids: upsellCourseIds,
       estado: course.estado || '',
       active: course.active ?? true,
       display_order: String(course.display_order ?? 0),
@@ -306,7 +342,7 @@ export default function AdminCursos() {
   const handleCloseDialog = () => {
     setOpen(false);
     setSelectedCourse(null);
-    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', professor_ids: [], estado: '', active: true, display_order: '0' });
+    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', professor_ids: [], upsell_course_ids: [], estado: '', active: true, display_order: '0' });
     setImageFile(null);
     setImagePreview('');
   };
@@ -460,6 +496,43 @@ export default function AdminCursos() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Selecione um ou mais professores para exibir na página do curso
+                </p>
+              </div>
+
+              {/* Cursos para Upsell */}
+              <div className="space-y-2">
+                <Label>Cursos para Upsell no Carrinho (Opcional)</Label>
+                <div className="border rounded-lg p-4 max-h-48 overflow-y-auto space-y-2">
+                  {courses.filter(c => c.id !== selectedCourse?.id).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum outro curso disponível</p>
+                  ) : (
+                    courses.filter(c => c.id !== selectedCourse?.id).map((course) => (
+                      <label key={course.id} className="flex items-center gap-3 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={form.upsell_course_ids.includes(course.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, upsell_course_ids: [...form.upsell_course_ids, course.id] });
+                            } else {
+                              setForm({ ...form, upsell_course_ids: form.upsell_course_ids.filter(id => id !== course.id) });
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex items-center gap-2">
+                          <img src={course.image} alt={course.title} className="w-10 h-10 rounded object-cover" />
+                          <div>
+                            <p className="text-sm font-medium">{course.title}</p>
+                            <p className="text-xs text-muted-foreground">{course.description}</p>
+                          </div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Estes cursos aparecerão como sugestões no carrinho quando este curso for adicionado
                 </p>
               </div>
 
