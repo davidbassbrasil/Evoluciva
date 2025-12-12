@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import supabase from '@/lib/supabaseClient';
 import { Turma } from '@/types';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 export function CoursesSection() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -21,25 +22,30 @@ export function CoursesSection() {
             id, name, price, price_online, original_price, original_price_online,
             presential_slots, status, sale_start_date, sale_end_date, access_end_date,
             course:courses (
-              id, title, description, image, instructor, slug, active
+              id, title, description, image, instructor, slug, active, display_order
             )
           `)
           .in('status', ['active', 'coming_soon'])
-          .order('created_at', { ascending: false })
-          .limit(7);
+          .limit(20);
 
         if (!error && data) {
-          // Filtrar por curso ativo, preços definidos e datas de venda
+          // Ordenar por display_order do curso (menor número = mais prioritário)
+          const sorted = data.sort((a: any, b: any) => {
+            const orderA = a.course?.display_order ?? 999;
+            const orderB = b.course?.display_order ?? 999;
+            return orderA - orderB;
+          });
+          
+          // Limitar a 7 após ordenar
+          const limited = sorted.slice(0, 7);
+
+          // Filtrar por curso ativo e datas de venda/acesso
           const now = new Date();
-          const filtered = data.filter((turma: any) => {
+          const filtered = limited.filter((turma: any) => {
             // Filtrar se o curso está desativado
             if (!turma.course?.active) return false;
             
-            // Filtrar se não tem preço definido (nem presencial nem online)
-            if (!turma.price && !turma.price_online) return false;
-            if (turma.price <= 0 && (!turma.price_online || turma.price_online <= 0)) return false;
-            
-            // Verificar se a turma já expirou completamente
+            // Verificar se a turma já expirou completamente (fim de acesso do aluno)
             if (turma.access_end_date) {
               const accessEndDate = new Date(turma.access_end_date);
               if (now > accessEndDate) return false;
@@ -48,7 +54,7 @@ export function CoursesSection() {
             // Se é coming_soon, sempre mostrar (para informação)
             if (turma.status === 'coming_soon') return true;
             
-            // Para active, filtrar por datas
+            // Para active, filtrar por datas de venda
             const startDate = turma.sale_start_date ? new Date(turma.sale_start_date) : null;
             const endDate = turma.sale_end_date ? new Date(turma.sale_end_date) : null;
             
@@ -77,6 +83,26 @@ export function CoursesSection() {
       });
     }
   };
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const cardWidth = 400; // mesmo valor do scrollAmount
+      const index = Math.round(container.scrollLeft / cardWidth);
+      const clampedIndex = Math.min(turmas.length, Math.max(0, index));
+      setCurrentIndex(clampedIndex);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    // inicializa posição
+    handleScroll();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [turmas.length]);
 
   return (
     <section id="cursos" className="pt-10 pb-8 md:pt-20 md:pb-20 bg-background">
@@ -110,7 +136,7 @@ export function CoursesSection() {
 
           <div
             ref={scrollRef}
-            className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4"
+            className="flex flex-row gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {turmas.map((turma) => (
@@ -165,14 +191,55 @@ export function CoursesSection() {
                 </div>
               </div>
             ))}
+
+            {/* Card "Ver Mais Cursos" */}
+            <div className="flex-shrink-0 w-[320px] md:w-[380px] snap-start">
+              <Link to="/cursos" className="block h-full">
+                <div className="group bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border-2 border-primary/10 hover:border-primary/50 h-full flex flex-col items-center justify-center p-8 min-h-[500px]">
+                  <div className="text-center">
+                    <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                      <ArrowRight className="w-10 h-10 text-primary" />
+                    </div>
+                    <h3 className="font-bold text-2xl mb-4 group-hover:text-primary transition-colors">
+                      Ver Mais Cursos
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      Descubra todos os nossos cursos e escolha o melhor para sua aprovação!
+                    </p>
+                    <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
+                      Explorar Todos
+                    </Button>
+                  </div>
+                </div>
+              </Link>
+            </div>
           </div>
-        </div>
-        <div className="text-center mt-8">
-          <Link to="/cursos">
-            <Button className="gradient-bg text-primary-foreground px-6 py-3">
-              Todos os Cursos
-            </Button>
-          </Link>
+
+          {/* Bolinhas indicadoras para mobile */}
+          {turmas.length > 0 && (
+            <div className="mt-2 flex items-center justify-center gap-1 md:hidden">
+              <div className="flex gap-1">
+                {[...Array(turmas.length + 1)].map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (!scrollRef.current) return;
+                      const cardWidth = 400;
+                      scrollRef.current.scrollTo({
+                        left: cardWidth * index,
+                        behavior: 'smooth',
+                      });
+                    }}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      index === currentIndex
+                        ? 'bg-primary w-4'
+                        : 'bg-primary/30'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>

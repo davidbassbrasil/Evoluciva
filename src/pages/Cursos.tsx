@@ -34,24 +34,26 @@ export default function Cursos() {
             id, name, price, price_online, original_price, original_price_online,
             presential_slots, status, sale_start_date, sale_end_date, access_end_date,
             course:courses (
-              id, title, description, image, instructor, slug, estado, active
+              id, title, description, image, instructor, slug, estado, active, display_order
             )
           `)
           .in('status', ['active', 'coming_soon'])
-          .order('created_at', { ascending: false })
           .limit(100);
 
         if (!error && data) {
+          // Ordenar por display_order do curso
+          const sorted = data.sort((a: any, b: any) => {
+            const orderA = a.course?.display_order ?? 999;
+            const orderB = b.course?.display_order ?? 999;
+            return orderA - orderB;
+          });
+          
           const now = new Date();
-          const availableTurmas = data.filter((t: any) => {
+          const availableTurmas = sorted.filter((t: any) => {
             // Filtrar se o curso está desativado
             if (!t.course?.active) return false;
             
-            // Filtrar se não tem preço definido (nem presencial nem online)
-            if (!t.price && !t.price_online) return false;
-            if (t.price <= 0 && (!t.price_online || t.price_online <= 0)) return false;
-            
-            // Verificar se a turma já expirou completamente
+            // Verificar se a turma já expirou completamente (fim de acesso do aluno)
             if (t.access_end_date) {
               const accessEndDate = new Date(t.access_end_date);
               if (now > accessEndDate) return false;

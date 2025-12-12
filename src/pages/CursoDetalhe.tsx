@@ -64,14 +64,10 @@ export default function CursoDetalhe() {
           .order('created_at', { ascending: false });
         
         if (!turmasError && turmasData) {
-          // Filtrar por datas de venda e preços
+          // Filtrar por datas de venda e acesso
           const now = new Date();
           const availableTurmas = turmasData.filter((turma: any) => {
-            // Filtrar se não tem preço definido (nem presencial nem online)
-            if (!turma.price && !turma.price_online) return false;
-            if (turma.price <= 0 && (!turma.price_online || turma.price_online <= 0)) return false;
-            
-            // Verificar se a turma já expirou completamente
+            // Verificar se a turma já expirou completamente (fim de acesso do aluno)
             if (turma.access_end_date) {
               const accessEndDate = new Date(turma.access_end_date);
               if (now > accessEndDate) return false;
@@ -83,7 +79,7 @@ export default function CursoDetalhe() {
             // Se status é coming_soon, sempre mostrar (mas não permitir compra)
             if (turma.status === 'coming_soon') return true;
             
-            // Para active, verificar datas
+            // Para active, verificar datas de venda
             if (startDate && now < startDate) return false;
             if (endDate && now > endDate) return false;
             

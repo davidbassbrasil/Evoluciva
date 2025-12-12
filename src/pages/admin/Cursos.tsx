@@ -423,7 +423,7 @@ export default function AdminCursos() {
               <div className="flex items-center justify-between p-4 rounded-lg border bg-secondary/20">
                 <div className="space-y-0.5">
                   <Label htmlFor="active" className="text-base">
-                    Exibir na Página Principal
+                    Exibir na Página Principal após a configuração da Turma
                   </Label>
                   <p className="text-sm text-muted-foreground">
                     Controla se o curso aparece na listagem da home
