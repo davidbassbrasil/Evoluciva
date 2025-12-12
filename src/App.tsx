@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Cursos from "./pages/Cursos";
 import CursoDetalhe from "./pages/CursoDetalhe";
+import ProfessorDetalhe from "./pages/ProfessorDetalhe";
 import Sobre from "./pages/Sobre";
 import AlunoLogin from "./pages/aluno/Login";
 import AlunoDashboard from "./pages/aluno/Dashboard";
@@ -59,6 +60,7 @@ const App = () => {
           <Route path="/" element={<Index />} />
           <Route path="/cursos" element={<Cursos />} />
           <Route path="/curso/:courseId" element={<CursoDetalhe />} />
+          <Route path="/professor/:professorId" element={<ProfessorDetalhe />} />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />

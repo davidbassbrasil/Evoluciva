@@ -456,9 +456,10 @@ export function AdminBanners() {
 // Professors Page
 export function AdminProfessores() {
   const [items, setItems] = useState<Professor[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Professor | null>(null);
-  const [form, setForm] = useState({ name: '', specialty: '', bio: '' });
+  const [form, setForm] = useState({ name: '', specialty: '', bio: '', selectedCourses: [] as string[] });
   const [uploading, setUploading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -466,22 +467,64 @@ export function AdminProfessores() {
 
   useEffect(() => {
     loadProfessors();
+    loadCourses();
   }, []);
+
+  const loadCourses = async () => {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, title, slug')
+        .eq('active', true)
+        .order('title', { ascending: true });
+      
+      if (!error && data) setCourses(data);
+    } catch (err) {
+      console.error('Error loading courses:', err);
+    }
+  };
 
   const loadProfessors = async () => {
     // Try to load from Supabase first
     if (supabase) {
       try {
-        const { data, error } = await supabase
+        // Carregar professores
+        const { data: professorsData, error: professorsError } = await supabase
           .from('professors')
           .select('*')
           .order('name', { ascending: true });
         
-        if (!error && data) {
-          setItems(data);
-          setProfessors(data); // Sync with localStorage
-          return;
-        }
+        if (professorsError) throw professorsError;
+
+        // Buscar relacionamentos professor_courses
+        const { data: relationsData } = await supabase
+          .from('professor_courses')
+          .select(`
+            professor_id,
+            course:courses(id, title, slug)
+          `);
+
+        // Agrupar cursos por professor
+        const coursesMap: { [key: string]: any[] } = {};
+        relationsData?.forEach((rel: any) => {
+          if (!coursesMap[rel.professor_id]) {
+            coursesMap[rel.professor_id] = [];
+          }
+          if (rel.course) {
+            coursesMap[rel.professor_id].push(rel.course);
+          }
+        });
+
+        // Juntar dados
+        const professorsWithCourses = professorsData?.map(prof => ({
+          ...prof,
+          courses: coursesMap[prof.id] || []
+        })) || [];
+        
+        setItems(professorsWithCourses);
+        setProfessors(professorsWithCourses); // Sync with localStorage
+        return;
       } catch (err) {
         console.error('Error loading professors from Supabase:', err);
       }
@@ -597,6 +640,8 @@ export function AdminProfessores() {
 
     try {
       if (supabase) {
+        let professorId = selected?.id;
+
         if (selected) {
           // Update existing
           const { error } = await supabase
@@ -607,11 +652,37 @@ export function AdminProfessores() {
           if (error) throw error;
         } else {
           // Insert new
-          const { error } = await supabase
+          const { data: newProfessor, error } = await supabase
             .from('professors')
-            .insert([professorData]);
+            .insert([professorData])
+            .select()
+            .single();
           
           if (error) throw error;
+          professorId = newProfessor?.id;
+        }
+
+        // Atualizar relacionamentos com cursos
+        if (professorId) {
+          // Deletar relacionamentos antigos
+          await supabase
+            .from('professor_courses')
+            .delete()
+            .eq('professor_id', professorId);
+
+          // Inserir novos relacionamentos
+          if (form.selectedCourses.length > 0) {
+            const relations = form.selectedCourses.map(courseId => ({
+              professor_id: professorId,
+              course_id: courseId
+            }));
+
+            const { error: relError } = await supabase
+              .from('professor_courses')
+              .insert(relations);
+
+            if (relError) throw relError;
+          }
         }
       }
 
@@ -682,11 +753,17 @@ export function AdminProfessores() {
   const openDialog = (professor?: Professor) => {
     if (professor) {
       setSelected(professor);
-      setForm({ name: professor.name, specialty: professor.specialty, bio: professor.bio });
+      const courseIds = professor.courses?.map(c => c.id) || [];
+      setForm({ 
+        name: professor.name, 
+        specialty: professor.specialty, 
+        bio: professor.bio,
+        selectedCourses: courseIds
+      });
       setImagePreview(professor.image);
     } else {
       setSelected(null);
-      setForm({ name: '', specialty: '', bio: '' });
+      setForm({ name: '', specialty: '', bio: '', selectedCourses: [] });
       setImagePreview('');
     }
     setImageFile(null);
@@ -696,7 +773,7 @@ export function AdminProfessores() {
   const closeDialog = () => {
     setOpen(false);
     setSelected(null);
-    setForm({ name: '', specialty: '', bio: '' });
+    setForm({ name: '', specialty: '', bio: '', selectedCourses: [] });
     setImageFile(null);
     setImagePreview('');
   };
@@ -795,6 +872,36 @@ export function AdminProfessores() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="courses">Cursos Vinculados (Opcional)</Label>
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                  {courses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum curso ativo disponível</p>
+                  ) : (
+                    courses.map(course => (
+                      <label key={course.id} className="flex items-center gap-2 cursor-pointer hover:bg-secondary/50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={form.selectedCourses.includes(course.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, selectedCourses: [...form.selectedCourses, course.id] });
+                            } else {
+                              setForm({ ...form, selectedCourses: form.selectedCourses.filter(id => id !== course.id) });
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">{course.title}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecione os cursos que este professor leciona. Se não houver cursos, o card direcionará para /cursos.
+                </p>
+              </div>
+
               <Button
                 onClick={save}
                 disabled={uploading}
@@ -838,9 +945,18 @@ export function AdminProfessores() {
                 <div className="flex-1">
                   <h3 className="font-bold text-lg mb-1">{item.name}</h3>
                   <p className="text-sm text-primary font-medium mb-2">{item.specialty}</p>
-                  <p className="text-sm text-muted-foreground line-clamp-2">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                     {item.bio}
                   </p>
+                  {item.courses && item.courses.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {item.courses.map(course => (
+                        <span key={course.id} className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
+                          {course.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -872,28 +988,70 @@ export function AdminProfessores() {
 // Tags Page
 export function AdminTags() {
   const [items, setItems] = useState<Tag[]>([]);
-  const [form, setForm] = useState({ name: '', color: '#3B82F6' });
+  const [courses, setCourses] = useState<any[]>([]);
+  const [form, setForm] = useState({ name: '', description_tag: '', course_id: '' });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     loadTags();
+    loadCourses();
   }, []);
+
+  const loadCourses = async () => {
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, title, slug')
+        .eq('active', true)
+        .order('title', { ascending: true });
+      
+      if (!error && data) setCourses(data);
+    } catch (err) {
+      console.error('Error loading courses:', err);
+    }
+  };
 
   const loadTags = async () => {
     // Try to load from Supabase first
     if (supabase) {
       try {
-        const { data, error } = await supabase
+        // Carregar tags
+        const { data: tagsData, error: tagsError } = await supabase
           .from('tags')
           .select('*')
           .order('name', { ascending: true });
         
-        if (!error && data) {
-          setItems(data);
-          setTags(data); // Sync with localStorage
-          return;
+        if (tagsError) throw tagsError;
+
+        // Buscar cursos para os course_ids
+        const courseIds = tagsData?.filter(t => t.course_id).map(t => t.course_id) || [];
+        let coursesMap: { [key: string]: any } = {};
+        
+        if (courseIds.length > 0) {
+          const { data: coursesData } = await supabase
+            .from('courses')
+            .select('id, title, slug')
+            .in('id', courseIds);
+          
+          if (coursesData) {
+            coursesMap = coursesData.reduce((acc, course) => {
+              acc[course.id] = course;
+              return acc;
+            }, {} as { [key: string]: any });
+          }
         }
+
+        // Juntar dados
+        const tagsWithCourses = tagsData?.map(tag => ({
+          ...tag,
+          course: tag.course_id ? coursesMap[tag.course_id] : null
+        })) || [];
+        
+        setItems(tagsWithCourses);
+        setTags(tagsWithCourses); // Sync with localStorage
+        return;
       } catch (err) {
         console.error('Error loading tags from Supabase:', err);
       }
@@ -916,7 +1074,8 @@ export function AdminTags() {
     try {
       const tagData = {
         name: form.name.trim(),
-        color: form.color,
+        description_tag: form.description_tag.trim() || null,
+        course_id: form.course_id || null,
       };
 
       if (supabase) {
@@ -928,7 +1087,7 @@ export function AdminTags() {
       }
 
       await loadTags();
-      setForm({ name: '', color: '#3B82F6' });
+      setForm({ name: '', description_tag: '', course_id: '' });
       toast({ title: 'Tag criada!' });
     } catch (error) {
       console.error('Error creating tag:', error);
@@ -970,37 +1129,64 @@ export function AdminTags() {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Tags</h1>
+        <h1 className="text-2xl font-bold mb-4">Matérias / Tags</h1>
         <p className="text-muted-foreground">
-          Gerencie as tags utilizadas para categorizar cursos
+          Gerencie as matérias exibidas na página principal
         </p>
       </div>
 
       {/* Add Tag Form */}
       <div className="bg-card p-6 rounded-xl border border-border/50 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Nova Tag</h2>
-        <div className="flex gap-3">
-          <Input
-            placeholder="Nome da tag"
-            value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            className="flex-1"
-          />
-          <Input
-            type="color"
-            value={form.color}
-            onChange={e => setForm({ ...form, color: e.target.value })}
-            className="w-20"
-            title="Cor da tag"
-          />
+        <h2 className="text-lg font-semibold mb-4">Nova Matéria</h2>
+        <div className="grid gap-4">
+          <div>
+            <Label htmlFor="tag-name">Nome da Matéria *</Label>
+            <Input
+              id="tag-name"
+              placeholder="Ex: Português, Matemática, Direito..."
+              value={form.name}
+              onChange={e => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="tag-description">Descrição</Label>
+            <Textarea
+              id="tag-description"
+              placeholder="Breve descrição sobre a matéria (opcional)"
+              value={form.description_tag}
+              onChange={e => setForm({ ...form, description_tag: e.target.value })}
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="tag-course">Vincular a Curso (Opcional)</Label>
+            <select
+              id="tag-course"
+              value={form.course_id}
+              onChange={e => setForm({ ...form, course_id: e.target.value })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <option value="">Nenhum (redireciona para /cursos)</option>
+              {courses.map(course => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ao clicar na matéria, o usuário será direcionado para este curso
+            </p>
+          </div>
+
           <Button
             onClick={add}
             disabled={loading}
-            className="gradient-bg text-primary-foreground"
+            className="gradient-bg text-primary-foreground w-fit"
           >
             <Plus className="w-4 h-4 mr-2" />
-            {loading ? 'Criando...' : 'Adicionar'}
+            {loading ? 'Criando...' : 'Adicionar Matéria'}
           </Button>
         </div>
       </div>
@@ -1011,33 +1197,41 @@ export function AdminTags() {
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
             <Plus className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-xl font-bold mb-2">Nenhuma tag cadastrada</h3>
+          <h3 className="text-xl font-bold mb-2">Nenhuma matéria cadastrada</h3>
           <p className="text-muted-foreground">
-            Crie sua primeira tag usando o formulário acima.
+            Crie sua primeira matéria usando o formulário acima.
           </p>
         </div>
       ) : (
         <div className="bg-card p-6 rounded-xl border border-border/50">
-          <h2 className="text-lg font-semibold mb-4">Tags Cadastradas ({items.length})</h2>
-          <div className="flex flex-wrap gap-3">
+          <h2 className="text-lg font-semibold mb-4">Matérias Cadastradas ({items.length})</h2>
+          <div className="grid gap-4">
             {items.map(item => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
-                style={{
-                  background: `${item.color}20`,
-                  color: item.color,
-                  border: `2px solid ${item.color}40`
-                }}
+                className="flex items-start gap-4 p-4 rounded-lg border border-border/50 hover:shadow-md transition-shadow"
               >
-                <span className="font-medium">{item.name}</span>
-                <button
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg mb-1">{item.name}</h3>
+                  {item.description_tag && (
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {item.description_tag}
+                    </p>
+                  )}
+                  {item.course && (
+                    <div className="text-xs text-primary">
+                      Vinculado a: {item.course.title}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="destructive"
+                  size="icon"
                   onClick={() => del(item.id)}
-                  className="hover:opacity-70 transition-opacity"
-                  title="Excluir tag"
+                  title="Excluir matéria"
                 >
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             ))}
           </div>

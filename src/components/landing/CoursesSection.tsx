@@ -97,6 +97,12 @@ export function CoursesSection() {
 
     container.addEventListener('scroll', handleScroll);
     // inicializa posição
+    // garantir que começa na posição 0 para evitar deslocamento inicial
+    try {
+      container.scrollTo({ left: 0 });
+    } catch (e) {
+      /* noop */
+    }
     handleScroll();
 
     return () => {
@@ -136,7 +142,7 @@ export function CoursesSection() {
 
           <div
             ref={scrollRef}
-            className="flex flex-row gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4"
+            className="flex flex-row gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 pl-4 md:pl-6 pr-4 md:pr-6"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {turmas.map((turma) => (

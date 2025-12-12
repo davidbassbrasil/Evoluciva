@@ -66,14 +66,28 @@ export interface Professor {
   specialty: string;
   image: string;
   bio: string;
+  slug?: string;
   created_at?: string;
   updated_at?: string;
+  courses?: {
+    id: string;
+    title: string;
+    slug: string;
+    image?: string;
+  }[];
 }
 
 export interface Tag {
   id: string;
   name: string;
-  color: string;
+  color?: string;
+  description_tag?: string;
+  course_id?: string;
+  course?: {
+    id: string;
+    title: string;
+    slug: string;
+  };
 }
 
 export interface Testimonial {

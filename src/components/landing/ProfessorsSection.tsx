@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import supabase from '@/lib/supabaseClient';
 import { Professor } from '@/types';
@@ -13,12 +14,40 @@ export function ProfessorsSection() {
     const load = async () => {
       if (!supabase) return;
       try {
-        const { data, error } = await supabase
+        // Carregar professores
+        const { data: professorsData, error: professorsError } = await supabase
           .from('professors')
           .select('*')
           .order('name', { ascending: true });
 
-        if (!error && data) setProfessors(data);
+        if (professorsError) throw professorsError;
+
+        // Buscar relacionamentos com cursos
+        const { data: relationsData } = await supabase
+          .from('professor_courses')
+          .select(`
+            professor_id,
+            course:courses(id, title, slug)
+          `);
+
+        // Agrupar cursos por professor
+        const coursesMap: { [key: string]: any[] } = {};
+        relationsData?.forEach((rel: any) => {
+          if (!coursesMap[rel.professor_id]) {
+            coursesMap[rel.professor_id] = [];
+          }
+          if (rel.course) {
+            coursesMap[rel.professor_id].push(rel.course);
+          }
+        });
+
+        // Juntar dados
+        const professorsWithCourses = professorsData?.map(prof => ({
+          ...prof,
+          courses: coursesMap[prof.id] || []
+        })) || [];
+
+        setProfessors(professorsWithCourses);
       } catch (err) {
         console.error('Error loading professors from Supabase:', err);
       }
@@ -93,31 +122,39 @@ export function ProfessorsSection() {
             className="flex gap-6 overflow-x-auto scrollbar-hide pb-4"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {professors.map((professor) => (
-              <div
-                key={professor.id}
-                className="flex-shrink-0 w-[280px] group"
-              >
-                <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50 p-6 text-center">
-                  <div className="relative w-32 h-32 mx-auto mb-4">
-                    <div className="absolute inset-0 rounded-full gradient-bg opacity-20 group-hover:opacity-30 transition-opacity" />
-                    <img
-                      src={professor.image}
-                      alt={professor.name}
-                      className="w-full h-full object-cover rounded-full border-4 border-card shadow-lg"
-                    />
+            {professors.map((professor) => {
+              // Se tem cursos, vai para página do professor, senão vai para /cursos
+              const linkTo = (professor.courses && professor.courses.length > 0)
+                ? `/professor/${professor.slug || professor.id}`
+                : '/cursos';
+
+              return (
+                <Link
+                  key={professor.id}
+                  to={linkTo}
+                  className="flex-shrink-0 w-[280px] group"
+                >
+                  <div className="bg-card rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover-lift border border-border/50 p-6 text-center">
+                    <div className="relative w-32 h-32 mx-auto mb-4">
+                      <div className="absolute inset-0 rounded-full gradient-bg opacity-20 group-hover:opacity-30 transition-opacity" />
+                      <img
+                        src={professor.image}
+                        alt={professor.name}
+                        className="w-full h-full object-cover rounded-full border-4 border-card shadow-lg"
+                      />
+                    </div>
+                    
+                    <h3 className="font-bold text-lg mb-1 group-hover:text-primary transition-colors">{professor.name}</h3>
+                    <Badge variant="secondary" className="mb-3">
+                      {professor.specialty}
+                    </Badge>
+                    <p className="text-muted-foreground text-sm line-clamp-3">
+                      {professor.bio}
+                    </p>
                   </div>
-                  
-                  <h3 className="font-bold text-lg mb-1">{professor.name}</h3>
-                  <Badge variant="secondary" className="mb-3">
-                    {professor.specialty}
-                  </Badge>
-                  <p className="text-muted-foreground text-sm line-clamp-3">
-                    {professor.bio}
-                  </p>
-                </div>
-              </div>
-            ))}
+                </Link>
+              );
+            })}
           </div>
 
           {professors.length > 1 && (
