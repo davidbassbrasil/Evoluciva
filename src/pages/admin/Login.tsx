@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { signIn, getUser } from '@/lib/supabaseAuth';
 import supabase from '@/lib/supabaseClient';
+import logoPng from '@/assets/logo_.png';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -73,7 +74,7 @@ export default function AdminLogin() {
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
       <div className="bg-card rounded-2xl p-8 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <img src={"/src/assets/logo_.png"} alt="Logo" className="h-12" />
+          <img src={logoPng} alt="Logo" className="h-12" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">

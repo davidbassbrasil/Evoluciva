@@ -2,6 +2,8 @@ import { Award, Users, BookOpen, Target, Heart, Lightbulb } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
+import eduSobreImg from '@/assets/edusobre.jpg';
+import institucionalImg from '@/assets/institucional.jpg';
 
 export default function Sobre() {
   const values = [
@@ -26,7 +28,7 @@ export default function Sobre() {
     {
       name: "Prof. Eduardo Sampaio",
       role: "Fundador e Diretor",
-      image: '/src/assets/edusobre.jpg',
+      image: eduSobreImg,
       bio: "Prof. de Português e Redação com mais de 20 anos de experiência em preparação para concursos."
     },
   ];
@@ -55,7 +57,7 @@ export default function Sobre() {
             <div>
               <div className="aspect-square rounded-2xl overflow-hidden">
                 <img
-                  src={'/src/assets/institucional.jpg'}
+                  src={institucionalImg}
                   alt="Institucional"
                   className="w-full h-full object-cover"
                 />

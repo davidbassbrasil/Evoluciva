@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, GraduationCap, User, ShoppingCart, Moon, Sun, LogOut, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { getSettings, getCurrentUser, getCart, logout } from '@/lib/localStorage';
 import { SiteSettings } from '@/types';
+import logoPng from '@/assets/logo_.png';
 
 export function FloatingNav() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -22,6 +23,7 @@ export function FloatingNav() {
   const [cartCount, setCartCount] = useState(0);
   const currentUser = getCurrentUser();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -84,7 +86,7 @@ export function FloatingNav() {
   };
 
   const scrollToSection = (sectionId: string) => {
-    const isOnHomePage = window.location.pathname === '/';
+    const isOnHomePage = location.pathname === '/';
     
     const scrollToElement = () => {
       const element = document.querySelector(sectionId);
@@ -133,7 +135,7 @@ export function FloatingNav() {
     >
       <div className="flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
-          <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
+          <img src={logoPng} alt="Logo" className="h-10" />
         </Link>
 
         {/* Desktop Menu */}

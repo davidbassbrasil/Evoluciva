@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
 import supabase from '@/lib/supabaseClient';
+import logoPng from '@/assets/logo_.png';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', permission: 'dashboard' },
@@ -136,7 +137,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-border">
             <Link to="/admin" className="flex items-center gap-2">
-              <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
+              <img src={logoPng} alt="Logo" className="h-10" />
             </Link>
           </div>
 

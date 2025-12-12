@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, Play, Clock, BookOpen, Settings, LogOut, ChevronRight, CheckCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import logoPng from '@/assets/logo_.png';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { getCurrentUser, logout } from '@/lib/localStorage';
@@ -232,7 +233,7 @@ export default function AlunoDashboard() {
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
         <div className="w-full md:container md:mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
+            <img src={logoPng} alt="Logo" className="h-10" />
           </Link>
 
           <div className="flex items-center gap-4">

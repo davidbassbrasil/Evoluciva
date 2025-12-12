@@ -15,6 +15,7 @@ import { getCurrentUser, getCart, clearCart, purchaseCourse, setCurrentUser, add
 import { asaasService } from '@/lib/asaasService';
 import type { Turma, User } from '@/types';
 import supabase from '@/lib/supabaseClient';
+import logoPng from '@/assets/logo_.png';
 
 export default function Checkout() {
   const { courseId } = useParams();
@@ -873,7 +874,7 @@ export default function Checkout() {
             </Link>
             <div className="h-6 w-px bg-border" />
             <Link to="/" className="flex items-center gap-2">
-              <img src={'/src/assets/logo_.png'} alt="Logo" className="h-8" />
+              <img src={logoPng} alt="Logo" className="h-8" />
               <span className="font-bold"></span>
             </Link>
           </div>

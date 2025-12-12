@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 export function TestimonialsSection() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -35,6 +36,26 @@ export function TestimonialsSection() {
       });
     }
   };
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || testimonials.length === 0) return;
+
+    const handleScroll = () => {
+      const cardWidth = 420; // mesmo valor do scrollAmount
+      const index = Math.round(container.scrollLeft / cardWidth);
+      const clampedIndex = Math.min(testimonials.length - 1, Math.max(0, index));
+      setCurrentIndex(clampedIndex);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    // inicializa posição
+    handleScroll();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [testimonials.length]);
 
   if (testimonials.length === 0) return null;
 
@@ -112,6 +133,31 @@ export function TestimonialsSection() {
               </div>
             ))}
           </div>
+
+          {testimonials.length > 1 && (
+            <div className="mt-2 flex items-center justify-center gap-1 md:hidden">
+              <div className="flex gap-1">
+                {testimonials.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (!scrollRef.current) return;
+                      const cardWidth = 420;
+                      scrollRef.current.scrollTo({
+                        left: cardWidth * index,
+                        behavior: 'smooth',
+                      });
+                    }}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      index === currentIndex
+                        ? 'bg-primary w-4'
+                        : 'bg-primary/30'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>

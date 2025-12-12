@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { GraduationCap, Instagram, Facebook, Youtube, Mail, Phone, MapPin, MessageCircle } from 'lucide-react';
 import { getSettings } from '@/lib/localStorage';
 import { SiteSettings } from '@/types';
+import logoPng from '@/assets/logo_.png';
 
 export function Footer() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
@@ -20,7 +21,7 @@ export function Footer() {
           {/* Logo & About */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <img src={"/src/assets/logo_.png"} alt="Logo" className="h-10" />
+              <img src={logoPng} alt="Logo" className="h-10" />
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed">
               Venha com a gente!

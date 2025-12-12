@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getUserByEmail as localGetUserByEmail } from '@/lib/localStorage';
 import { signIn, signUp } from '@/lib/supabaseAuth';
 import { User as UserType } from '@/types';
+import logoPng from '@/assets/logo_.png';
 
 const ESTADOS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -137,7 +138,7 @@ export default function AlunoLogin() {
         <div className="bg-card rounded-3xl shadow-2xl p-8 border border-border/50 max-h-[90vh] overflow-y-auto">
           {/* Logo */}
           <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-            <img src={"/src/assets/logo_.png"} alt="Logo" className="h-12" />
+            <img src={logoPng} alt="Logo" className="h-12" />
           </Link>
 
           {/* Title */}
