@@ -9,6 +9,9 @@ import supabase from '@/lib/supabaseClient';
 import { Turma } from '@/types';
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
+import { SEOHead } from '@/components/SEOHead';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { getOrganizationSchema, injectSchema } from '@/lib/schemas';
 
 export default function Cursos() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
@@ -124,15 +127,34 @@ export default function Cursos() {
 
   const states = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE', 'CE', 'DF', 'GO', 'PA', 'AM', 'MT', 'MS', 'ES', 'PB', 'RN', 'AL', 'SE', 'PI', 'MA', 'TO', 'RO', 'AC', 'AP', 'RR'];
 
+  useEffect(() => {
+    // Injetar schema de organização
+    const schema = getOrganizationSchema();
+    injectSchema(schema);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background">
-      <FloatingNav />
-      
-      <main className="pt-32 pb-20">
-        <div className="container mx-auto px-4">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-3xl md:text-5xl font-bold mb-4">
+    <>
+      <SEOHead
+        title="Cursos para Concursos Públicos | Presencial e Online"
+        description="Encontre o curso preparatório ideal para seu concurso. Opções presenciais em Maceió/AL e online para todo Brasil. Áreas: Educação, Saúde, Legislação e mais. Prepare-se com quem aprova há 20 anos!"
+        keywords="cursos para concursos públicos, cursos online concursos, preparatório concursos, cursos presenciais Maceió, curso professor, curso técnico enfermagem"
+        type="website"
+      />
+      <div className="min-h-screen bg-background">
+        <FloatingNav />
+        
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-4">
+            {/* Breadcrumb */}
+            <Breadcrumb 
+              items={[{ label: 'Cursos' }]}
+              className="mb-8"
+            />
+
+            {/* Header */}
+            <div className="text-center mb-12">
+              <h1 className="text-3xl md:text-5xl font-bold mb-4">
               Todos os <span className="gradient-text">Nossos Cursos</span>
             </h1>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
@@ -211,6 +233,7 @@ export default function Cursos() {
                     <img
                       src={turma.course?.image}
                       alt={turma.course?.title}
+                      loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     {turma.status === 'coming_soon' && (
@@ -294,6 +317,7 @@ export default function Cursos() {
       </main>
 
       <Footer />
-    </div>
+      </div>
+    </>
   );
 }

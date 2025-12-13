@@ -6,6 +6,7 @@ Este guia mostra a **ordem correta** de execução dos scripts SQL para replicar
 
 1. Projeto criado no Supabase
 2. Acesso ao SQL Editor: `https://supabase.com/dashboard/project/[SEU_PROJECT_ID]/sql/new`
+3. Configurar Storage Bucket "images" (para banners, professores, etc.)
 
 ---
 
@@ -13,47 +14,54 @@ Este guia mostra a **ordem correta** de execução dos scripts SQL para replicar
 
 ### **FASE 1: ESTRUTURA BÁSICA** (Core do Sistema)
 
-Execute na ordem:
+Execute na ordem **EXATA**:
 
-#### 1.1 Perfis de Usuário
+#### 1.1 Perfis de Usuário (OBRIGATÓRIO - PRIMEIRO)
 ```sql
 -- Arquivo: profiles_and_policies.sql
 -- Cria tabela profiles com campos básicos e políticas RLS iniciais
+-- Roles: student, admin
+-- IMPORTANTE: Todas as outras tabelas dependem de profiles
 ```
 
-#### 1.2 Sistema de Cursos
+#### 1.2 Sistema de Cursos (CORE)
 ```sql
 -- Arquivo: supabase-schema-courses.sql
--- Cria tabelas: courses, course_tags
--- IMPORTANTE: Este é o core do sistema de cursos
+-- Cria tabela: courses
+-- IMPORTANTE: Base para turmas, professores, tags, upsells
+-- Inclui: slug, display_order, active, featured
 ```
 
 #### 1.3 Sistema de Turmas
 ```sql
 -- Arquivo: turmas-schema.sql
 -- Cria tabela: turmas
--- Relaciona turmas com cursos
+-- Relaciona turmas com cursos (FK: course_id)
+-- DEPENDÊNCIA: courses
 ```
 
 #### 1.4 Sistema de Aulas
 ```sql
 -- Arquivo: lessons-schema.sql
 -- Cria tabela: lessons
--- Relaciona aulas com turmas
+-- Relaciona aulas com turmas (FK: turma_id)
+-- DEPENDÊNCIA: turmas
 ```
 
 #### 1.5 Progresso do Aluno
 ```sql
 -- Arquivo: lesson-progress-schema.sql
 -- Cria tabela: lesson_progress
--- Rastreia progresso de cada aluno em cada aula
+-- Rastreia progresso: profiles + lessons
+-- DEPENDÊNCIAS: profiles, lessons
 ```
 
 #### 1.6 Sistema de Matrículas
 ```sql
 -- Arquivo: enrollments-schema.sql
 -- Cria tabela: enrollments
--- Registra matrículas de alunos em turmas
+-- Registra matrículas: profiles + turmas
+-- DEPENDÊNCIAS: profiles, turmas
 ```
 
 ---
@@ -116,36 +124,67 @@ Execute na ordem:
 #### 4.1 Banners
 ```sql
 -- Arquivo: banners_table.sql
--- Cria tabela: banners
--- Para banners da página inicial
+-- Cria tabela: banners (ordem, imagem, link)
+-- DEPENDÊNCIA: Storage bucket "images" criado
+-- Para carrossel da página inicial
 ```
 
 #### 4.2 Professores
 ```sql
 -- Arquivo: professors_table.sql
--- Cria tabela: professors
+-- Cria tabela: professors (nome, specialty, bio, imagem)
+-- DEPENDÊNCIA: Storage bucket "images" criado
 -- Seção de professores na landing page
 ```
 
-#### 4.3 Tags
+#### 4.3 Relacionamento Professores ↔ Cursos
+```sql
+-- Arquivo: professor-courses-relationship.sql
+-- Cria tabela: professor_courses (many-to-many)
+-- Adiciona slug aos professores (/professor/slug)
+-- DEPENDÊNCIAS: professors, courses
+-- IMPORTANTE: Execute DEPOIS de professors_table.sql
+```
+
+#### 4.4 Tags
 ```sql
 -- Arquivo: tags_table.sql
--- Cria tabela: tags
+-- Cria tabela: tags (nome, cor)
 -- Tags para categorizar cursos
+-- DEPENDÊNCIA: profiles (RLS usa role)
 ```
 
-#### 4.4 Depoimentos
+#### 4.5 Relacionamento Tags ↔ Cursos
+```sql
+-- Arquivo: add-course-id-to-tags.sql
+-- Adiciona course_id na tabela tags
+-- Relaciona tags com cursos
+-- DEPENDÊNCIAS: tags, courses
+-- IMPORTANTE: Execute DEPOIS de tags_table.sql
+```
+
+#### 4.6 Upsells de Cursos
+```sql
+-- Arquivo: course-upsells-table.sql
+-- Cria tabela: course_upsells (many-to-many)
+-- Um curso pode ter outros como upsell
+-- DEPENDÊNCIAS: courses, profiles
+```
+
+#### 4.7 Depoimentos
 ```sql
 -- Arquivo: testimonials_table.sql
--- Cria tabela: testimonials
+-- Cria tabela: testimonials (nome, curso, texto, avatar, rating)
 -- Depoimentos de alunos
+-- DEPENDÊNCIA: profiles (RLS usa role)
 ```
 
-#### 4.5 FAQ
+#### 4.8 FAQ
 ```sql
 -- Arquivo: faq_table.sql
--- Cria tabela: faq
+-- Cria tabela: faq (pergunta, resposta, ordem)
 -- Perguntas frequentes
+-- DEPENDÊNCIA: profiles (RLS usa role)
 ```
 
 ---
@@ -155,117 +194,163 @@ Execute na ordem:
 #### 5.1 Permissões e Moderadores
 ```sql
 -- Arquivo: permissions-system.sql
+-- Adiciona role 'moderator' ao enum user_role
 -- Cria tabela: user_permissions
--- Função: has_permission()
+-- Cria função: has_permission()
 -- Sistema completo de permissões por módulo
+-- DEPENDÊNCIA: profiles
+-- IMPORTANTE: Adiciona novo role ao sistema
 ```
 
 ---
 
-### **FASE 6: AJUSTES E CORREÇÕES**
+### **FASE 6: AJUSTES E MELHORIAS** (Executar em Ordem)
 
-Execute **APENAS** os que forem necessários após testar o sistema:
+#### 6.1 Ajustes Críticos de Tipos de Dados
+```sql
+-- Arquivo: fix-webhook-logs-event-type.sql
+-- ⚠️ CRÍTICO: Altera event_type de ENUM para TEXT
+-- Evita erros com eventos novos do Asaas
+-- DEPENDÊNCIA: webhook_logs
+-- Execute SEMPRE após webhook-logs-table.sql
+```
 
-#### 6.1 Ajustes de ENUM e Tipos
+```sql
+-- Arquivo: fix-asaas-payment-id-nullable.sql
+-- Torna asaas_payment_id nullable
+-- Permite criar payment antes de enviar ao Asaas
+-- DEPENDÊNCIA: payments
+```
+
+#### 6.2 Melhorias de ENUM (Opcionais, mas recomendados)
 ```sql
 -- Arquivo: add-cancelled-to-payment-status.sql
--- Adiciona status 'CANCELLED' ao enum de payment_status
-
--- Arquivo: add-cash-to-payment-type-enum.sql
--- Adiciona 'CASH' ao enum de billing_type
-
--- Arquivo: add-credit-card-installment-to-enum.sql
--- Adiciona 'CREDIT_CARD_INSTALLMENT' ao enum de billing_type
-
--- Arquivo: fix-webhook-logs-event-type.sql
--- IMPORTANTE: Altera event_type de ENUM para TEXT (evita erros com eventos novos)
-
--- Arquivo: fix-asaas-payment-id-nullable.sql
--- Torna asaas_payment_id nullable (permite criar payment antes de enviar ao Asaas)
+-- Adiciona status 'CANCELLED' ao enum payment_status
+-- Para pagamentos cancelados pelo usuário
+-- DEPENDÊNCIA: payments
 ```
 
-#### 6.2 Ajustes de RLS e Políticas
+```sql
+-- Arquivo: add-cash-to-payment-type-enum.sql
+-- Adiciona 'CASH' ao enum billing_type
+-- Para pagamentos em dinheiro (presencial)
+-- DEPENDÊNCIA: payments
+```
+
+```sql
+-- Arquivo: add-credit-card-installment-to-enum.sql
+-- Adiciona 'CREDIT_CARD_INSTALLMENT' ao enum billing_type
+-- Para parcelamento no cartão
+-- DEPENDÊNCIA: payments
+```
+
+```sql
+-- Arquivo: add-start-date-to-turmas.sql
+-- Adiciona campo start_date na tabela turmas
+-- Para controlar data de início das aulas
+-- DEPENDÊNCIA: turmas
+```
+
+#### 6.3 Ajustes de RLS e Políticas (IMPORTANTE)
 ```sql
 -- Arquivo: fix-rls-recursion.sql
--- Cria função is_admin_or_moderator() para evitar recursão em RLS
-
--- Arquivo: moderator-read-policies.sql
--- Políticas de leitura para moderadores
-
--- Arquivo: fix-admin-payments-policies.sql
--- Ajusta políticas de payments para admin
-
--- Arquivo: fix-payments-policies-completo.sql
--- Políticas completas de payments (usar se houver problemas)
-
--- Arquivo: fix-public-tables-policies.sql
--- Políticas para tabelas públicas (banners, faq, etc)
-
--- Arquivo: fix-storage-policies.sql
--- Políticas para storage (upload de arquivos)
+-- ⚠️ IMPORTANTE: Cria função is_admin_or_moderator()
+-- Evita recursão infinita em políticas RLS
+-- DEPENDÊNCIA: profiles
+-- Execute ANTES de adicionar políticas complexas
 ```
 
-#### 6.3 Ajustes de Profiles e Roles
 ```sql
--- Arquivo: fix-moderator-enum.sql
--- Adiciona 'moderator' ao enum de roles
+-- Arquivo: moderator-read-policies.sql
+-- Políticas de leitura para moderadores
+-- Permite moderadores visualizarem dados
+-- DEPENDÊNCIAS: profiles, permissions-system.sql
+```
 
--- Arquivo: fix-moderator-role-FINAL.sql
--- Fix completo para adicionar moderator (usar este se o anterior não funcionar)
+```sql
+-- Arquivo: fix-admin-payments-policies.sql
+-- Ajusta políticas de payments para admin
+-- DEPENDÊNCIA: payments, fix-rls-recursion.sql
+```
 
--- Arquivo: FIX-AGORA-VAI.sql
--- Fix alternativo para moderator role (último recurso)
+```sql
+-- Arquivo: fix-public-tables-policies.sql
+-- Políticas para tabelas públicas (banners, faq, testimonials, etc)
+-- Permite leitura pública, escrita apenas admin/moderador
+-- DEPENDÊNCIAS: banners, faq, testimonials, tags, professors
+```
 
--- Arquivo: profiles_update_policy.sql
--- Política para update de profiles
-
--- Arquivo: profiles_admin_policy.sql
--- Políticas específicas de admin para profiles
+```sql
+-- Arquivo: fix-storage-policies.sql
+-- Políticas para Supabase Storage
+-- Permite admin/moderador fazer upload
+-- Permite leitura pública de imagens
+-- DEPENDÊNCIA: Storage bucket "images" criado
 ```
 
 ---
 
 ## 🎬 ORDEM RESUMIDA (SETUP RÁPIDO)
 
-Para setup limpo do zero:
+Para setup limpo do zero, execute **NESTA ORDEM EXATA**:
 
 ```sql
--- 1. CORE
-1. profiles_and_policies.sql
-2. supabase-schema-courses.sql
-3. turmas-schema.sql
-4. lessons-schema.sql
-5. lesson-progress-schema.sql
-6. enrollments-schema.sql
+-- ==========================================
+-- 1. ESTRUTURA BASE (OBRIGATÓRIO, NESTA ORDEM)
+-- ==========================================
+1. profiles_and_policies.sql              -- PRIMEIRO! Tudo depende dele
+2. supabase-schema-courses.sql            -- Depende: profiles
+3. turmas-schema.sql                       -- Depende: courses
+4. lessons-schema.sql                      -- Depende: turmas
+5. lesson-progress-schema.sql              -- Depende: profiles + lessons
+6. enrollments-schema.sql                  -- Depende: profiles + turmas
 
--- 2. PAGAMENTOS
-7. payments-table.sql
-8. payments-policies.sql
-9. enrollments-payments-integration.sql
-10. refunds-table.sql
-11. refunds-policies.sql
+-- ==========================================
+-- 2. SISTEMA DE PAGAMENTOS (OBRIGATÓRIO, NESTA ORDEM)
+-- ==========================================
+7. payments-table.sql                      -- Depende: profiles + enrollments
+8. payments-policies.sql                   -- Depende: payments
+9. enrollments-payments-integration.sql    -- Depende: enrollments + payments
+10. refunds-table.sql                      -- Depende: payments
+11. refunds-policies.sql                   -- Depende: refunds
 
--- 3. WEBHOOK
-12. webhook-logs-table.sql
-13. webhook-logs-policies.sql
+-- ==========================================
+-- 3. WEBHOOKS (OBRIGATÓRIO)
+-- ==========================================
+12. webhook-logs-table.sql                 -- Depende: payments
+13. webhook-logs-policies.sql              -- Depende: webhook_logs
+14. fix-webhook-logs-event-type.sql        -- ⚠️ CRÍTICO: Execute imediatamente após item 13
 
--- 4. LANDING PAGE
-14. banners_table.sql
-15. professors_table.sql
-16. tags_table.sql
-17. testimonials_table.sql
-18. faq_table.sql
+-- ==========================================
+-- 4. CONTEÚDO E LANDING PAGE (OBRIGATÓRIO, NESTA ORDEM)
+-- ==========================================
+15. banners_table.sql                      -- Depende: profiles (RLS)
+16. testimonials_table.sql                 -- Depende: profiles (RLS)
+17. faq_table.sql                          -- Depende: profiles (RLS)
+18. professors_table.sql                   -- Depende: profiles (RLS)
+19. professor-courses-relationship.sql     -- Depende: professors + courses
+20. tags_table.sql                         -- Depende: profiles (RLS)
+21. add-course-id-to-tags.sql              -- Depende: tags + courses
+22. course-upsells-table.sql               -- Depende: courses
 
--- 5. PERMISSÕES
-19. permissions-system.sql
+-- ==========================================
+-- 5. PERMISSÕES E ROLES (OBRIGATÓRIO)
+-- ==========================================
+23. permissions-system.sql                 -- Depende: profiles (adiciona 'moderator' role)
 
--- 6. FIXES ESSENCIAIS (execute depois de testar)
-20. fix-webhook-logs-event-type.sql  -- IMPORTANTE: Mudar event_type para TEXT
-21. add-cancelled-to-payment-status.sql
-22. add-cash-to-payment-type-enum.sql
-23. add-credit-card-installment-to-enum.sql
-24. fix-rls-recursion.sql  -- IMPORTANTE: Evita recursão em RLS
-25. moderator-read-policies.sql
+-- ==========================================
+-- 6. AJUSTES E MELHORIAS (RECOMENDADO)
+-- ==========================================
+24. fix-asaas-payment-id-nullable.sql      -- Depende: payments
+25. add-cancelled-to-payment-status.sql    -- Depende: payments (adiciona status CANCELLED)
+26. add-cash-to-payment-type-enum.sql      -- Depende: payments (adiciona billing_type CASH)
+27. add-credit-card-installment-to-enum.sql-- Depende: payments (adiciona CREDIT_CARD_INSTALLMENT)
+28. add-start-date-to-turmas.sql           -- Depende: turmas (adiciona campo start_date)
+29. fix-rls-recursion.sql                  -- ⚠️ IMPORTANTE: Evita recursão RLS
+30. moderator-read-policies.sql            -- Depende: profiles + permissions-system.sql
+31. fix-admin-payments-policies.sql        -- Depende: payments + fix-rls-recursion.sql
+32. fix-public-tables-policies.sql         -- Depende: banners, faq, testimonials, tags, professors
+33. fix-storage-policies.sql               -- Necessário criar bucket "images" antes
 ```
 
 ---

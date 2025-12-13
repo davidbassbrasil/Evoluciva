@@ -4,8 +4,25 @@ import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import eduSobreImg from '@/assets/edusobre.jpg';
 import institucionalImg from '@/assets/institucional.jpg';
+import { SEOHead } from '@/components/SEOHead';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { getOrganizationSchema, getPersonSchema, injectSchema } from '@/lib/schemas';
+import { useEffect } from 'react';
 
 export default function Sobre() {
+  useEffect(() => {
+    // Injetar schemas
+    const orgSchema = getOrganizationSchema();
+    injectSchema(orgSchema);
+
+    const personSchema = getPersonSchema(
+      'Eduardo Sampaio',
+      'Professor de Português e Redação',
+      'Professor com mais de 20 anos de experiência em preparação para concursos públicos',
+      eduSobreImg
+    );
+    injectSchema(personSchema);
+  }, []);
   const values = [
     {
       icon: Target,
@@ -34,11 +51,24 @@ export default function Sobre() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <FloatingNav />
-      
-      <main className="pt-32 pb-20">
-        <section className="container mx-auto px-4 mb-20">
+    <>
+      <SEOHead
+        title="Sobre o Edu Sampaio Cursos | 20 Anos de Tradição em Alagoas"
+        description="Conheça a história do Edu Sampaio Cursos. Mais de 20 anos preparando aprovados em concursos públicos em Maceió/AL e todo Brasil. Fundado pelo Prof. Eduardo Sampaio, especialista em Português. Nossa Academia de Vencedores."
+        keywords="Edu Sampaio Cursos, Eduardo Sampaio, sobre Edu Sampaio, história Eduardo Sampaio, preparatório Maceió, cursos concursos Alagoas"
+        type="website"
+      />
+      <div className="min-h-screen bg-background">
+        <FloatingNav />
+        
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-4 mb-8">
+            <Breadcrumb 
+              items={[{ label: 'Sobre' }]}
+            />
+          </div>
+
+          <section className="container mx-auto px-4 mb-20">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-3xl md:text-4xl font-bold mb-6">Nossa História</h1>
@@ -121,6 +151,7 @@ export default function Sobre() {
       </main>
 
       <Footer />
-    </div>
+      </div>
+    </>
   );
 }

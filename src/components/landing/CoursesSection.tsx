@@ -166,6 +166,7 @@ export function CoursesSection() {
                     <img
                       src={turma.course?.image}
                       alt={turma.course?.title}
+                      loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     {turma.status === 'coming_soon' && (

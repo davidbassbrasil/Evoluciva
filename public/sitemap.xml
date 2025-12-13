@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  
+  <!-- HOME -->
+  <url>
+    <loc>https://www.edusampaio.com.br/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <!-- PÁGINAS PRINCIPAIS -->
+  <url>
+    <loc>https://www.edusampaio.com.br/cursos</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://www.edusampaio.com.br/sobre</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <!-- PÁGINAS INSTITUCIONAIS -->
+  <url>
+    <loc>https://www.edusampaio.com.br/termos-de-uso</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://www.edusampaio.com.br/politica-de-privacidade</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://www.edusampaio.com.br/lgpd</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://www.edusampaio.com.br/politica-de-reembolso</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://www.edusampaio.com.br/#/links</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+    <lastmod>2025-12-13</lastmod>
+  </url>
+
+  <!-- 
+    ⚠️ IMPORTANTE: HashRouter (#) tem limitações para SEO
+    URLs com # não são indexadas corretamente pelo Google
+    Considere usar BrowserRouter ou SSR/SSG para melhor SEO
+    
+    Adicione URLs de cursos individuais aqui:
+    Exemplo:
+    <url>
+      <loc>https://www.edusampaio.com.br/#/curso/professor-educacao-infantil</loc>
+      <changefreq>monthly</changefreq>
+      <priority>0.8</priority>
+      <lastmod>2025-12-13</lastmod>
+    </url>
+  -->
+
+</urlset>

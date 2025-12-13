@@ -105,6 +105,7 @@ export function TestimonialsSection() {
                     <img
                       src={testimonial.avatar}
                       alt={testimonial.name}
+                      loading="lazy"
                       className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
                     />
                     <div>

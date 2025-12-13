@@ -1,12 +1,19 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Home, ArrowLeft } from 'lucide-react';
+import { SEOHead } from '@/components/SEOHead';
 
 const NotFound = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-background">
+    <>
+      <SEOHead
+        title="404 - Página Não Encontrada"
+        description="A página que você está procurando não existe ou foi movida. Volte para a página inicial do Eduardo Sampaio Cursos."
+        noindex={true}
+      />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-secondary/20 to-background">
       <div className="text-center px-4 max-w-2xl">
         <div className="mb-8">
           <h1 className="text-9xl font-bold gradient-text mb-4">404</h1>
@@ -46,7 +53,8 @@ const NotFound = () => {
           <p>Precisa de ajuda? Entre em contato conosco.</p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

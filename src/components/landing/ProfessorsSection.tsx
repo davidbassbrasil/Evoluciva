@@ -140,6 +140,7 @@ export function ProfessorsSection() {
                       <img
                         src={professor.image}
                         alt={professor.name}
+                        loading="lazy"
                         className="w-full h-full object-cover rounded-full border-4 border-card shadow-lg"
                       />
                     </div>

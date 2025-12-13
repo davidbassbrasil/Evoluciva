@@ -1,8 +1,25 @@
+# Edu Sampaio Cursos - Robots.txt
+# Arquivo de controle de crawling para motores de busca
+
+# ⚠️ IMPORTANTE: Site usa HashRouter (#)
+# URLs com hash (#) não são rastreadas normalmente por bots
+# Google pode indexar, mas com limitações
+
+# Permitir todos os bots principais
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://www.edusampaio.com.br/sitemap.xml
+
+# Bots específicos
 User-agent: Googlebot
 Allow: /
+Crawl-delay: 0
 
 User-agent: Bingbot
 Allow: /
+Crawl-delay: 0
 
 User-agent: Twitterbot
 Allow: /
@@ -10,5 +27,9 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
-Allow: /
+# Controlar bots de ferramentas SEO
+User-agent: AhrefsBot
+Crawl-delay: 30
+
+User-agent: SemrushBot
+Crawl-delay: 30

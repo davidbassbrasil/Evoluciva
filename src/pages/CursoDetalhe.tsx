@@ -12,6 +12,9 @@ import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
 import ReactMarkdown from 'react-markdown';
+import { SEOHead, seoHelpers } from '@/components/SEOHead';
+import { Breadcrumb } from '@/components/Breadcrumb';
+import { getCourseSchema, getOrganizationSchema, injectSchema } from '@/lib/schemas';
 
 interface Professor {
   id: string;
@@ -204,13 +207,63 @@ export default function CursoDetalhe() {
     { title: "Módulo 5 - Revisão Final", lessons: 6 },
   ];
 
+  // SEO - Schemas e meta tags
+  useEffect(() => {
+    if (course && selectedTurma) {
+      // Injetar schemas
+      const orgSchema = getOrganizationSchema();
+      injectSchema(orgSchema);
+
+      const courseSchema = getCourseSchema({
+        id: course.id,
+        name: course.title,
+        description: course.description,
+        price: selectedTurma.price,
+        priceOnline: selectedTurma.price_online,
+        instructor: course.instructor,
+        image: course.image,
+        estado: course.estado
+      });
+      injectSchema(courseSchema);
+    }
+  }, [course, selectedTurma]);
+
+  // Gerar título e descrição SEO
+  const seoTitle = course 
+    ? seoHelpers.generateTitle(`${course.title} | Preparatório para Concurso`) 
+    : 'Curso';
+  const seoDescription = course
+    ? seoHelpers.generateDescription(`${course.description} Curso preparatório completo com ${course.instructor}. Modalidades presencial em Maceió e online para todo Brasil. Matricule-se agora!`)
+    : 'Curso preparatório para concursos públicos';
+
   return (
-    <div className="min-h-screen bg-background">
-      <FloatingNav />
-      
-      <main className="pt-32 pb-20">
-        <div className="container mx-auto px-4">
-          <Link to="/cursos" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-8 transition-colors">
+    <>
+      {course && (
+        <SEOHead
+          title={seoTitle}
+          description={seoDescription}
+          keywords={`${course.title}, curso ${course.title}, preparatório ${course.title}, ${course.instructor}, curso concurso ${course.estado || 'Brasil'}`}
+          image={course.image}
+          type="website"
+        />
+      )}
+      <div className="min-h-screen bg-background">
+        <FloatingNav />
+        
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-4">
+            {/* Breadcrumb */}
+            {course && (
+              <Breadcrumb 
+                items={[
+                  { label: 'Cursos', href: '/cursos' },
+                  { label: course.title }
+                ]}
+                className="mb-8"
+              />
+            )}
+
+            <Link to="/cursos" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-8 transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar para cursos
           </Link>
@@ -572,6 +625,7 @@ export default function CursoDetalhe() {
       </main>
 
       <Footer />
-    </div>
+      </div>
+    </>
   );
 }
