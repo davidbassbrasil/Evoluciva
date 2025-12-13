@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { GraduationCap, User, Mail, Lock, Eye, EyeOff, ChevronLeft, Save, Globe, MessageCircle, UserCircle, Key, Phone, Hash, MapPin, Home, Receipt, Calendar, CreditCard, DollarSign } from 'lucide-react';
+import { GraduationCap, User, Mail, Lock, Eye, EyeOff, ChevronLeft, Save, Globe, MessageCircle, UserCircle, Key, Phone, Hash, MapPin, Home, Receipt, Calendar, CreditCard, DollarSign, Package, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser, updateUser } from '@/lib/localStorage';
 import { User as UserType } from '@/types';
 import supabase from '@/lib/supabaseClient';
+import { useStudentModules, confirmModuleReceipt } from '@/lib/moduleService';
 
 const ESTADOS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -39,8 +42,10 @@ export default function AlunoConfiguracoes() {
   });
   const [payments, setPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { modules, loading: loadingModules, refetch: refetchModules } = useStudentModules();
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -100,6 +105,9 @@ export default function AlunoConfiguracoes() {
 
   useEffect(() => {
     if (activeTab === 'financeiro' && user?.id) {
+    if (activeTab === 'modulos') {
+      refetchModules();
+    }
       loadPayments();
     }
   }, [activeTab, user?.id]);
@@ -320,13 +328,32 @@ export default function AlunoConfiguracoes() {
     }
   };
 
-  if (!user) return null;
+  const handleConfirmModule = async (deliveryId: string) => {
+    try {
+      setConfirmingId(deliveryId);
+      await confirmModuleReceipt(deliveryId);
+      toast({
+        title: "Confirmação registrada",
+        description: "Você confirmou o recebimento do módulo com sucesso",
+      });
+      refetchModules();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao confirmar recebimento",
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmingId(null);
+    }
+  };
 
   const tabs = [
     { id: 'site', label: 'Site', icon: Globe },
     { id: 'contato', label: 'Suporte', icon: MessageCircle },
     { id: 'dados', label: 'Meus Dados', icon: UserCircle },
     { id: 'senha', label: 'Senha', icon: Key },
+    { id: 'modulos', label: 'Módulos', icon: Package },
     { id: 'financeiro', label: 'Financeiro', icon: Receipt },
   ];
 
@@ -362,10 +389,11 @@ export default function AlunoConfiguracoes() {
 
           {/* Custom Responsive Tabs */}
           <div className="w-full mb-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
+                
                 return (
                   <button
                     key={tab.id}
@@ -622,7 +650,7 @@ export default function AlunoConfiguracoes() {
                         id="confirmPassword"
                         type={showPassword ? 'text' : 'password'}
                         className="pl-10 h-12 rounded-xl"
-                        placeholder="Confirme a nova senha"
+                        placeholder="Confirme sua nova senha"
                         value={passwordData.confirmPassword}
                         onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                       />
@@ -635,10 +663,127 @@ export default function AlunoConfiguracoes() {
                   disabled={loading}
                   className="w-full h-12 gradient-bg text-primary-foreground shadow-glow hover:opacity-90 font-semibold text-lg rounded-xl"
                 >
-                  <Key className="w-5 h-5 mr-2" />
-                  {loading ? 'Alterando...' : 'Alterar Senha'}
+                  <Save className="w-5 h-5 mr-2" />
+                  {loading ? 'Salvando...' : 'Alterar Senha'}
                 </Button>
               </form>
+            )}
+
+            {activeTab === 'modulos' && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <Package className="w-6 h-6 text-primary" />
+                  <h3 className="text-lg font-semibold">Meus Módulos</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Confirme o recebimento dos módulos que foram entregues para você
+                  </p>
+                </div>
+
+                {loadingModules ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="h-12 w-12 animate-spin text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Carregando módulos...</p>
+                  </div>
+                ) : modules.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-xl font-bold mb-2">Nenhum módulo entregue</h3>
+                    <p className="text-muted-foreground">
+                      Quando módulos forem entregues para você, eles aparecerão aqui
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-auto rounded-xl border border-border/50">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/30">
+                            <TableHead>Módulo</TableHead>
+                            <TableHead>Turma</TableHead>
+                            <TableHead>Curso</TableHead>
+                            <TableHead className="text-center">Data de Entrega</TableHead>
+                            <TableHead className="text-center">Status</TableHead>
+                            <TableHead className="text-center">Ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {modules.map((delivery) => (
+                            <TableRow key={delivery.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <Package className="h-4 w-4 text-muted-foreground" />
+                                  {delivery.module.name}
+                                </div>
+                              </TableCell>
+                              <TableCell>{delivery.module.turma?.name || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {delivery.module.turma?.course?.title || "-"}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {new Date(delivery.delivered_at).toLocaleDateString("pt-BR")}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {delivery.student_confirmed ? (
+                                  <Badge className="bg-green-500">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Confirmado
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-orange-600 border-orange-600">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Aguardando
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {delivery.student_confirmed ? (
+                                  <div className="text-sm text-muted-foreground">
+                                    Confirmado em{" "}
+                                    {new Date(delivery.confirmed_at).toLocaleDateString("pt-BR")}
+                                  </div>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleConfirmModule(delivery.id)}
+                                    disabled={confirmingId === delivery.id}
+                                  >
+                                    {confirmingId === delivery.id ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Confirmando...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        Confirmar
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <h4 className="font-medium text-blue-900 dark:text-blue-100">
+                            Por que confirmar o recebimento?
+                          </h4>
+                          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                            A confirmação garante que você recebeu o material físico do módulo.
+                            Isso ajuda a administração a ter controle sobre as entregas realizadas.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {activeTab === 'financeiro' && (

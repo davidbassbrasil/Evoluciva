@@ -137,3 +137,56 @@ export interface SiteSettings {
     whatsapp: string;
   };
 }
+
+export interface Module {
+  id: string;
+  name: string;
+  turma_id: string;
+  stock_quantity: number;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  // Campos extras do JOIN/View
+  turma_name?: string;
+  course_id?: string;
+  course_title?: string;
+  delivered_count?: number;
+  available_count?: number;
+  total_students?: number;
+  turma?: Turma;
+}
+
+export interface ModuleDelivery {
+  id: string;
+  module_id: string;
+  student_id: string;
+  delivered_at: string;
+  delivered_by: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Campos extras do JOIN
+  module?: Module;
+  student?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  delivered_by_user?: {
+    id: string;
+    full_name: string;
+  };
+}
+
+export interface ModuleWithDeliveries extends Module {
+  deliveries?: ModuleDelivery[];
+  students_with_delivery?: {
+    student_id: string;
+    student_name: string;
+    student_email: string;
+    delivered: boolean;
+    delivered_at?: string;
+    delivery_id?: string;
+  }[];
+}

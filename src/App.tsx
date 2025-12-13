@@ -14,6 +14,7 @@ import AlunoLogin from "./pages/aluno/Login";
 import AlunoDashboard from "./pages/aluno/Dashboard";
 import CursoPlayer from "./pages/aluno/CursoPlayer";
 import AlunoConfiguracoes from "./pages/aluno/Configuracoes";
+import AlunoModulos from "./pages/aluno/Modulos";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Checkout from "./pages/Checkout";
@@ -27,6 +28,7 @@ import { AdminBanners, AdminProfessores, AdminTags, AdminDepoimentos, AdminFAQ }
 import AdminAlunos from "./pages/admin/Alunos";
 import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminAcesso from "./pages/admin/Acesso";
+import AdminModulos from "./pages/admin/Modulos";
 import CheckoutCart from "./pages/CheckoutCart";
 import Cart from "./pages/Cart";
 import TermosDeUso from "./pages/TermosDeUso";
@@ -76,6 +78,7 @@ const App = () => {
           <Route path="/aluno/dashboard" element={<AlunoDashboard />} />
           <Route path="/aluno/curso/:turmaId" element={<CursoPlayer />} />
           <Route path="/aluno/configuracoes" element={<AlunoConfiguracoes />} />
+          <Route path="/aluno/modulos" element={<AlunoModulos />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/cursos" element={<AdminCursos />} />
@@ -89,6 +92,7 @@ const App = () => {
           <Route path="/admin/alunos" element={<AdminAlunos />} />
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
           <Route path="/admin/acesso" element={<AdminAcesso />} />
+          <Route path="/admin/modulos" element={<AdminModulos />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

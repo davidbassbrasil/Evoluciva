@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle, Shield } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle, Shield, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ const menuItems = [
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', permission: 'faq' },
   { icon: Users, label: 'Alunos', path: '/admin/alunos', permission: 'alunos' },
   { icon: Wallet, label: 'Financeiro', path: '/admin/financeiro', permission: 'financeiro' },
+  { icon: Package, label: 'Módulos', path: '/admin/modulos', permission: 'modulos' },
   { icon: Shield, label: 'Acesso', path: '/admin/acesso', permission: 'admin_only' },
 ];
 
