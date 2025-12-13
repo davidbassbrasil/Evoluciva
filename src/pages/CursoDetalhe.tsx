@@ -558,7 +558,7 @@ export default function CursoDetalhe() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle className="w-4 h-4 text-primary" />
-                    Garantia de 7 dias
+                    Garantia de 15 dias
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle className="w-4 h-4 text-primary" />
