@@ -348,83 +348,87 @@ export default function AdminDashboard() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Courses */}
-        <div className="lg:col-span-2 bg-card rounded-2xl p-6 border border-border/50">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Cursos Recentes</h2>
-            <Link to="/admin/cursos">
-              <Button variant="ghost" size="sm">
-                Ver todos <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {recentCoursesAll.slice(coursePage * COURSES_PER_PAGE, (coursePage + 1) * COURSES_PER_PAGE).map((course) => {
-              const displayPrice = (coursePrices && coursePrices[course.id]) ? coursePrices[course.id] : Number(course.price || 0);
-              const category = (course.category || '').toString();
-              const showCategory = category && category.trim().length > 0 && ['geral', 'general'].indexOf(category.trim().toLowerCase()) === -1;
-              return (
-                <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors">
-                  <img src={course.image} alt={course.title} className="w-16 h-12 rounded-lg object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium truncate">{course.title}</h3>
-                    <p className="text-sm text-muted-foreground">{course.instructor}</p>
-                  </div>
-                  {showCategory && <Badge variant="secondary">{course.category}</Badge>}
-                  <span className="font-bold text-primary">R$ {displayPrice}</span>
-                </div>
-              );
-            })}
-            {recentCoursesAll.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">Nenhum curso cadastrado</p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">Página {coursePage + 1} de {Math.max(1, Math.ceil(recentCoursesAll.length / COURSES_PER_PAGE))}</div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCoursePage(p => Math.max(0, p - 1))} disabled={coursePage === 0}>Anterior</Button>
-              <Button variant="outline" size="sm" onClick={() => setCoursePage(p => p + 1)} disabled={(coursePage + 1) * COURSES_PER_PAGE >= recentCoursesAll.length}>Próxima</Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="space-y-6">
-          {/* Recent Users */}
-          <div className="bg-card rounded-2xl p-6 border border-border/50">
+        {hasPermission('cursos') && (
+          <div className="lg:col-span-2 bg-card rounded-2xl p-6 border border-border/50">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Novos Alunos</h2>
-              <Link to="/admin/alunos">
-                <Button variant="ghost" size="sm">Ver todos</Button>
+              <h2 className="text-xl font-bold">Cursos Recentes</h2>
+              <Link to="/admin/cursos">
+                <Button variant="ghost" size="sm">
+                  Ver todos <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
               </Link>
             </div>
+
             <div className="space-y-3">
-              {recentUsersAll.slice(userPage * USERS_PER_PAGE, (userPage + 1) * USERS_PER_PAGE).map((user) => (
-                <div key={user.id} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold text-sm">
-                    {user.name.charAt(0)}
+              {recentCoursesAll.slice(coursePage * COURSES_PER_PAGE, (coursePage + 1) * COURSES_PER_PAGE).map((course) => {
+                const displayPrice = (coursePrices && coursePrices[course.id]) ? coursePrices[course.id] : Number(course.price || 0);
+                const category = (course.category || '').toString();
+                const showCategory = category && category.trim().length > 0 && ['geral', 'general'].indexOf(category.trim().toLowerCase()) === -1;
+                return (
+                  <div key={course.id} className="flex items-center gap-4 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors">
+                    <img src={course.image} alt={course.title} className="w-16 h-12 rounded-lg object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium truncate">{course.title}</h3>
+                      <p className="text-sm text-muted-foreground">{course.instructor}</p>
+                    </div>
+                    {showCategory && <Badge variant="secondary">{course.category}</Badge>}
+                    <span className="font-bold text-primary">R$ {displayPrice}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{user.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                  </div>
-                  <Badge variant="outline">{user.purchasedCourses.length} cursos</Badge>
-                </div>
-              ))}
-              {recentUsersAll.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">Nenhum aluno cadastrado</p>
+                );
+              })}
+              {recentCoursesAll.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">Nenhum curso cadastrado</p>
               )}
             </div>
 
             <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">Página {userPage + 1} de {Math.max(1, Math.ceil(recentUsersAll.length / USERS_PER_PAGE))}</div>
+              <div className="text-sm text-muted-foreground">Página {coursePage + 1} de {Math.max(1, Math.ceil(recentCoursesAll.length / COURSES_PER_PAGE))}</div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.max(0, p - 1))} disabled={userPage === 0}>Anterior</Button>
-                <Button variant="outline" size="sm" onClick={() => setUserPage(p => p + 1)} disabled={(userPage + 1) * USERS_PER_PAGE >= recentUsersAll.length}>Próxima</Button>
+                <Button variant="outline" size="sm" onClick={() => setCoursePage(p => Math.max(0, p - 1))} disabled={coursePage === 0}>Anterior</Button>
+                <Button variant="outline" size="sm" onClick={() => setCoursePage(p => p + 1)} disabled={(coursePage + 1) * COURSES_PER_PAGE >= recentCoursesAll.length}>Próxima</Button>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Recent Activity */}
+        <div className="space-y-6">
+          {/* Recent Users */}
+          {hasPermission('alunos') && (
+            <div className="bg-card rounded-2xl p-6 border border-border/50">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold">Novos Alunos</h2>
+                <Link to="/admin/alunos">
+                  <Button variant="ghost" size="sm">Ver todos</Button>
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {recentUsersAll.slice(userPage * USERS_PER_PAGE, (userPage + 1) * USERS_PER_PAGE).map((user) => (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold text-sm">
+                      {user.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                    <Badge variant="outline">{user.purchasedCourses.length} cursos</Badge>
+                  </div>
+                ))}
+                {recentUsersAll.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum aluno cadastrado</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">Página {userPage + 1} de {Math.max(1, Math.ceil(recentUsersAll.length / USERS_PER_PAGE))}</div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setUserPage(p => Math.max(0, p - 1))} disabled={userPage === 0}>Anterior</Button>
+                  <Button variant="outline" size="sm" onClick={() => setUserPage(p => p + 1)} disabled={(userPage + 1) * USERS_PER_PAGE >= recentUsersAll.length}>Próxima</Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Recent Testimonials */}
           {hasPermission('depoimentos') && (
