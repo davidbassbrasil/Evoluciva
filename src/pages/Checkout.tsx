@@ -1024,20 +1024,7 @@ export default function Checkout() {
                   </div>
                 </div>
               )}
-
-              {asaasService.isSandbox() && (
-                <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
-                  <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <strong>Modo Sandbox:</strong> Este é um ambiente de testes. Nenhuma cobrança real será feita. <br/>
-                    Número: 5162 3060 0829 8829
-Validade: 12/30
-CVV: 318
-Nome: APROVADO (ou qualquer nome)
-                  </div>
-                </div>
-              )}
-
+              
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Dados pessoais */}
                 <div className="space-y-4">
