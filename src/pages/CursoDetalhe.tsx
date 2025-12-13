@@ -38,6 +38,27 @@ export default function CursoDetalhe() {
   const [enrolledTurmaId, setEnrolledTurmaId] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // SEO - Schemas e meta tags (DEVE estar ANTES de qualquer return condicional!)
+  useEffect(() => {
+    if (course && selectedTurma) {
+      // Injetar schemas
+      const orgSchema = getOrganizationSchema();
+      injectSchema(orgSchema);
+
+      const courseSchema = getCourseSchema({
+        id: course.id,
+        name: course.title,
+        description: course.description,
+        price: selectedTurma.price,
+        priceOnline: selectedTurma.price_online,
+        instructor: course.instructor,
+        image: course.image,
+        estado: course.estado
+      });
+      injectSchema(courseSchema);
+    }
+  }, [course, selectedTurma]);
+
   useEffect(() => {
     const loadCourse = async () => {
       if (!supabase) {
@@ -206,27 +227,6 @@ export default function CursoDetalhe() {
     { title: "Módulo 4 - Exercícios e Simulados", lessons: 15 },
     { title: "Módulo 5 - Revisão Final", lessons: 6 },
   ];
-
-  // SEO - Schemas e meta tags
-  useEffect(() => {
-    if (course && selectedTurma) {
-      // Injetar schemas
-      const orgSchema = getOrganizationSchema();
-      injectSchema(orgSchema);
-
-      const courseSchema = getCourseSchema({
-        id: course.id,
-        name: course.title,
-        description: course.description,
-        price: selectedTurma.price,
-        priceOnline: selectedTurma.price_online,
-        instructor: course.instructor,
-        image: course.image,
-        estado: course.estado
-      });
-      injectSchema(courseSchema);
-    }
-  }, [course, selectedTurma]);
 
   // Gerar título e descrição SEO
   const seoTitle = course 
