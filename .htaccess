@@ -9,17 +9,25 @@
   # Não redirecionar se for o próprio index.html
   RewriteRule ^index\.html$ - [L]
 
+  # IMPORTANTE: Não redirecionar assets (CSS, JS, imagens, fontes, etc)
+  # Regra explícita para arquivos de assets
+  RewriteCond %{REQUEST_URI} ^/assets/ [NC]
+  RewriteRule ^ - [L]
+
+  # Não redirecionar arquivos com extensões específicas
+  RewriteCond %{REQUEST_URI} \.(css|js|json|jpg|jpeg|png|gif|svg|webp|ico|woff|woff2|ttf|eot|map)$ [NC]
+  RewriteRule ^ - [L]
+
   # Não redirecionar se o arquivo existir (JS, CSS, imagens, etc)
-  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
   
   # Não redirecionar se for um diretório
-  RewriteCond %{REQUEST_FILENAME} !-d
-  
-  # Não redirecionar se for um link simbólico
-  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
 
-  # Redirecionar tudo para index.html
-  RewriteRule . /index.html [L]
+  # Redirecionar tudo para index.html (rotas da SPA)
+  RewriteRule ^ /index.html [L]
 </IfModule>
 
 # ========================================
@@ -74,6 +82,37 @@ Options -Indexes
   
   # Referrer Policy
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ========================================
+# MIME TYPES CORRETOS
+# ========================================
+<IfModule mod_mime.c>
+  # JavaScript
+  AddType application/javascript .js
+  AddType application/javascript .mjs
+  
+  # CSS
+  AddType text/css .css
+  
+  # JSON
+  AddType application/json .json
+  
+  # Fontes
+  AddType font/woff .woff
+  AddType font/woff2 .woff2
+  AddType application/font-woff .woff
+  AddType application/font-woff2 .woff2
+  AddType application/vnd.ms-fontobject .eot
+  AddType font/ttf .ttf
+  AddType font/opentype .otf
+  
+  # Imagens
+  AddType image/svg+xml .svg
+  AddType image/webp .webp
+  
+  # Source maps
+  AddType application/json .map
 </IfModule>
 
 # Força HTTPS (descomente se tiver certificado SSL)
