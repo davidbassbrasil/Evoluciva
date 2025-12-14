@@ -873,7 +873,7 @@ export function AdminProfessores() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="courses">Cursos Vinculados (Opcional)</Label>
+                <Label htmlFor="courses">Cursos Vinculados</Label>
                 <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
                   {courses.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nenhum curso ativo disponível</p>
