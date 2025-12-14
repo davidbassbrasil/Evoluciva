@@ -132,9 +132,9 @@ export default function ProfessorDetalhe() {
 
                 {/* Informações */}
                 <div className="flex-1">
-                  {professor.name !== 'Eduardo Sampaio' && (
+                  {professor.name !== '' && (
                     <Badge className="mb-4 bg-primary/10 text-primary hover:bg-primary/20">
-                      Professor
+                      
                     </Badge>
                   )}
                   <h1 className="text-3xl md:text-4xl font-bold mb-3">
