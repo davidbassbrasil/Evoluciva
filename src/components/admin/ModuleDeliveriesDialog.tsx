@@ -209,7 +209,7 @@ export default function ModuleDeliveriesDialog({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome ou email..."
+              placeholder="Buscar por nome ou CPF..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -228,7 +228,7 @@ export default function ModuleDeliveriesDialog({
                   <TableRow>
                     <TableHead className="w-12">#</TableHead>
                     <TableHead>Aluno</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>CPF</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-center">Data Entrega</TableHead>
                     <TableHead className="text-center w-24">Ação</TableHead>

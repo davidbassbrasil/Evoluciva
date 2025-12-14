@@ -50,9 +50,15 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
     const totalCount = students.length;
     const percentage = Math.round((deliveredCount/totalCount)*100);
     
+    const normalize = (v: string) => (v || '').toString().replace(/\D/g, '').toLowerCase();
+    const normalizeName = (v: string) => (v || '').toString().toLowerCase()
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+    const termNorm = normalize(studentSearchTerm);
+    const termNameNorm = normalizeName(studentSearchTerm);
+
     const dataToExport = students.filter(student => 
-      student.student_name.toLowerCase().includes(studentSearchTerm.toLowerCase()) || 
-      student.student_email.toLowerCase().includes(studentSearchTerm.toLowerCase())
+      normalizeName(student.student_name).includes(termNameNorm) || 
+      normalize(student.student_cpf).includes(termNorm)
     );
     
     // Create printable HTML
@@ -112,7 +118,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
             <tr>
               <th>#</th>
               <th>Nome</th>
-              <th>Email</th>
+              <th>CPF</th>
               <th>Status</th>
               <th>Data de Entrega</th>
             </tr>
@@ -122,7 +128,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
               <tr>
                 <td>${i + 1}</td>
                 <td>${student.student_name}</td>
-                <td>${student.student_email}</td>
+                <td>${student.student_cpf || '-'}</td>
                 <td>
                   <span class="badge ${student.delivered ? 'delivered' : 'pending'}">
                     ${student.delivered ? 'Entregue' : 'Pendente'}
@@ -148,10 +154,29 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
     }
   };
 
-  const filteredStudents = students.filter(student => 
-    student.student_name.toLowerCase().includes(studentSearchTerm.toLowerCase()) || 
-    student.student_email.toLowerCase().includes(studentSearchTerm.toLowerCase())
-  );
+  const normalize = (v: string) => (v || '').toString().replace(/\D/g, '').toLowerCase();
+  const normalizeName = (v: string) => (v || '').toString().toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+  const termNorm = normalize(studentSearchTerm);
+  const termNameNorm = normalizeName(studentSearchTerm);
+
+  const filteredStudents = students.filter(student => {
+    const nomeNormalizado = normalizeName(student.student_name);
+    const cpfNormalizado = normalize(student.student_cpf);
+    
+    // Buscar por nome (apenas se termNameNorm não estiver vazio)
+    const nameMatch = termNameNorm.length > 0 && nomeNormalizado.includes(termNameNorm);
+    
+    // Buscar por CPF (apenas se termNorm não estiver vazio)
+    const cpfMatch = termNorm.length > 0 && cpfNormalizado.includes(termNorm);
+    
+    // Se o termo de busca estiver vazio, retorna true (mostra todos)
+    if (studentSearchTerm.trim() === '') {
+      return true;
+    }
+    
+    return nameMatch || cpfMatch;
+  });
 
   const deliveredCount = students.filter(s => s.delivered).length;
   const percentage = students.length > 0 ? Math.round((deliveredCount / students.length) * 100) : 0;
@@ -210,7 +235,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Buscar por nome ou email..." 
+              placeholder="Buscar por nome ou CPF..." 
               value={studentSearchTerm} 
               onChange={(e) => setStudentSearchTerm(e.target.value)} 
               className="pl-9" 
@@ -229,7 +254,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Aluno</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>CPF</TableHead>
                       <TableHead className="text-center">Status</TableHead>
                       <TableHead className="text-center">Confirmação Aluno</TableHead>
                       <TableHead className="text-center">Data Entrega</TableHead>
@@ -250,7 +275,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                           <TableRow key={student.student_id}>
                             <TableCell className="font-medium">{globalIndex + 1}</TableCell>
                             <TableCell className="font-medium">{student.student_name}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{student.student_email}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{student.student_cpf || '-'}</TableCell>
                             <TableCell className="text-center">
                               {student.delivered ? (
                                 <Badge className="bg-green-500">

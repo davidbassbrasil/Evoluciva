@@ -25,7 +25,7 @@ interface Permission {
 }
 
 const AVAILABLE_PERMISSIONS: Permission[] = [
-  { key: 'dashboard', label: 'Dashboard', description: 'Visualizar estatísticas gerais' },
+  { key: 'dashboard', label: 'Dashboard', description: 'Estatísticas gerais - O botão não pode ser desabilitado!' },
   { key: 'banners', label: 'Banners', description: 'Gerenciar banners da home' },
   { key: 'cursos', label: 'Cursos', description: 'Criar e editar cursos' },
   { key: 'turmas', label: 'Turmas', description: 'Gerenciar turmas e matrículas' },
@@ -102,7 +102,13 @@ export default function AdminAcesso() {
         .eq('user_id', userId);
 
       if (error) throw error;
-      setUserPermissions(data?.map(p => p.permission_key) || []);
+      // Garantir que a permissão 'dashboard' sempre exista e fique marcada
+      const perms = data?.map(p => p.permission_key) || [];
+      if (!perms.includes('dashboard')) {
+        // Coloca 'dashboard' no começo para consistência
+        perms.unshift('dashboard');
+      }
+      setUserPermissions(perms);
     } catch (error) {
       console.error('Erro ao carregar permissões:', error);
       toast({
@@ -599,8 +605,9 @@ export default function AdminAcesso() {
                     </div>
                   </div>
                   <Switch
-                    checked={userPermissions.includes(permission.key)}
-                    onCheckedChange={() => togglePermission(permission.key)}
+                        checked={userPermissions.includes(permission.key) || permission.key === 'dashboard'}
+                        onCheckedChange={() => { if (permission.key !== 'dashboard') togglePermission(permission.key); }}
+                        disabled={permission.key === 'dashboard'}
                   />
                 </div>
               ))}

@@ -132,7 +132,8 @@ export function useStudentsWithModuleStatus(turmaId: string, moduleId?: string) 
           profiles:profile_id (
             id,
             full_name,
-            email
+            email,
+            cpf
           )
         `)
         .eq('turma_id', turmaId)
@@ -145,6 +146,7 @@ export function useStudentsWithModuleStatus(turmaId: string, moduleId?: string) 
           student_id: e.profiles.id,
           student_name: e.profiles.full_name,
           student_email: e.profiles.email,
+          student_cpf: e.profiles.cpf || '',
           delivered: false,
         })) || []);
         setLoading(false);
@@ -171,6 +173,7 @@ export function useStudentsWithModuleStatus(turmaId: string, moduleId?: string) 
           student_id: e.profiles.id,
           student_name: e.profiles.full_name,
           student_email: e.profiles.email,
+          student_cpf: e.profiles.cpf || '',
           delivered: !!delivery,
           delivered_at: delivery?.delivered_at,
           delivery_id: delivery?.id,
