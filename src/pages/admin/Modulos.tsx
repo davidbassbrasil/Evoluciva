@@ -26,7 +26,10 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
   const STUDENTS_PER_PAGE = 20;
   const { students, loading: loadingStudents, refetch: refetchStudents } = useStudentsWithModuleStatus(module.turma_id || "", module.id);
 
-  const handleToggleDelivery = async (studentId: string) => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; name?: string } | null>(null);
+
+  const handleToggleDelivery = async (studentId: string, studentName?: string) => {
     try {
       setProcessingIds(prev => new Set(prev).add(studentId));
       const result = await toggleDelivery(module.id, studentId);
@@ -314,7 +317,14 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                               <div className="flex justify-center">
                                 <Checkbox 
                                   checked={student.delivered} 
-                                  onCheckedChange={() => handleToggleDelivery(student.student_id)} 
+                                  onCheckedChange={() => {
+                                    if (student.delivered) {
+                                      setConfirmTarget({ id: student.student_id, name: student.student_name });
+                                      setConfirmOpen(true);
+                                    } else {
+                                      handleToggleDelivery(student.student_id, student.student_name);
+                                    }
+                                  }}
                                   disabled={processingIds.has(student.student_id)} 
                                 />
                               </div>
@@ -365,6 +375,31 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
           )}
         </div>
       </TableCell>
+      {/* Confirmation dialog for unchecking delivery */}
+      <AlertDialog open={confirmOpen} onOpenChange={(open) => { if (!open) { setConfirmTarget(null); } setConfirmOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar alteração</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desmarcar a entrega do módulo: "{module.name}" de {confirmTarget?.name || 'este aluno'}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmTarget) return;
+                await handleToggleDelivery(confirmTarget.id, confirmTarget.name);
+                setConfirmOpen(false);
+                setConfirmTarget(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TableRow>
   );
 }
@@ -474,7 +509,7 @@ export default function AdminModulos() {
           <Card className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total em Estoque</p>
+                <p className="text-sm text-muted-foreground">Registro em Estoque</p>
                 {loadingStats ? (
                   <Loader2 className="h-6 w-6 animate-spin mt-2" />
                 ) : (
