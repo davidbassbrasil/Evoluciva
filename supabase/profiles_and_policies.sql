@@ -102,13 +102,14 @@ CREATE POLICY profiles_select_admins_or_own
 
 -- INSERT: allow creation of a profile for the authenticated user (id must equal auth.uid())
 -- Simplified to avoid circular dependency on first insert
+-- Also allow server-side inserts from Supabase service_role (needed for auth triggers)
 DROP POLICY IF EXISTS profiles_insert_admin_or_self ON public.profiles;
 CREATE POLICY profiles_insert_admin_or_self
   ON public.profiles
   FOR INSERT
   WITH CHECK (
-    -- Users can insert their own profile
-    id = auth.uid()
+    -- Users can insert their own profile OR server-side service role can insert
+    id = auth.uid() OR auth.role() = 'service_role'
   );
 
 -- UPDATE: allow users to update their own profile with role protection

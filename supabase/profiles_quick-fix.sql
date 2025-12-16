@@ -91,7 +91,7 @@ CREATE POLICY profiles_insert_admin_or_self
   ON public.profiles
   FOR INSERT
   WITH CHECK (
-    id = auth.uid()
+    id = auth.uid() OR auth.role() = 'service_role'
   );
 
 DROP POLICY IF EXISTS profiles_update_admin_or_own ON public.profiles;

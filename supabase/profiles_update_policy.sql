@@ -38,8 +38,8 @@ CREATE POLICY profiles_insert_admin_or_self
   ON public.profiles
   FOR INSERT
   WITH CHECK (
-    -- allow inserting a profile for yourself or allow admins to insert
-    (auth.uid() IS NOT NULL AND id = auth.uid()) OR public.is_admin(auth.uid())
+    -- allow inserting a profile for yourself, allow admins, or allow service role (server-side triggers)
+    (auth.uid() IS NOT NULL AND id = auth.uid()) OR public.is_admin(auth.uid()) OR auth.role() = 'service_role'
   );
 
 DROP POLICY IF EXISTS profiles_delete_admin_or_own ON public.profiles;

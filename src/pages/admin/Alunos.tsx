@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { adminCreateUserViaEdgeFunction } from '@/lib/createUserEdgeFunction';
 
 // Types
 interface Profile {
@@ -324,54 +325,46 @@ export default function AdminAlunos() {
 
     setLoading(true);
     try {
-      // Check if email already exists in profiles
-      const { data: existing } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', profileForm.email)
-        .single();
-      
-      if (existing) {
-        toast({ title: 'Erro', description: 'Email já cadastrado', variant: 'destructive' });
-        setLoading(false);
+      // ✨ NOVO: Criar usuário via Edge Function usando Admin SDK
+      // Isso cria o usuário no Auth e no profiles sem afetar a sessão do admin
+      const response = await adminCreateUserViaEdgeFunction({
+        email: profileForm.email,
+        password: profileForm.password,
+        full_name: profileForm.full_name,
+        role: 'student',
+        whatsapp: profileForm.whatsapp,
+        cpf: profileForm.cpf,
+        address: profileForm.address,
+        number: profileForm.number,
+        complement: profileForm.complement,
+        state: profileForm.state,
+        city: profileForm.city,
+        cep: profileForm.cep,
+      });
+
+      if (!response.success) {
+        toast({ 
+          title: 'Erro ao cadastrar aluno', 
+          description: response.error || 'Não foi possível criar a conta.', 
+          variant: 'destructive' 
+        });
         return;
       }
 
-      // NOTE: using `supabase.auth.signUp()` here would switch the client session
-      // to the newly created user (so the admin would be signed out). Instead
-      // insert a `profiles` row directly and keep the admin session intact.
-      // Creating an Auth user should be done server-side with a service role key
-      // or via the Supabase dashboard.
-      const newId = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
-        ? (crypto as any).randomUUID()
-        : Math.random().toString(36).slice(2, 10);
-
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: newId,
-          full_name: profileForm.full_name,
-          email: profileForm.email,
-          whatsapp: profileForm.whatsapp || null,
-          cpf: profileForm.cpf || null,
-          address: profileForm.address || null,
-          number: profileForm.number || null,
-          complement: profileForm.complement || null,
-          state: profileForm.state || null,
-          city: profileForm.city || null,
-          cep: profileForm.cep || null,
-          role: 'student',
-          created_at: new Date().toISOString(),
-        });
-
-      if (insertError) throw insertError;
-
-      toast({ title: 'Sucesso', description: 'Aluno cadastrado com sucesso. Um email de confirmação foi enviado.' });
+      toast({ 
+        title: 'Sucesso', 
+        description: 'Aluno cadastrado com sucesso no Auth e no banco de dados!' 
+      });
+      
       setOpenAddStudent(false);
       setProfileForm(initialProfileForm);
       loadProfiles();
     } catch (error: any) {
-      toast({ title: 'Erro ao cadastrar aluno', description: error.message, variant: 'destructive' });
+      toast({ 
+        title: 'Erro ao cadastrar aluno', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }

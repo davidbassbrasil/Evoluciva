@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getUserByEmail as localGetUserByEmail } from '@/lib/localStorage';
-import { signIn, signUp } from '@/lib/supabaseAuth';
+import { getUserByEmail as localGetUserByEmail, setCurrentUser, addUser } from '@/lib/localStorage';
+import { signIn } from '@/lib/supabaseAuth';
+import { signUpViaEdgeFunction } from '@/lib/createUserEdgeFunction';
 import { User as UserType } from '@/types';
 import logoPng from '@/assets/logo_.png';
 
@@ -96,12 +97,12 @@ export default function AlunoLogin() {
           return;
         }
 
-        // Prefer Supabase signUp; fallback to local check if needed
-        const existingLocal = localGetUserByEmail(formData.email);
-        if (existingLocal) {
-          toast({ title: 'Email já cadastrado', description: 'Tente fazer login ou use outro email.', variant: 'destructive' });
-        } else {
-          const profileFields = {
+        // ✨ NOVO: Criar usuário via Edge Function (não afeta sessão)
+        const response = await signUpViaEdgeFunction(
+          formData.name,
+          formData.email,
+          formData.password,
+          {
             whatsapp: formData.whatsapp,
             cpf: formData.cpf,
             address: formData.endereco,
@@ -110,12 +111,40 @@ export default function AlunoLogin() {
             state: formData.estado,
             city: formData.cidade,
             cep: formData.cep,
+          }
+        );
+
+        if (!response.success) {
+          toast({ 
+            title: 'Erro no cadastro', 
+            description: response.error || 'Não foi possível criar a conta.', 
+            variant: 'destructive' 
+          });
+        } else {
+          toast({ 
+            title: 'Cadastro realizado!', 
+            description: 'Sua conta foi criada. Faça login para continuar.' 
+          });
+          
+          // Criar objeto de usuário local para compatibilidade
+          const newUser: UserType = {
+            id: response.user?.id || '',
+            name: formData.name,
+            email: formData.email,
+            password: '',
+            avatar: '',
+            purchasedCourses: [],
+            progress: {},
+            createdAt: new Date().toISOString(),
           };
-          const { user, error } = await signUp(formData.name, formData.email, formData.password, profileFields);
-          if (error) {
-            toast({ title: 'Erro no cadastro', description: (error && (error.message || String(error))) || 'Não foi possível criar a conta.', variant: 'destructive' });
-          } else {
-            toast({ title: 'Cadastro realizado!', description: 'Sua conta foi criada com sucesso.' });
+          
+          // Adicionar ao localStorage
+          addUser(newUser);
+          
+          // Fazer login automático após cadastro
+          const { user, error: loginError } = await signIn(formData.email, formData.password);
+          
+          if (!loginError && user) {
             // Redirect to saved path or dashboard
             const returnPath = sessionStorage.getItem('checkout_return_path');
             if (returnPath) {
@@ -124,6 +153,14 @@ export default function AlunoLogin() {
             } else {
               navigate('/aluno/dashboard');
             }
+          } else {
+            // Se falhar login automático, redirecionar para tela de login
+            setIsLogin(true);
+            toast({ 
+              title: 'Faça login', 
+              description: 'Cadastro concluído. Por favor, faça login.',
+              variant: 'default' 
+            });
           }
         }
       }
