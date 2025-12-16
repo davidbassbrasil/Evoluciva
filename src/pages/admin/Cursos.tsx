@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2, BookOpen, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import supabase from '@/lib/supabaseClient';
@@ -17,6 +17,7 @@ interface CourseForm {
   full_description: string;
   whats_included: string;
   instructor: string;
+  link_video?: string;
   professor_ids: string[];
   upsell_course_ids: string[];
   estado: string;
@@ -42,6 +43,7 @@ export default function AdminCursos() {
     full_description: '', 
     whats_included: '', 
     instructor: '', 
+    link_video: '',
     professor_ids: [],
     upsell_course_ids: [],
     estado: '', 
@@ -180,6 +182,7 @@ export default function AdminCursos() {
         full_description: form.full_description,
         whats_included: form.whats_included,
         instructor: form.instructor,
+        link_video: form.link_video || null,
         estado: form.estado,
         active: form.active,
         display_order: parseInt(form.display_order) || 0,
@@ -220,49 +223,141 @@ export default function AdminCursos() {
       }
 
       // Atualizar relacionamentos com professores
-      // 1. Deletar relacionamentos antigos
-      await supabase
+      // 1. Deletar relacionamentos antigos (capturar resposta para detectar falhas RLS)
+      // 1.a - obter estado antes da deleção
+      const { data: preDeleteProfLinks, error: preProfErr } = await supabase
         .from('professor_courses')
-        .delete()
+        .select('professor_id')
         .eq('course_id', courseIdToUpdate);
 
-      // 2. Inserir novos relacionamentos
+      if (preProfErr) {
+        console.error('Erro ao buscar relacionamentos de professores (pre-delete):', preProfErr);
+      }
+
+      // 1.b - executar a deleção e pedir para retornar as linhas deletadas
+      const { data: delProfData, error: delProfError } = await supabase
+        .from('professor_courses')
+        .delete()
+        .eq('course_id', courseIdToUpdate)
+        .select('professor_id');
+
+      console.debug('professor_courses preDelete count:', (preDeleteProfLinks || []).length, 'deleted count:', (delProfData || []).length, 'delError:', delProfError);
+
+      if (delProfError) {
+        console.error('Erro ao deletar relacionamentos antigos de professores:', delProfError);
+        // Informar o usuário para investigar permissões (RLS) ou usar backend
+        toast({ title: 'Erro ao atualizar vínculos de professores', description: 'Não foi possível remover vínculos antigos. Verifique as políticas RLS no Supabase ou execute esta ação no backend com service role.', variant: 'destructive' });
+      } else if ((preDeleteProfLinks || []).length > 0 && (delProfData || []).length === 0) {
+        // Se havia vínculos antes, mas a deleção não retornou linhas, informar o usuário
+        console.warn('Nenhuma linha deletada de professor_courses apesar de existirem vínculos antes do delete. Possível RLS silencioso.');
+        toast({ title: 'Falha ao remover vínculos de professores', description: 'Não foram removidos os vínculos antigos de professores — verifique políticas RLS ou execute via backend com service role.', variant: 'destructive' });
+      }
+
+      // 2. Inserir novos relacionamentos (professores)
       if (form.professor_ids.length > 0) {
-        const professorCourses = form.professor_ids.map(profId => ({
-          professor_id: profId,
-          course_id: courseIdToUpdate
-        }));
+        const uniqueProfessorIds = Array.from(new Set(form.professor_ids));
 
-        const { error: relError } = await supabase
+        // Verificar relacionamentos já existentes para evitar inserir duplicatas (proteção caso o DELETE anterior falhe por RLS)
+        const { data: existingProfLinks, error: existingProfErr } = await supabase
           .from('professor_courses')
-          .insert(professorCourses);
+          .select('professor_id')
+          .eq('course_id', courseIdToUpdate);
 
-        if (relError) {
-          console.error('Erro ao vincular professores:', relError);
+        if (existingProfErr) {
+          console.error('Erro ao checar relacionamentos de professores existentes:', existingProfErr);
+        }
+
+        const existingProfIds = (existingProfLinks || []).map((l: any) => l.professor_id);
+        const toInsertProfessorIds = uniqueProfessorIds.filter(id => !existingProfIds.includes(id));
+
+        if (toInsertProfessorIds.length > 0) {
+          const professorCourses = toInsertProfessorIds.map(profId => ({
+            professor_id: profId,
+            course_id: courseIdToUpdate
+          }));
+
+          const { error: relError } = await supabase
+            .from('professor_courses')
+            .insert(professorCourses);
+
+          if (relError) {
+            console.error('Erro ao vincular professores:', relError);
+            // For RLS issues (42501) give a clearer message to the admin
+            if (relError.code === '42501' || relError.status === 403) {
+              toast({ title: 'Permissão insuficiente', description: 'Não foi possível vincular professores: verifique as políticas RLS no Supabase ou execute esta ação no backend com service role.', variant: 'destructive' });
+            } else if (relError.code === '23505') {
+              toast({ title: 'Conflito de professor', description: 'Alguns professores já estão vinculados a este curso. Verifique os relacionamentos existentes.', variant: 'destructive' });
+            } else {
+              toast({ title: 'Erro ao vincular professores', description: relError.message || 'Verifique o console para mais detalhes', variant: 'destructive' });
+            }
+          }
         }
       }
 
       // Atualizar relacionamentos com cursos de upsell
-      // 1. Deletar relacionamentos antigos
-      await supabase
+      // 1. Deletar relacionamentos antigos (capturar resposta para detectar falhas RLS)
+      const { data: preDeleteUpsellLinks, error: preUpsellErr } = await supabase
         .from('course_upsells')
-        .delete()
+        .select('upsell_course_id')
         .eq('course_id', courseIdToUpdate);
 
-      // 2. Inserir novos relacionamentos
+      if (preUpsellErr) {
+        console.error('Erro ao buscar relacionamentos de upsells (pre-delete):', preUpsellErr);
+      }
+
+      const { data: delUpsellData, error: delUpsellError } = await supabase
+        .from('course_upsells')
+        .delete()
+        .eq('course_id', courseIdToUpdate)
+        .select('upsell_course_id');
+
+      console.debug('course_upsells preDelete count:', (preDeleteUpsellLinks || []).length, 'deleted count:', (delUpsellData || []).length, 'delError:', delUpsellError);
+
+      if (delUpsellError) {
+        console.error('Erro ao deletar relacionamentos antigos de upsells:', delUpsellError);
+        toast({ title: 'Erro ao atualizar vínculos de upsell', description: 'Não foi possível remover vínculos antigos de upsell. Verifique as políticas RLS no Supabase ou execute esta ação no backend com service role.', variant: 'destructive' });
+      } else if ((preDeleteUpsellLinks || []).length > 0 && (delUpsellData || []).length === 0) {
+        console.warn('Nenhuma linha deletada de course_upsells apesar de existirem vínculos antes do delete. Possível RLS silencioso.');
+        toast({ title: 'Falha ao remover vínculos de upsell', description: 'Não foram removidos os vínculos antigos de upsell — verifique políticas RLS ou execute via backend com service role.', variant: 'destructive' });
+      }
+
+      // 2. Inserir novos relacionamentos (upsells) - garantir ids únicos para evitar conflito
       if (form.upsell_course_ids.length > 0) {
-        const courseUpsells = form.upsell_course_ids.map((upsellId, index) => ({
-          course_id: courseIdToUpdate,
-          upsell_course_id: upsellId,
-          display_order: index
-        }));
+        const uniqueUpsellIds = Array.from(new Set(form.upsell_course_ids));
 
-        const { error: upsellError } = await supabase
+        // Verificar relacionamentos já existentes para evitar inserir duplicatas (proteção caso o DELETE anterior falhe por RLS)
+        const { data: existingUpsellLinks, error: existingUpsellErr } = await supabase
           .from('course_upsells')
-          .insert(courseUpsells);
+          .select('upsell_course_id')
+          .eq('course_id', courseIdToUpdate);
 
-        if (upsellError) {
-          console.error('Erro ao vincular cursos de upsell:', upsellError);
+        if (existingUpsellErr) {
+          console.error('Erro ao checar relacionamentos de upsells existentes:', existingUpsellErr);
+        }
+
+        const existingUpsellIds = (existingUpsellLinks || []).map((l: any) => l.upsell_course_id);
+        const toInsertUpsellIds = uniqueUpsellIds.filter(id => !existingUpsellIds.includes(id));
+
+        if (toInsertUpsellIds.length > 0) {
+          const courseUpsells = toInsertUpsellIds.map((upsellId, index) => ({
+            course_id: courseIdToUpdate,
+            upsell_course_id: upsellId,
+            display_order: index
+          }));
+
+          const { error: upsellError } = await supabase
+            .from('course_upsells')
+            .insert(courseUpsells);
+
+          if (upsellError) {
+            console.error('Erro ao vincular cursos de upsell:', upsellError);
+            if (upsellError.code === '23505') {
+              // Duplicate key (should be prevented by dedupe, but inform user)
+              toast({ title: 'Conflito de upsell', description: 'Alguns cursos já estão vinculados como upsell. Verifique os relacionamentos existentes.', variant: 'destructive' });
+            } else {
+              toast({ title: 'Erro ao vincular upsells', description: upsellError.message || 'Verifique o console para mais detalhes', variant: 'destructive' });
+            }
+          }
         }
       }
 
@@ -326,6 +421,7 @@ export default function AdminCursos() {
       title: course.title,
       description: course.description,
       full_description: course.full_description || '',
+      link_video: course.link_video || '',
       whats_included: course.whats_included || '',
       instructor: course.instructor,
       professor_ids: professorIds,
@@ -342,7 +438,7 @@ export default function AdminCursos() {
   const handleCloseDialog = () => {
     setOpen(false);
     setSelectedCourse(null);
-    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', professor_ids: [], upsell_course_ids: [], estado: '', active: true, display_order: '0' });
+    setForm({ title: '', description: '', full_description: '', whats_included: '', instructor: '', link_video: '', professor_ids: [], upsell_course_ids: [], estado: '', active: true, display_order: '0' });
     setImageFile(null);
     setImagePreview('');
   };
@@ -364,6 +460,9 @@ export default function AdminCursos() {
           <DialogContent className="w-full max-w-full sm:max-w-2xl md:max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedCourse ? 'Editar' : 'Novo'} Curso</DialogTitle>
+              <DialogDescription>
+                Formulário para {selectedCourse ? 'editar' : 'criar'} um curso. Preencha os campos abaixo e clique em "Salvar Curso".
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
               {/* Upload de Imagem */}
@@ -393,6 +492,18 @@ export default function AdminCursos() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Link do Vídeo */}
+              <div className="space-y-2">
+                <Label htmlFor="link_video">Link do Vídeo (Opcional)</Label>
+                <Input
+                  id="link_video"
+                  placeholder="https://seulinkdovideo.com/exemplo"
+                  value={form.link_video}
+                  onChange={(e) => setForm({ ...form, link_video: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Caso este campo seja preenchido, o vídeo substituirá a imagem na página de detalhes do curso.</p>
               </div>
 
               {/* Título */}

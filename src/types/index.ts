@@ -7,6 +7,7 @@ export interface Course {
   price: number;
   originalPrice: number;
   image: string;
+  link_video?: string;
   instructor: string;
   duration: string;
   lessons: number;

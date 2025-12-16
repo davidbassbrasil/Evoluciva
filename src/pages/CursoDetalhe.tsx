@@ -228,6 +228,50 @@ export default function CursoDetalhe() {
     { title: "Módulo 5 - Revisão Final", lessons: 6 },
   ];
 
+  const renderMedia = (link?: string) => {
+    if (!link) return null;
+    // YouTube
+    const yt = link.match(/(?:youtube\.com.*v=|youtu\.be\/)([\w-_-]+)/i);
+    if (yt && yt[1]) {
+      const id = yt[1];
+      return (
+        <div className="aspect-video rounded-2xl overflow-hidden">
+          <iframe
+            title="Vídeo do curso"
+            src={`https://www.youtube.com/embed/${id}`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full"
+          />
+        </div>
+      );
+    }
+
+    // Arquivo de vídeo direto (mp4/webm)
+    if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(link)) {
+      return (
+        <div className="aspect-video rounded-2xl overflow-hidden bg-black">
+          <video controls src={link} className="w-full h-full object-cover" />
+        </div>
+      );
+    }
+
+    // Fallback - tentar embutir em iframe
+    return (
+      <div className="aspect-video rounded-2xl overflow-hidden">
+        <iframe
+          title="Vídeo do curso"
+          src={link}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="w-full h-full"
+        />
+      </div>
+    );
+  };
+
   // Gerar título e descrição SEO
   const seoTitle = course 
     ? seoHelpers.generateTitle(`${course.title} | Preparatório para Concurso`) 
@@ -309,14 +353,18 @@ export default function CursoDetalhe() {
                 </div>
               )}
 
-              {/* Course Image */}
-              <div className="aspect-[3/4] rounded-2xl overflow-hidden">
-                <img 
-                  src={course.image} 
-                  alt={course.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              {/* Course Media: vídeo (se houver) ou imagem */}
+              {course.link_video ? (
+                renderMedia(course.link_video)
+              ) : (
+                <div className="aspect-[3/4] rounded-2xl overflow-hidden">
+                  <img 
+                    src={course.image} 
+                    alt={course.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
 
               {/* About Course */}
               <div className="bg-card rounded-2xl p-6 border border-border/50">
