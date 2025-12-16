@@ -361,7 +361,7 @@ export default function AdminCursos() {
               Novo Curso
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl md:max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedCourse ? 'Editar' : 'Novo'} Curso</DialogTitle>
             </DialogHeader>
@@ -369,8 +369,8 @@ export default function AdminCursos() {
               {/* Upload de Imagem */}
               <div className="space-y-2">
                 <Label>Imagem do Curso *</Label>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="flex-1 w-full">
                     <Input
                       type="file"
                       accept="image/*"
@@ -381,20 +381,17 @@ export default function AdminCursos() {
                       Formatos aceitos: JPG, PNG, WebP. Recomendado: 800x500px
                     </p>
                   </div>
-                  {imagePreview && (
-                    <div className="relative w-32 h-20 rounded-lg overflow-hidden border-2 border-border">
+                  <div className="relative w-full sm:w-32 h-48 sm:h-20 rounded-lg overflow-hidden border-2 border-border flex items-center justify-center">
+                    {imagePreview ? (
                       <img
                         src={imagePreview}
                         alt="Preview"
                         className="w-full h-full object-cover"
                       />
-                    </div>
-                  )}
-                  {!imagePreview && (
-                    <div className="w-32 h-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center">
+                    ) : (
                       <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -615,11 +612,11 @@ export default function AdminCursos() {
               </div>
 
               {/* Botões de Ação */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   onClick={handleSave}
                   disabled={uploading || !form.title.trim()}
-                  className="flex-1 gradient-bg text-primary-foreground"
+                  className="w-full sm:flex-1 gradient-bg text-primary-foreground"
                 >
                   {uploading ? (
                     <>
@@ -634,6 +631,7 @@ export default function AdminCursos() {
                   variant="outline"
                   onClick={handleCloseDialog}
                   disabled={uploading}
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
@@ -658,12 +656,12 @@ export default function AdminCursos() {
           {courses.map((course) => (
             <div
               key={course.id}
-              className="bg-card p-4 rounded-xl border flex items-center gap-4 hover:shadow-md transition-shadow"
+              className="bg-card p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center gap-4 hover:shadow-md transition-shadow"
             >
               <img
                 src={course.image || 'https://via.placeholder.com/100x60?text=Sem+Imagem'}
                 alt={course.title}
-                className="w-24 h-16 object-cover rounded-lg"
+                className="w-full md:w-24 h-48 md:h-16 object-cover rounded-lg"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -681,7 +679,7 @@ export default function AdminCursos() {
                   Ordem: {course.display_order ?? 0} • Slug: {course.slug || 'sem-slug'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-3 md:mt-0">
                 <Button
                   variant="outline"
                   size="icon"

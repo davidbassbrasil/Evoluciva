@@ -530,12 +530,12 @@ export default function Financeiro() {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-3xl font-bold">Financeiro</h1>
             <p className="text-muted-foreground">Acompanhe pagamentos, receitas e transações</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button 
               variant="outline" 
               onClick={() => {
@@ -549,7 +549,7 @@ export default function Financeiro() {
               <RefreshCw className={`w-4 h-4 mr-2 ${(loading || webhookLoading) ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
-            <Button onClick={exportToCSV} disabled={loading || filteredPayments.length === 0}>
+            <Button onClick={exportToCSV} disabled={loading || filteredPayments.length === 0} className="whitespace-nowrap">
               <Download className="w-4 h-4 mr-2" />
               Exportar CSV
             </Button>
@@ -558,7 +558,7 @@ export default function Financeiro() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-md grid-cols-1 sm:grid-cols-2">
             <TabsTrigger value="payments" className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               Pagamentos
@@ -570,79 +570,99 @@ export default function Financeiro() {
           </TabsList>
 
           <TabsContent value="payments" className="space-y-6">
+            {/* Mobile cards list for payments */}
+            <div className="md:hidden space-y-3">
+              {filteredPayments.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">{payments.length === 0 ? 'Os pagamentos aparecerão aqui quando houver vendas' : 'Tente ajustar os filtros de busca'}</div>
+              ) : (
+                filteredPayments.map((p) => (
+                  <div key={p.id} className="bg-card p-4 rounded-lg border">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</div>
+                        <div className="text-xs text-muted-foreground truncate">{p.profiles?.email || ''}</div>
+                        <div className="text-xs text-muted-foreground mt-2">{p.payment_date ? format(new Date(p.payment_date), 'dd/MM/yyyy', { locale: ptBR }) : format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-primary">{formatCurrency(Number(p.value))}</div>
+                        <div className="text-xs text-muted-foreground">{getPaymentTypeName(p.billing_type)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button className="flex-1" size="sm" onClick={() => { setSelectedPayment(p); setShowDetails(true); }}>
+                        <Eye className="w-4 h-4 mr-2" />Detalhes
+                      </Button>
+                      <Button className="flex-1" size="sm" variant="outline" onClick={() => { setSelectedPayment(p); setShowRefundDialog(true); }}>
+                        <Undo2 className="w-4 h-4 mr-2" />Estorno
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
             {/* Filtros de Data */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Filtrar por Período</CardTitle>
               </CardHeader>
               <CardContent>
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="flex gap-2">
-                <Button 
-                  variant={datePreset === 'today' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('today');
-                    applyDatePreset('today');
-                  }}
-                >
-                  Hoje
-                </Button>
-                <Button 
-                  variant={datePreset === '7days' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('7days');
-                    applyDatePreset('7days');
-                  }}
-                >
-                  7 dias
-                </Button>
-                <Button 
-                  variant={datePreset === '30days' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('30days');
-                    applyDatePreset('30days');
-                  }}
-                >
-                  30 dias
-                </Button>
-                <Button 
-                  variant={datePreset === '90days' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('90days');
-                    applyDatePreset('90days');
-                  }}
-                >
-                  90 dias
-                </Button>
-                <Button 
-                  variant={datePreset === 'month' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('month');
-                    applyDatePreset('month');
-                  }}
-                >
-                  Este Mês
-                </Button>
-                <Button 
-                  variant={datePreset === 'year' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    setDatePreset('year');
-                    applyDatePreset('year');
-                  }}
-                >
-                  Este Ano
-                </Button>
-              </div>
-              
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+              <Button 
+                variant={datePreset === 'today' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setDatePreset('today');
+                  applyDatePreset('today');
+                }}
+              >
+                Hoje
+              </Button>
+              <Button 
+                variant={datePreset === '7days' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setDatePreset('7days');
+                  applyDatePreset('7days');
+                }}
+              >
+                7 dias
+              </Button>
+              <Button 
+                variant={datePreset === '30days' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setDatePreset('30days');
+                  applyDatePreset('30days');
+                }}
+              >
+                30 dias
+              </Button>
+
+              <Button 
+                variant={datePreset === '90days' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setDatePreset('90days');
+                  applyDatePreset('90days');
+                }}
+              >
+                90 dias
+              </Button>
+
+              <Button 
+                variant={datePreset === 'year' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setDatePreset('year');
+                  applyDatePreset('year');
+                }}
+              >
+                Este Ano
+              </Button>
+
               <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="ml-auto">
+                  <Button variant="outline" size="sm" className="col-span-3 row-start-3 sm:col-span-1 sm:row-auto sm:ml-auto">
                     <CalendarIcon className="w-4 h-4 mr-2" />
                     {format(dateFrom, 'dd/MM/yyyy')} - {format(dateTo, 'dd/MM/yyyy')}
                   </Button>
@@ -863,7 +883,8 @@ export default function Financeiro() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              /* Desktop/tablet table - hidden on small screens */
+              <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -972,13 +993,13 @@ export default function Financeiro() {
 
         {/* Modal de Detalhes */}
         <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes do Pagamento</DialogTitle>
             </DialogHeader>
             {selectedPayment && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">ID Asaas</p>
                     <p className="font-mono text-sm">{selectedPayment.asaas_payment_id}</p>
@@ -1097,7 +1118,7 @@ export default function Financeiro() {
 
         {/* Modal de Estorno */}
         <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="w-full max-w-full sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Solicitar Estorno</DialogTitle>
             </DialogHeader>
@@ -1148,7 +1169,7 @@ export default function Financeiro() {
                   />
                 </div>
 
-                <div className="flex gap-2 pt-4">
+                <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1158,14 +1179,14 @@ export default function Financeiro() {
                       setRefundDescription('');
                     }}
                     disabled={processingRefund}
-                    className="flex-1"
+                    className="w-full sm:w-auto"
                   >
                     Cancelar
                   </Button>
                   <Button
                     onClick={handleRefund}
                     disabled={processingRefund}
-                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700"
                   >
                     {processingRefund ? (
                       <>
@@ -1236,7 +1257,7 @@ export default function Financeiro() {
                 </div>
 
                 {/* Tabela Webhook Logs */}
-                {webhookLoading ? (
+                  {webhookLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                   </div>
@@ -1251,8 +1272,35 @@ export default function Financeiro() {
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
+                  <>
+                    {/* Mobile cards */}
+                    <div className="md:hidden space-y-3">
+                      {filteredWebhookLogs.map(log => (
+                        <div key={log.id} className="bg-card p-3 rounded-lg border">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-mono text-xs">{format(new Date(log.created_at), "dd/MM/yy HH:mm:ss", { locale: ptBR })}</div>
+                              <div className="mt-1">
+                                <Badge variant="outline" className="font-mono text-xs">{log.event_type}</Badge>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm">{log.asaas_payment_id || '-'}</div>
+                              <div className="text-xs text-muted-foreground mt-1">{log.source_ip || '-'}</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <Button className="flex-1" size="sm" onClick={() => { setSelectedWebhookLog(log); setShowWebhookDetails(true); }}>
+                              <Eye className="w-4 h-4 mr-2" />Ver
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Data/Hora</TableHead>
@@ -1318,6 +1366,7 @@ export default function Financeiro() {
                       </TableBody>
                     </Table>
                   </div>
+                    </>
                 )}
               </CardContent>
             </Card>
@@ -1326,13 +1375,13 @@ export default function Financeiro() {
 
         {/* Dialog de Detalhes do Webhook */}
         <Dialog open={showWebhookDetails} onOpenChange={setShowWebhookDetails}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes do Webhook</DialogTitle>
             </DialogHeader>
             {selectedWebhookLog && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Log ID</p>
                     <p className="font-mono text-sm">{selectedWebhookLog.id}</p>

@@ -1133,21 +1133,21 @@ export default function AdminAlunos() {
             }}
           >
             <DialogTrigger asChild>
-              <Button className="gradient-bg">
+              <Button className="gradient-bg mt-3 sm:mt-0">
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Aluno
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="w-full max-w-full sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Cadastrar Novo Aluno</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 pb-6">
                 {renderStudentFormFields(false)}
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpenAddStudent(false)}>Cancelar</Button>
-                <Button onClick={handleAddStudent} disabled={loading}>
+              <DialogFooter className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
+                <Button variant="outline" onClick={() => setOpenAddStudent(false)} className="w-full sm:w-auto">Cancelar</Button>
+                <Button onClick={handleAddStudent} disabled={loading} className="w-full sm:w-auto">
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                   Cadastrar
                 </Button>
@@ -1198,9 +1198,9 @@ export default function AdminAlunos() {
               className="pl-10"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Select value={filterTurma} onValueChange={setFilterTurma}>
-              <SelectTrigger className="w-[250px]">
+              <SelectTrigger className="w-full md:w-[250px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Filtrar por turma" />
               </SelectTrigger>
@@ -1213,11 +1213,11 @@ export default function AdminAlunos() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={exportToCSV}>
+            <Button variant="outline" onClick={exportToCSV} className="whitespace-nowrap">
               <Download className="w-4 h-4 mr-2" />
               CSV
             </Button>
-            <Button variant="outline" onClick={exportToPDF}>
+            <Button variant="outline" onClick={exportToPDF} className="whitespace-nowrap">
               <FileText className="w-4 h-4 mr-2" />
               PDF
             </Button>
@@ -1246,8 +1246,70 @@ export default function AdminAlunos() {
         )}
 
 
-        {/* Students Table */}
-        <div className="border rounded-lg overflow-hidden">
+        {/* Mobile: Students Cards (hidden on md+) */}
+        <div className="md:hidden space-y-3">
+          {filteredProfiles.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">{searchTerm || filterTurma !== 'all' ? 'Nenhum aluno encontrado com os filtros aplicados' : 'Nenhum aluno cadastrado'}</div>
+          ) : (
+            filteredProfiles.map((profile) => {
+              const profileEnrollments = getEnrollmentsForProfile(profile.id);
+              return (
+                <div key={profile.id} className="bg-card p-4 rounded-lg border">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{profile.full_name || '-'}</div>
+                      <div className="text-sm text-muted-foreground truncate flex items-center gap-2">
+                        <Mail className="w-3 h-3" />
+                        <span className="truncate">{profile.email}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => openFinanceiroView(profile)} title="Financeiro">
+                        <DollarSign className="w-4 h-4 text-blue-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => openEnroll(profile)} title="Matricular">
+                        <UserPlus className="w-4 h-4 text-green-600" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-3 h-3" />
+                      <span>{profile.whatsapp || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>CPF:</span>
+                      <span>{profile.cpf ? formatCPF(profile.cpf) : '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-3 h-3" />
+                      <span>{profileEnrollments.length} turma(s)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      <span>{formatDate(profile.created_at)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    <Button className="flex-1" size="sm" onClick={() => openEdit(profile)}>
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Editar
+                    </Button>
+                    <Button className="flex-1" size="sm" variant="destructive" onClick={() => openDelete(profile)}>
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Excluir
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Students Table (hidden on small screens) */}
+        <div className="hidden md:block border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1373,16 +1435,16 @@ export default function AdminAlunos() {
 
         {/* Edit Student Dialog */}
         <Dialog open={openEditStudent} onOpenChange={setOpenEditStudent}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Editar Aluno</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 pb-6">
               {renderStudentFormFields(true)}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenEditStudent(false)}>Cancelar</Button>
-              <Button onClick={handleEditStudent} disabled={loading}>
+            <DialogFooter className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
+              <Button variant="outline" onClick={() => setOpenEditStudent(false)} className="w-full sm:w-auto">Cancelar</Button>
+              <Button onClick={handleEditStudent} disabled={loading} className="w-full sm:w-auto">
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Pencil className="w-4 h-4 mr-2" />}
                 Salvar
               </Button>
@@ -1392,7 +1454,7 @@ export default function AdminAlunos() {
 
         {/* Delete Student Dialog */}
         <Dialog open={openDeleteStudent} onOpenChange={setOpenDeleteStudent}>
-          <DialogContent>
+          <DialogContent className="w-full max-w-full sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Excluir Aluno</DialogTitle>
               <DialogDescription>
@@ -1557,7 +1619,7 @@ export default function AdminAlunos() {
 
         {/* View Enrollments Dialog */}
         <Dialog open={openViewEnrollments} onOpenChange={setOpenViewEnrollments}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Matrículas de {selectedProfile?.full_name}</DialogTitle>
             </DialogHeader>
@@ -1663,7 +1725,7 @@ export default function AdminAlunos() {
 
         {/* Financeiro Dialog */}
         <Dialog open={openFinanceiro} onOpenChange={setOpenFinanceiro}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-3xl md:max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Financeiro - {selectedProfile?.full_name}</DialogTitle>
               <p className="text-sm text-muted-foreground">{selectedProfile?.email}</p>
@@ -1791,7 +1853,7 @@ export default function AdminAlunos() {
 
         {/* Refund Dialog */}
         <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="w-full max-w-full sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Solicitar Estorno</DialogTitle>
             </DialogHeader>

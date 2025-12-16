@@ -299,7 +299,7 @@ export function AdminBanners() {
               Novo Banner
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selected ? 'Editar' : 'Novo'} Banner</DialogTitle>
             </DialogHeader>
@@ -313,7 +313,7 @@ export function AdminBanners() {
                       <img
                         src={imagePreview}
                         alt="Preview"
-                        className="w-full h-64 object-cover rounded-lg"
+                        className="w-full h-48 md:h-64 object-cover rounded-lg max-h-[60vh]"
                       />
                       <Button
                         type="button"
@@ -382,69 +382,70 @@ export function AdminBanners() {
               key={item.id}
               className="bg-card p-4 rounded-xl border border-border/50 hover:shadow-lg transition-shadow"
             >
-              <div className="flex gap-4">
-                {/* Image */}
-                <img
-                  src={item.image}
-                  alt={`Banner ${index + 1}`}
-                  className="w-48 h-32 object-cover rounded-lg"
-                />
+              <div className="flex flex-col md:flex-row gap-4 items-start">
+                  {/* Image */}
+                  <img
+                    src={item.image}
+                    alt={`Banner ${index + 1}`}
+                    className="w-full md:w-48 h-48 md:h-32 object-cover rounded-lg"
+                  />
 
-                {/* Content */}
-                <div className="flex-1 flex items-center">
-                  <div>
-                    <h3 className="font-bold text-lg">Banner {index + 1}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Ordem: {item.order + 1}
-                    </p>
+                  {/* Content */}
+                  <div className="flex-1 flex items-center md:items-start">
+                    <div>
+                      <h3 className="font-bold text-lg">Banner {index + 1}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Ordem: {item.order + 1}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex w-full md:w-auto flex-row md:flex-col gap-2 justify-between md:justify-start">
+                    {/* Order buttons */}
+                    <div className="flex gap-1 md:flex-col">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => changeOrder(item.id, 'up')}
+                        disabled={index === 0}
+                        title="Mover para cima"
+                        className="md:mb-1"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => changeOrder(item.id, 'down')}
+                        disabled={index === items.length - 1}
+                        title="Mover para baixo"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {/* Edit and Delete */}
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => openDialog(item)}
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => del(item.id)}
+                        title="Excluir"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="flex flex-col gap-2">
-                  {/* Order buttons */}
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => changeOrder(item.id, 'up')}
-                      disabled={index === 0}
-                      title="Mover para cima"
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => changeOrder(item.id, 'down')}
-                      disabled={index === items.length - 1}
-                      title="Mover para baixo"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {/* Edit and Delete */}
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => openDialog(item)}
-                      title="Editar"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => del(item.id)}
-                      title="Excluir"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </div>
           ))}
         </div>

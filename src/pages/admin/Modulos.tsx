@@ -404,6 +404,177 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
   );
 }
 
+// Mobile-friendly deliveries view (used on small screens)
+function ModuleDeliveriesMobileCard({ module, onRefresh }: { module: Module; onRefresh: () => void }) {
+  const { toast } = useToast();
+  const [studentSearchTerm, setStudentSearchTerm] = useState("");
+  const [studentPage, setStudentPage] = useState(1);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const STUDENTS_PER_PAGE = 10;
+  const { students, loading: loadingStudents, refetch: refetchStudents } = useStudentsWithModuleStatus(module.turma_id || "", module.id);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; name?: string } | null>(null);
+
+  const handleToggleDelivery = async (studentId: string, studentName?: string) => {
+    try {
+      setProcessingIds(prev => new Set(prev).add(studentId));
+      const result = await toggleDelivery(module.id, studentId);
+      toast({ title: result.delivered ? "Entrega registrada" : "Entrega removida", description: result.delivered ? "O módulo foi marcado como entregue" : "O registro de entrega foi removido" });
+      await refetchStudents();
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message || "Erro ao atualizar entrega", variant: "destructive" });
+    } finally {
+      setProcessingIds(prev => { const newSet = new Set(prev); newSet.delete(studentId); return newSet; });
+    }
+  };
+
+  const normalize = (v: string) => (v || '').toString().replace(/\D/g, '').toLowerCase();
+  const normalizeName = (v: string) => (v || '').toString().toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '').trim();
+  const termNorm = normalize(studentSearchTerm);
+  const termNameNorm = normalizeName(studentSearchTerm);
+
+  const filteredStudents = students.filter(student => {
+    const nomeNormalizado = normalizeName(student.student_name);
+    const cpfNormalizado = normalize(student.student_cpf);
+    const nameMatch = termNameNorm.length > 0 && nomeNormalizado.includes(termNameNorm);
+    const cpfMatch = termNorm.length > 0 && cpfNormalizado.includes(termNorm);
+    if (studentSearchTerm.trim() === '') return true;
+    return nameMatch || cpfMatch;
+  });
+
+  const totalStudentsPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+  const paginatedStudents = filteredStudents.slice((studentPage - 1) * STUDENTS_PER_PAGE, studentPage * STUDENTS_PER_PAGE);
+
+  useEffect(() => { setStudentPage(1); }, [studentSearchTerm]);
+
+  return (
+    <Card className="mt-4 p-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium">Entregas - {module.name}</h4>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+        <Card className="p-3">
+          <div className="text-sm text-muted-foreground">Total de Alunos</div>
+          <div className="text-xl font-bold mt-1">{students.length}</div>
+        </Card>
+        <Card className="p-3 bg-green-500/10">
+          <div className="text-sm text-muted-foreground">Entregues</div>
+          <div className="text-xl font-bold mt-1 text-green-600">{students.filter(s => s.delivered).length}</div>
+        </Card>
+        <Card className="p-3 bg-orange-500/10">
+          <div className="text-sm text-muted-foreground">Pendentes</div>
+          <div className="text-xl font-bold mt-1 text-orange-600">{students.filter(s => !s.delivered).length}</div>
+        </Card>
+      </div>
+
+      <div className="relative mt-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Buscar por nome ou CPF..." value={studentSearchTerm} onChange={(e) => setStudentSearchTerm(e.target.value)} className="pl-9" />
+      </div>
+
+      {loadingStudents ? (
+        <div className="flex items-center justify-center h-40">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="mt-4">
+          {filteredStudents.length === 0 ? (
+            <p className="text-center text-muted-foreground">{studentSearchTerm ? "Nenhum aluno encontrado" : "Nenhum aluno matriculado nesta turma"}</p>
+          ) : (
+            <div className="space-y-3">
+              {paginatedStudents.map(student => (
+                <div key={student.student_id} className="p-3 bg-muted/10 rounded">
+                  <div>
+                    <div className="font-medium">{student.student_name}</div>
+                    <div className="text-xs text-muted-foreground">{student.student_cpf || '-'}</div>
+
+                    {/* Stacked info for mobile: Status / Confirmação / Data Entrega / Entregue */}
+                    <div className="mt-2 grid grid-cols-2 gap-2 items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        {student.delivered ? (
+                          <Badge className="bg-green-500">Entregue</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-orange-600 border-orange-600">Pendente</Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end">
+                        <Checkbox
+                          checked={student.delivered}
+                          onCheckedChange={() => {
+                            if (student.delivered) {
+                              setConfirmTarget({ id: student.student_id, name: student.student_name });
+                              setConfirmOpen(true);
+                            } else {
+                              handleToggleDelivery(student.student_id, student.student_name);
+                            }
+                          }}
+                          disabled={processingIds.has(student.student_id)}
+                        />
+                      </div>
+
+                      <div className="text-muted-foreground">
+                        {student.delivered && student.student_confirmed ? (
+                          <div className="text-xs">✓ Confirmado{student.confirmed_at ? ` · ${new Date(student.confirmed_at).toLocaleDateString('pt-BR')}` : ''}</div>
+                        ) : student.delivered ? (
+                          <div className="text-xs">Aguardando confirmação</div>
+                        ) : (
+                          <div className="text-xs">-</div>
+                        )}
+                      </div>
+
+                      <div className="text-right text-sm text-muted-foreground">
+                        {student.delivered_at ? new Date(student.delivered_at).toLocaleDateString('pt-BR') : '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {totalStudentsPages > 1 && (
+            <div className="flex items-center justify-center mt-3">
+              <Button variant="ghost" size="sm" onClick={() => setStudentPage(p => Math.max(1, p - 1))} className={studentPage === 1 ? "pointer-events-none opacity-50" : ""}>Anterior</Button>
+              <div className="px-3">{studentPage} / {totalStudentsPages}</div>
+              <Button variant="ghost" size="sm" onClick={() => setStudentPage(p => Math.min(totalStudentsPages, p + 1))} className={studentPage === totalStudentsPages ? "pointer-events-none opacity-50" : ""}>Próximo</Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={(open) => { if (!open) setConfirmTarget(null); setConfirmOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar alteração</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desmarcar a entrega do módulo: "{module.name}" de {confirmTarget?.name || 'este aluno'}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!confirmTarget) return;
+                await handleToggleDelivery(confirmTarget.id, confirmTarget.name);
+                setConfirmOpen(false);
+                setConfirmTarget(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
 export default function AdminModulos() {
   const { toast } = useToast();
   const [selectedTurma, setSelectedTurma] = useState<string>("all");
@@ -596,7 +767,73 @@ export default function AdminModulos() {
               </p>
             </div>
           ) : (
-            <div className="overflow-auto">
+            // Mobile cards (hidden on md+)
+            <>
+            <div className="md:hidden space-y-4">
+              {paginatedModules.map((module) => {
+                const percentage = module.total_students && module.total_students > 0
+                  ? Math.round(((module.delivered_count || 0) / module.total_students) * 100)
+                  : 0;
+                const isExpanded = expandedModuleId === module.id;
+
+                return (
+                  <Card key={module.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="font-medium">{module.name}</h3>
+                            <p className="text-sm text-muted-foreground">{module.turma_name}{module.course_title ? ` · ${module.course_title}` : ''}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => handleToggleExpand(module.id)}>
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(module)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setSelectedModule(module); setDeleteDialogOpen(true); }} className="text-destructive">
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-3">
+                          <Badge variant="outline">{module.stock_quantity}</Badge>
+                          <Badge className="bg-green-500">{module.delivered_count || 0}</Badge>
+                          <Badge variant="secondary">{module.total_students || 0}</Badge>
+                          <div className="ml-auto flex items-center gap-2">
+                            <div className="w-24 bg-muted rounded-full h-2">
+                              <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${percentage}%` }} />
+                            </div>
+                            <span className="text-sm text-muted-foreground">{percentage}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-3">
+                        <ModuleDeliveriesMobileCard module={module} onRefresh={refetch} />
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -693,6 +930,7 @@ export default function AdminModulos() {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
         </Card>
 

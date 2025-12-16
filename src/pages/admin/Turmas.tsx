@@ -331,7 +331,7 @@ export default function AdminTurmas() {
               Nova Turma
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl md:max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selected ? 'Editar' : 'Nova'} Turma</DialogTitle>
             </DialogHeader>
@@ -394,7 +394,7 @@ export default function AdminTurmas() {
                     Data em que as aulas desta turma começam. Será exibida na página do curso.
                   </p>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <Label>Início das Vendas</Label>
                     <Input
@@ -428,7 +428,7 @@ export default function AdminTurmas() {
                   <Users className="w-4 h-4" />
                   Vagas e Status
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <Label>Vagas Presenciais</Label>
                     <Input
@@ -473,7 +473,7 @@ export default function AdminTurmas() {
                 <div className="space-y-4">
                   <div>
                     <Label className="font-semibold">Presencial</Label>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                       <div>
                         <Label>Preço Original (R$)</Label>
                         <Input
@@ -499,7 +499,7 @@ export default function AdminTurmas() {
 
                   <div>
                     <Label className="font-semibold">Online</Label>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                       <div>
                         <Label>Preço Original (R$)</Label>
                         <Input
@@ -597,7 +597,7 @@ export default function AdminTurmas() {
                   <Percent className="w-4 h-4" />
                   Descontos por Forma de Pagamento (%)
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <Label>Cartão à Vista</Label>
                     <Input
@@ -643,7 +643,7 @@ export default function AdminTurmas() {
                   <Tag className="w-4 h-4" />
                   Cupom Promocional
                 </h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Código do Cupom</Label>
                     <Input
@@ -697,12 +697,12 @@ export default function AdminTurmas() {
         <div className="grid gap-4">
           {turmas.map((turma) => (
             <div key={turma.id} className="bg-card p-5 rounded-xl border border-border/50">
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
                 {turma.course_image && (
                   <img 
                     src={turma.course_image} 
                     alt={turma.course_title}
-                    className="w-20 h-20 rounded-lg object-cover"
+                    className="w-full md:w-20 h-40 md:h-20 rounded-lg object-cover"
                   />
                 )}
                 <div className="flex-1">
@@ -744,7 +744,7 @@ export default function AdminTurmas() {
                   </div>
                 </div>
                 
-                <div className="text-right">
+                <div className="text-right mt-3 md:mt-0 md:ml-4">
                   {turma.original_price && Number(turma.original_price) > Number(turma.price) && (
                     <p className="text-xs text-muted-foreground line-through">
                       R$ {Number(turma.original_price).toFixed(2)}
@@ -755,7 +755,7 @@ export default function AdminTurmas() {
                   </p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-3 md:mt-0">
                   <Button 
                     variant="outline" 
                     size="icon" 

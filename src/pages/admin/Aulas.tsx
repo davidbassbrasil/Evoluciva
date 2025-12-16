@@ -323,14 +323,14 @@ export default function AdminAulas() {
           <h1 className="text-2xl font-bold">Aulas</h1>
           <p className="text-muted-foreground">Gerencie as aulas das turmas</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Dialog open={openLive} onOpenChange={(isOpen) => { setOpenLive(isOpen); if (!isOpen) setLiveForm({ turma_id: '', lesson_live: '' }); }}>            <DialogTrigger asChild>
               <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-50">
                 <Video className="w-4 h-4 mr-2" />
                 Criar Aula ao Vivo
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="w-full max-w-full sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Iniciar Aula ao Vivo</DialogTitle>
               </DialogHeader>
@@ -396,7 +396,7 @@ export default function AdminAulas() {
                 Novo Módulo/Aula
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-full max-w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selected ? 'Editar' : 'Nova'} Aula</DialogTitle>
             </DialogHeader>
@@ -707,7 +707,7 @@ export default function AdminAulas() {
                     .map((lesson) => (
                     <div 
                       key={lesson.id} 
-                      className="px-4 py-3 flex items-start justify-between hover:bg-muted/50 transition-colors"
+                      className="px-4 py-3 flex flex-col md:flex-row items-start justify-between hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-start gap-3 flex-1">
                         <Badge variant="outline" className="w-12 justify-center shrink-0 mt-1">
@@ -717,16 +717,22 @@ export default function AdminAulas() {
                           <p className="font-medium">{lesson.lesson_title}</p>
                           
                           {lesson.video_url && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                              <PlayCircle className="w-3 h-3 shrink-0" />
-                              <span className="text-xs truncate">{lesson.video_url}</span>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                              <a href={lesson.video_url} target="_blank" rel="noopener noreferrer" title="Abrir vídeo" className="inline-flex flex-col items-center p-2 rounded-md hover:bg-muted/50 touch-manipulation">
+                                <PlayCircle className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                                <span className="block text-xs text-muted-foreground mt-1 sm:hidden">Vídeo</span>
+                              </a>
+                              <span className="text-xs truncate hidden sm:inline">{lesson.video_url}</span>
                             </div>
                           )}
                           
                           {lesson.material_link && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                              <FileText className="w-3 h-3 shrink-0" />
-                              <span className="text-xs truncate">{lesson.material_link}</span>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                              <a href={lesson.material_link} target="_blank" rel="noopener noreferrer" title="Abrir material" className="inline-flex flex-col items-center p-2 rounded-md hover:bg-muted/50 touch-manipulation">
+                                <FileText className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+                                <span className="block text-xs text-muted-foreground mt-1 sm:hidden">Material</span>
+                              </a>
+                              <span className="text-xs truncate hidden sm:inline">{lesson.material_link}</span>
                             </div>
                           )}
                           
@@ -737,23 +743,27 @@ export default function AdminAulas() {
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-2 ml-3 shrink-0">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleEdit(lesson)}
-                          title="Editar"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => handleDelete(lesson.id)}
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                      <div className="flex gap-2 mt-3 md:mt-0 ml-0 md:ml-3 shrink-0 w-full md:w-auto">
+                        <div className="flex gap-2 w-full md:w-auto">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEdit(lesson)}
+                            title="Editar"
+                            className="flex-1 md:flex-none p-2 rounded-md hover:bg-muted/40 text-muted-foreground"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDelete(lesson.id)}
+                            title="Excluir"
+                            className="flex-1 md:flex-none p-2 rounded-md hover:bg-muted/40 text-destructive/80 hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

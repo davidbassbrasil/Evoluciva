@@ -357,17 +357,19 @@ export default function AdminAcesso() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Controle de Acesso</h1>
             <p className="text-muted-foreground mt-2">
               Gerencie permissões de administradores e moderadores
             </p>
           </div>
-          <Button onClick={() => setOpenNewUserDialog(true)}>
-            <UserCog className="w-4 h-4 mr-2" />
-            Novo Usuário
-          </Button>
+          <div className="w-full sm:w-auto">
+            <Button onClick={() => setOpenNewUserDialog(true)} className="w-full sm:w-auto mt-3 sm:mt-0">
+              <UserCog className="w-4 h-4 mr-2" />
+              Novo Usuário
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
@@ -378,7 +380,7 @@ export default function AdminAcesso() {
               placeholder="Buscar por nome ou e-mail..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 w-full"
             />
           </div>
         </div>
@@ -389,9 +391,63 @@ export default function AdminAcesso() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           </div>
         ) : (
-          <div className="bg-card rounded-lg border">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+          <>
+            {/* Mobile users cards (hidden on md+) */}
+            <div className="md:hidden space-y-3">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="p-4 bg-card rounded-lg border">
+                  <div className="font-medium">{user.full_name}</div>
+                  <div className="text-sm text-muted-foreground">{user.email}</div>
+
+                  <div className="mt-3">
+                    <Select
+                      value={user.role}
+                      onValueChange={(value) => changeUserRole(user.id, value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-red-500" />
+                            <span>Administrador</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="moderator">
+                          <div className="flex items-center gap-2">
+                            <UserCog className="w-4 h-4 text-blue-500" />
+                            <span>Moderador</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      {user.role === 'admin' ? (
+                        <Badge className="bg-red-500/10 text-red-600">Acesso Total</Badge>
+                      ) : (
+                        <Badge variant="outline">Personalizado</Badge>
+                      )}
+                    </div>
+
+                    {user.role === 'moderator' && (
+                      <Button size="sm" variant="outline" onClick={() => openPermissionsDialog(user)}>
+                        <Shield className="w-4 h-4 mr-2" />
+                        Gerenciar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table (hidden on small screens) */}
+            <div className="hidden md:block bg-card rounded-lg border">
+              <div className="overflow-x-auto">
+                <table className="w-full">
                 <thead className="border-b bg-muted/50">
                   <tr>
                     <th className="text-left p-4 font-semibold">Usuário</th>
@@ -420,7 +476,7 @@ export default function AdminAcesso() {
                             value={user.role}
                             onValueChange={(value) => changeUserRole(user.id, value)}
                           >
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-full md:w-[180px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -467,11 +523,12 @@ export default function AdminAcesso() {
               </table>
             </div>
           </div>
+            </>
         )}
 
         {/* New User Dialog */}
         <Dialog open={openNewUserDialog} onOpenChange={setOpenNewUserDialog}>
-          <DialogContent className="max-w-md">
+            <DialogContent className="w-full max-w-full sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Novo Usuário Admin/Moderador</DialogTitle>
             </DialogHeader>
@@ -546,7 +603,7 @@ export default function AdminAcesso() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -559,10 +616,11 @@ export default function AdminAcesso() {
                   });
                 }}
                 disabled={creating}
+                className="w-full sm:w-auto"
               >
                 Cancelar
               </Button>
-              <Button onClick={createNewUser} disabled={creating}>
+              <Button onClick={createNewUser} disabled={creating} className="w-full sm:w-auto">
                 {creating ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -581,7 +639,7 @@ export default function AdminAcesso() {
 
         {/* Permissions Dialog */}
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="w-full max-w-full sm:max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Permissões de {selectedUser?.full_name}
@@ -613,16 +671,17 @@ export default function AdminAcesso() {
               ))}
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => setOpenDialog(false)}
                 disabled={saving}
+                className="w-full sm:w-auto"
               >
                 <X className="w-4 h-4 mr-2" />
                 Cancelar
               </Button>
-              <Button onClick={savePermissions} disabled={saving}>
+              <Button onClick={savePermissions} disabled={saving} className="w-full sm:w-auto">
                 {saving ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
