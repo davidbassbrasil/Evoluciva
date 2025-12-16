@@ -7,7 +7,8 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Shield, Search, UserCog, Save, X } from 'lucide-react';
+import { Shield, Search, UserCog, Save, X, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -56,6 +57,9 @@ export default function AdminAcesso() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -116,6 +120,29 @@ export default function AdminAcesso() {
         description: 'Não foi possível carregar as permissões.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+    setDeleting(true);
+    try {
+      // Remove permissions associated with the user first
+      await supabase.from('user_permissions').delete().eq('user_id', deletingUser.id);
+
+      // Remove profile
+      const { error } = await supabase.from('profiles').delete().eq('id', deletingUser.id);
+      if (error) throw error;
+
+      toast({ title: 'Usuário excluído', description: 'O usuário foi removido com sucesso.' });
+      setDeleteDialogOpen(false);
+      setDeletingUser(null);
+      loadUsers();
+    } catch (error: any) {
+      console.error('Erro ao excluir usuário:', error);
+      toast({ title: 'Erro', description: error.message || 'Não foi possível excluir o usuário.', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -271,36 +298,37 @@ export default function AdminAcesso() {
         throw new Error('Timeout ao aguardar criação do perfil');
       }
 
-      // DELETAR o profile criado automaticamente e criar um novo com o role correto
-      const { error: deleteError } = await supabase
+      // Atualizar o profile criado automaticamente com o role correto
+      const { data: updatedProfile, error: updateError } = await supabase
         .from('profiles')
-        .delete()
-        .eq('id', authData.user.id);
-
-      if (deleteError) {
-        console.error('Erro ao deletar profile:', deleteError);
-      }
-
-      // Aguardar um pouco
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Criar profile com o role correto
-      const { data: newProfile, error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
+        .update({
           email: newUserForm.email,
           full_name: newUserForm.full_name,
           role: newUserForm.role
         })
+        .eq('id', authData.user.id)
         .select()
         .single();
 
-      console.log('Profile criado:', { newProfile, insertError });
+      console.log('Profile atualizado:', { updatedProfile, updateError });
 
-      if (insertError) {
-        console.error('Erro ao criar profile:', insertError);
-        throw new Error(`Erro ao criar perfil: ${insertError.message || JSON.stringify(insertError)}`);
+      if (updateError) {
+        // Caso raro: se update falhar por conflito/perm, tentar upsert (insere ou atualiza)
+        const { data: upsertProfile, error: upsertError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authData.user.id,
+            email: newUserForm.email,
+            full_name: newUserForm.full_name,
+            role: newUserForm.role
+          })
+          .select()
+          .single();
+
+        if (upsertError) {
+          console.error('Erro ao upsert profile:', upsertError);
+          throw new Error(`Erro ao criar perfil: ${upsertError.message || JSON.stringify(upsertError)}`);
+        }
       }
 
       // Se for moderador, criar permissões padrão (dashboard apenas)
@@ -424,7 +452,7 @@ export default function AdminAcesso() {
                     </Select>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-3 flex flex-col gap-2">
                     <div>
                       {user.role === 'admin' ? (
                         <Badge className="bg-red-500/10 text-red-600">Acesso Total</Badge>
@@ -433,12 +461,19 @@ export default function AdminAcesso() {
                       )}
                     </div>
 
-                    {user.role === 'moderator' && (
-                      <Button size="sm" variant="outline" onClick={() => openPermissionsDialog(user)}>
-                        <Shield className="w-4 h-4 mr-2" />
-                        Gerenciar
+                    <div className="flex gap-2">
+                      {user.role === 'moderator' && (
+                        <Button size="sm" variant="outline" onClick={() => openPermissionsDialog(user)} className="flex-1">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Gerenciar
+                        </Button>
+                      )}
+
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setDeletingUser(user); setDeleteDialogOpen(true); }}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Excluir
                       </Button>
-                    )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -505,16 +540,28 @@ export default function AdminAcesso() {
                           )}
                         </td>
                         <td className="p-4 text-right">
-                          {user.role === 'moderator' && (
+                          <div className="flex items-center justify-end gap-2">
+                            {user.role === 'moderator' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openPermissionsDialog(user)}
+                              >
+                                <Shield className="w-4 h-4 mr-2" />
+                                Gerenciar
+                              </Button>
+                            )}
+
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => openPermissionsDialog(user)}
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => { setDeletingUser(user); setDeleteDialogOpen(true); }}
                             >
-                              <Shield className="w-4 h-4 mr-2" />
-                              Gerenciar
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Excluir
                             </Button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -697,6 +744,24 @@ export default function AdminAcesso() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o usuário "{deletingUser?.full_name}"? Esta ação é irreversível.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deleting}>
+                {deleting ? 'Excluindo...' : 'Confirmar exclusão'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
