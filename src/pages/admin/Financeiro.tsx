@@ -544,7 +544,7 @@ export default function Financeiro() {
         }
         paymentToUse = realPayments[0];
         setSelectedPayment(paymentToUse as any);
-        setRefundValue(String(paymentToUse.value));
+        setRefundValue(String(Number(paymentToUse.value) - (paymentToUse.total_refunded || 0)));
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -713,7 +713,7 @@ export default function Financeiro() {
                       <Button className="flex-1" size="sm" onClick={() => { setSelectedPayment(p); setShowDetails(true); }}>
                         <Eye className="w-4 h-4 mr-2" />Detalhes
                       </Button>
-                      <Button className="flex-1" size="sm" variant="outline" onClick={() => { setSelectedPayment(p); setShowRefundDialog(true); }}>
+                      <Button className="flex-1" size="sm" variant="outline" onClick={() => { setSelectedPayment(p); setRefundValue(String(Number(p.value) - (p.total_refunded || 0))); setShowRefundDialog(true); }}>
                         <Undo2 className="w-4 h-4 mr-2" />Estorno
                       </Button>
                     </div>
@@ -1096,7 +1096,7 @@ export default function Financeiro() {
                                 size="sm"
                                 onClick={() => {
                                   setSelectedPayment(payment);
-                                  setRefundValue(payment.value.toString());
+                                  setRefundValue(String(Number(payment.value) - (payment.total_refunded || 0)));
                                   setShowRefundDialog(true);
                                 }}
                                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
@@ -1254,7 +1254,7 @@ export default function Financeiro() {
                   <p className="font-medium">{selectedPayment.profiles?.full_name}</p>
                   <p className="text-sm">{selectedPayment.turmas?.name || selectedPayment.description}</p>
                   <p className="text-lg font-bold text-green-600 mt-2">
-                    Valor: {formatCurrency(Number(selectedPayment.value))}
+                    Total: {formatCurrency(Number(selectedPayment.value) - (selectedPayment.total_refunded || 0))}
                   </p>
                 </div>
 
@@ -1264,13 +1264,13 @@ export default function Financeiro() {
                     type="number"
                     step="0.01"
                     min="0.01"
-                    max={selectedPayment.value}
+                    max={Number(selectedPayment.value) - (selectedPayment.total_refunded || 0)}
                     value={refundValue}
                     onChange={(e) => setRefundValue(e.target.value)}
                     placeholder="0,00"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Máximo: {formatCurrency(Number(selectedPayment.value))}
+                    Máximo: {formatCurrency(Number(selectedPayment.value) - (selectedPayment.total_refunded || 0))}
                   </p>
                 </div>
 
