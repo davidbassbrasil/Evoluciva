@@ -28,8 +28,13 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
+      const productionHost = 'edusampaiocursos.com.br';
+      const redirectTo = (typeof window !== 'undefined' && window.location.hostname.includes(productionHost))
+        ? `https://www.${productionHost}/redefinir-senha`
+        : `${window.location.origin}/redefinir-senha`;
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
+        redirectTo,
       });
 
       if (error) throw error;
