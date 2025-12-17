@@ -101,6 +101,7 @@ export default function Financeiro() {
   const [webhookStatusFilter, setWebhookStatusFilter] = useState<string>('all');
   const [selectedWebhookLog, setSelectedWebhookLog] = useState<WebhookLog | null>(null);
   const [showWebhookDetails, setShowWebhookDetails] = useState(false);
+  const [lastWebhookFetch, setLastWebhookFetch] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<string>('payments');
   const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null);
   const [showDeleteRefundDialog, setShowDeleteRefundDialog] = useState(false);
@@ -173,19 +174,26 @@ export default function Financeiro() {
   const loadWebhookLogs = async () => {
     setWebhookLoading(true);
     try {
-      const { data, error } = await supabase
+      const resp = await supabase
         .from('webhook_logs')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(500);
 
-      if (error) throw error;
-      setWebhookLogs(data || []);
+      // store raw response for debugging
+      // @ts-ignore
+      setLastWebhookFetch(resp);
+
+      // supabase-js returns { data, error }
+      // @ts-ignore
+      if (resp.error) throw resp.error;
+      // @ts-ignore
+      setWebhookLogs(resp.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar webhook logs:', error);
       toast({
         title: 'Erro ao carregar logs',
-        description: error.message,
+        description: error.message || 'Verifique permissões e a existência da tabela webhook_logs',
         variant: 'destructive',
       });
     } finally {
@@ -817,36 +825,6 @@ export default function Financeiro() {
           </TabsList>
 
           <TabsContent value="payments" className="space-y-6">
-            {/* Mobile cards list for payments */}
-            <div className="md:hidden space-y-3">
-              {filteredPayments.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">{payments.length === 0 ? 'Os pagamentos aparecerão aqui quando houver vendas' : 'Tente ajustar os filtros de busca'}</div>
-              ) : (
-                filteredPayments.map((p) => (
-                  <div key={p.id} className="bg-card p-4 rounded-lg border">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground truncate">{p.profiles?.email || ''}</div>
-                        <div className="text-xs text-muted-foreground mt-2">{p.payment_date ? format(new Date(p.payment_date), 'dd/MM/yyyy', { locale: ptBR }) : format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-primary">{formatCurrency(Number(p.value))}</div>
-                        <div className="text-xs text-muted-foreground">{getPaymentTypeName(p.billing_type)}</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <Button className="flex-1" size="sm" onClick={() => { setSelectedPayment(p); setShowDetails(true); }}>
-                        <Eye className="w-4 h-4 mr-2" />Detalhes
-                      </Button>
-                      <Button className="flex-1" size="sm" variant="outline" onClick={() => { setSelectedPayment(p); setRefundValue(String(Number(p.value) - (p.total_refunded || 0))); setShowRefundDialog(true); }}>
-                        <Undo2 className="w-4 h-4 mr-2" />Estorno
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
             {/* Filtros de Data */}
             <Card>
               <CardHeader>
@@ -1116,6 +1094,36 @@ export default function Financeiro() {
             </div>
           </CardHeader>
           <CardContent>
+            {/* Mobile cards list for payments (inside Pagamentos card on mobile) */}
+            <div className="md:hidden space-y-3">
+              {filteredPayments.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">{payments.length === 0 ? 'Os pagamentos aparecerão aqui quando houver vendas' : 'Tente ajustar os filtros de busca'}</div>
+              ) : (
+                filteredPayments.map((p) => (
+                  <div key={p.id} className="bg-card p-4 rounded-lg border">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</div>
+                        <div className="text-xs text-muted-foreground truncate">{p.profiles?.email || ''}</div>
+                        <div className="text-xs text-muted-foreground mt-2">{p.payment_date ? format(new Date(p.payment_date), 'dd/MM/yyyy', { locale: ptBR }) : format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-primary">{formatCurrency(Number(p.value))}</div>
+                        <div className="text-xs text-muted-foreground">{getPaymentTypeName(p.billing_type)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button className="flex-1" size="sm" onClick={() => { setSelectedPayment(p); setShowDetails(true); }}>
+                        <Eye className="w-4 h-4 mr-2" />Detalhes
+                      </Button>
+                      <Button className="flex-1" size="sm" variant="outline" onClick={() => { setSelectedPayment(p); setRefundValue(String(Number(p.value) - (p.total_refunded || 0))); setShowRefundDialog(true); }}>
+                        <Undo2 className="w-4 h-4 mr-2" />Estorno
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -1512,15 +1520,17 @@ export default function Financeiro() {
                       Últimos 100 webhooks recebidos do gateway Asaas
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={loadWebhookLogs}
-                    disabled={webhookLoading}
-                  >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${webhookLoading ? 'animate-spin' : ''}`} />
-                    Atualizar
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadWebhookLogs}
+                      disabled={webhookLoading}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${webhookLoading ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
