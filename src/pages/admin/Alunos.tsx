@@ -115,6 +115,7 @@ export default function AdminAlunos() {
   const [openDeleteEnrollment, setOpenDeleteEnrollment] = useState(false);
   const [openFinanceiro, setOpenFinanceiro] = useState(false);
   const [studentPayments, setStudentPayments] = useState<any[]>([]);
+  const [studentEnrollments, setStudentEnrollments] = useState<Enrollment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
@@ -218,6 +219,16 @@ export default function AdminAlunos() {
       toast({ title: 'Erro ao carregar dados', description: error.message, variant: 'destructive' });
     }
   };
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={async () => {
+                                        await openRefundForEnrollment(e.id);
+                                      }}
+                                      title="Solicitar Estorno"
+                                    >
+                                      <Undo2 className="w-4 h-4" />
+                                    </Button>
 
   // Funções antigas removidas - agora tudo carrega em paralelo no loadProfiles
   const loadTurmas = async () => { /* deprecated - agora no loadProfiles */ };
@@ -557,7 +568,39 @@ export default function AdminAlunos() {
 
       // Criar matrícula
       const totalPaid = enrollForm.payment_status === 'paid' ? getTotalPaymentValue() : 0;
-      
+
+      // Somar valores por tipo para popular as colunas locais (pix, cash, credit, debit)
+      let amount_paid_local_pix = 0;
+      let amount_paid_local_cash = 0;
+      let amount_paid_local_credit_card = 0;
+      let amount_paid_local_debit = 0;
+
+      for (let i = 0; i < enrollForm.paymentParts.length; i++) {
+        const part = enrollForm.paymentParts[i];
+        const partValue = parseFloat(part.value) || 0;
+        switch ((part.method || '').toString()) {
+          case 'PIX':
+            amount_paid_local_pix += partValue;
+            break;
+          case 'CASH':
+            amount_paid_local_cash += partValue;
+            break;
+          case 'CREDIT_CARD':
+            amount_paid_local_credit_card += partValue;
+            break;
+          case 'DEBIT_CARD':
+            amount_paid_local_debit += partValue;
+            break;
+          default:
+            break;
+        }
+      }
+
+      const payment_method_local_pix = amount_paid_local_pix > 0 ? 'PIX' : null;
+      const payment_method_local_cash = amount_paid_local_cash > 0 ? 'CASH' : null;
+      const payment_method_local_credit_card = amount_paid_local_credit_card > 0 ? 'CREDIT_CARD' : null;
+      const payment_method_local_debit = amount_paid_local_debit > 0 ? 'DEBIT_CARD' : null;
+
       const { data: enrollment, error: enrollError } = await supabase
         .from('enrollments')
         .insert({
@@ -567,6 +610,15 @@ export default function AdminAlunos() {
           payment_status: enrollForm.payment_status,
           payment_method: enrollForm.payment_status === 'free' ? 'free' : 'cash_local',
           amount_paid: totalPaid,
+          // Local payment breakdown
+          payment_method_local_pix,
+          payment_method_local_cash,
+          payment_method_local_credit_card,
+          payment_method_local_debit,
+          amount_paid_local_pix: amount_paid_local_pix || null,
+          amount_paid_local_cash: amount_paid_local_cash || null,
+          amount_paid_local_credit_card: amount_paid_local_credit_card || null,
+          amount_paid_local_debit: amount_paid_local_debit || null,
           enrolled_at: now.toISOString(),
           paid_at: enrollForm.payment_status === 'paid' || enrollForm.payment_status === 'free' ? now.toISOString() : null,
           access_expires_at: turma?.access_end_date || null,
@@ -586,6 +638,10 @@ export default function AdminAlunos() {
           const partValue = parseFloat(part.value);
 
           try {
+            // Map payment method to DB enum and create a unique asaas_payment_id for admin-created payments
+            const billingType = part.method === 'CASH' ? 'UNDEFINED' : part.method;
+            const asaasId = `admin_local_${enrollment.id}_${i + 1}`;
+
             const { data: paymentData, error: paymentError } = await supabase
               .from('payments')
               .insert({
@@ -594,7 +650,9 @@ export default function AdminAlunos() {
                 enrollment_id: enrollment.id,
                 value: partValue,
                 status: 'CONFIRMED',
-                billing_type: part.method,
+                billing_type: billingType,
+                asaas_payment_id: asaasId,
+                asaas_customer_id: selectedProfile.id,
                 due_date: now.toISOString().split('T')[0],
                 payment_date: now.toISOString(),
                 confirmed_date: now.toISOString(),
@@ -842,6 +900,15 @@ export default function AdminAlunos() {
     setLoadingPayments(true);
 
     try {
+      // Load enrollments for this profile (to show local caixa breakdown)
+      const { data: enrollmentsData } = await supabase
+        .from('enrollments')
+        .select('id, profile_id, turma_id, enrolled_at, created_at, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit, payment_method_local_pix, payment_method_local_cash, payment_method_local_credit_card, payment_method_local_debit, turma:turmas(name, course:courses(title))')
+        .eq('profile_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      setStudentEnrollments(enrollmentsData || []);
+
       // Buscar pagamentos do aluno
       const { data: paymentsData, error } = await supabase
         .from('payments')
@@ -895,7 +962,7 @@ export default function AdminAlunos() {
 
   const handleRefund = async () => {
     if (!selectedPayment) return;
-    
+
     const value = parseFloat(refundValue);
     if (isNaN(value) || value <= 0) {
       toast({
@@ -918,10 +985,35 @@ export default function AdminAlunos() {
     setProcessingRefund(true);
 
     try {
+      // If this is a synthetic/local payment (id like 'local_<enrollmentId>' or source === 'local'),
+      // resolve to the actual payment row(s) created in `payments` (asaas_payment_id like 'admin_local_%').
+      let paymentToUse: any = selectedPayment;
+      const idStr = String(selectedPayment.id || '');
+      if (idStr.startsWith('local_') || (selectedPayment.source && selectedPayment.source === 'local')) {
+        const enrollmentId = selectedPayment.enrollment_id || idStr.replace(/^local_/, '');
+        const { data: realPayments, error: realErr } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('enrollment_id', enrollmentId)
+          .ilike('asaas_payment_id', 'admin_local_%')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (realErr) throw realErr;
+        if (!realPayments || realPayments.length === 0) {
+          toast({ title: 'Erro', description: 'Nenhum pagamento registrado para esta matrícula. Registre-os antes de solicitar estorno.', variant: 'destructive' });
+          setProcessingRefund(false);
+          return;
+        }
+        paymentToUse = realPayments[0];
+        setSelectedPayment(paymentToUse);
+        setRefundValue(String(paymentToUse.value));
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('refunds').insert({
-        payment_id: selectedPayment.id,
+        payment_id: paymentToUse.id,
         refund_value: value,
         reason: refundReason,
         description: refundDescription || null,
@@ -990,6 +1082,85 @@ export default function AdminAlunos() {
     };
     const config = variants[status] || { label: status, className: 'bg-gray-400' };
     return <Badge className={config.className}>{config.label}</Badge>;
+  };
+
+  // Registrar pagamentos do enrollment (caixa local) na tabela payments
+  const registerEnrollmentPayments = async (enrollmentId: string) => {
+    if (!supabase) throw new Error('Supabase não inicializado');
+    setLoading(true);
+    try {
+      const { data: e, error: eErr } = await supabase
+        .from('enrollments')
+        .select('id, profile_id, turma_id, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit')
+        .eq('id', enrollmentId)
+        .single();
+
+      if (eErr) throw eErr;
+
+      const parts: Array<{ method: string; value: number }> = [];
+      if (Number(e.amount_paid_local_pix || 0) > 0) parts.push({ method: 'PIX', value: Number(e.amount_paid_local_pix) });
+      if (Number(e.amount_paid_local_cash || 0) > 0) parts.push({ method: 'CASH', value: Number(e.amount_paid_local_cash) });
+      if (Number(e.amount_paid_local_credit_card || 0) > 0) parts.push({ method: 'CREDIT_CARD', value: Number(e.amount_paid_local_credit_card) });
+      if (Number(e.amount_paid_local_debit || 0) > 0) parts.push({ method: 'DEBIT_CARD', value: Number(e.amount_paid_local_debit) });
+
+      if (parts.length === 0) return;
+
+      const now = new Date();
+      const inserts: any[] = [];
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const billingType = part.method === 'CASH' ? 'UNDEFINED' : part.method;
+        inserts.push({
+          user_id: e.profile_id,
+          turma_id: e.turma_id,
+          enrollment_id: e.id,
+          value: part.value,
+          status: 'CONFIRMED',
+          billing_type: billingType,
+          asaas_payment_id: `admin_local_${e.id}_${i + 1}`,
+          asaas_customer_id: e.profile_id,
+          due_date: now.toISOString().split('T')[0],
+          payment_date: now.toISOString(),
+          confirmed_date: now.toISOString(),
+          description: `Pagamento Caixa Local (${part.method}) - matrícula ${e.id}`,
+          metadata: { source: 'admin_cash_local', payment_part: `${i + 1}/${parts.length}` },
+        });
+      }
+
+      const { error: insertErr } = await supabase.from('payments').insert(inserts);
+      if (insertErr) throw insertErr;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Abrir diálogo de estorno para pagamentos gerados a partir de uma matrícula (se existirem)
+  const openRefundForEnrollment = async (enrollmentId: string) => {
+    try {
+      setLoadingPayments(true);
+      const { data: paymentsData, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('enrollment_id', enrollmentId)
+        .ilike('asaas_payment_id', 'admin_local_%')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (paymentsData && paymentsData.length > 0) {
+        const p = paymentsData[0];
+        setSelectedPayment(p as any);
+        setRefundValue(String(p.value));
+        setShowRefundDialog(true);
+      } else {
+        toast({ title: 'Nenhum pagamento', description: 'Registre os pagamentos do caixa local antes de solicitar estorno.', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      console.error('Erro ao buscar pagamentos da matrícula:', err);
+      toast({ title: 'Erro', description: err?.message || 'Falha ao buscar pagamentos', variant: 'destructive' });
+    } finally {
+      setLoadingPayments(false);
+    }
   };
 
   // Render form fields inline to avoid re-creating component on state change
@@ -1555,7 +1726,6 @@ export default function AdminAlunos() {
                             <SelectItem value="CASH">Dinheiro</SelectItem>
                             <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
                             <SelectItem value="CREDIT_CARD">Cartão de Crédito</SelectItem>
-                            <SelectItem value="BOLETO">Boleto</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1735,18 +1905,18 @@ export default function AdminAlunos() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
-            ) : studentPayments.length === 0 ? (
+            ) : (studentPayments.length === 0 && (studentEnrollments?.length || 0) === 0) ? (
               <div className="text-center py-12 text-muted-foreground">
                 <DollarSign className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p className="font-medium">Nenhum pagamento encontrado</p>
-                <p className="text-sm">Este aluno ainda não realizou pagamentos</p>
+                <p className="text-sm">Este aluno ainda não realizou pagamentos nem possui registros de caixa local</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground">Total Pago</div>
+                      <div className="text-sm text-muted-foreground">Pago Checkout</div>
                       <div className="text-2xl font-bold text-green-600">
                         {formatCurrency(studentPayments.reduce((sum, p) => 
                           ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(p.status) 
@@ -1773,75 +1943,143 @@ export default function AdminAlunos() {
                   </Card>
                 </div>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Curso/Turma</TableHead>
-                      <TableHead>Método</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {studentPayments.map((payment) => (
-                      <TableRow key={payment.id}>
-                        <TableCell className="text-sm">
-                          {new Date(payment.created_at).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-[200px]">
-                            <div className="font-medium truncate text-sm">
-                              {payment.turma?.course?.title || 'N/A'}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">
-                              {payment.turma?.name || payment.description || '-'}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {getPaymentTypeName(payment.billing_type)}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                        <TableCell className="text-right font-bold">
-                          {payment.total_refunded && payment.total_refunded > 0 ? (
-                            <div>
-                              <div className="text-muted-foreground line-through text-xs">
-                                {formatCurrency(Number(payment.value))}
-                              </div>
-                              <div className="text-green-600">
-                                {formatCurrency(Number(payment.value) - payment.total_refunded)}
-                              </div>
-                              <div className="text-xs text-orange-600">
-                                -{formatCurrency(payment.total_refunded)}
+                {/* Caixa Local summary (from enrollments local fields) */}
+                {studentEnrollments && studentEnrollments.length > 0 && (
+                  <div className="space-y-3">
+                    <Card>
+                      <CardContent>
+                        <div className="text-sm text-muted-foreground">Pago: Caixa Local</div>
+                        {/* Totals per local payment type */}
+                        {(() => {
+                          const totals = studentEnrollments.reduce((acc, e) => {
+                            acc.pix += Number(e['amount_paid_local_pix'] || 0);
+                            acc.cash += Number(e['amount_paid_local_cash'] || 0);
+                            acc.credit += Number(e['amount_paid_local_credit_card'] || 0);
+                            acc.debit += Number(e['amount_paid_local_debit'] || 0);
+                            return acc;
+                          }, { pix: 0, cash: 0, credit: 0, debit: 0 });
+
+                          const localTotal = totals.pix + totals.cash + totals.credit + totals.debit;
+
+                          return (
+                            <div className="mt-2">
+                              <div className="text-2xl font-bold text-green-600">{formatCurrency(localTotal)}</div>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                                <div>PIX: <span className="font-medium text-foreground">{formatCurrency(totals.pix)}</span></div>
+                                <div>Dinheiro: <span className="font-medium text-foreground">{formatCurrency(totals.cash)}</span></div>
+                                <div>Cartão Crédito: <span className="font-medium text-foreground">{formatCurrency(totals.credit)}</span></div>
+                                <div>Débito: <span className="font-medium text-foreground">{formatCurrency(totals.debit)}</span></div>
                               </div>
                             </div>
-                          ) : (
-                            formatCurrency(Number(payment.value))
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPayment(payment);
-                                setRefundValue(payment.value.toString());
-                                setShowRefundDialog(true);
-                              }}
-                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                              title="Solicitar Estorno"
-                            >
-                              <Undo2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+
+
+                  </div>
+                )}
+                {
+                  // Build synthetic local payment rows from enrollments
+                  (() => {
+                    const synthetic = (studentEnrollments || []).map((e: any) => {
+                      const pix = Number(e.amount_paid_local_pix || 0);
+                      const cash = Number(e.amount_paid_local_cash || 0);
+                      const credit = Number(e.amount_paid_local_credit_card || 0);
+                      const debit = Number(e.amount_paid_local_debit || 0);
+                      const total = pix + cash + credit + debit;
+                      if (total === 0) return null;
+                      return {
+                        id: `local_${e.id}`,
+                        created_at: e.enrolled_at || e.created_at || new Date().toISOString(),
+                        turma: e.turma || null,
+                        billing_type: 'LOCAL',
+                        status: 'CAIXA_LOCAL',
+                        value: total,
+                        total_refunded: 0,
+                        isLocal: true,
+                        breakdown: { pix, cash, credit, debit },
+                        enrollment_id: e.id,
+                      };
+                    }).filter(Boolean);
+
+                    const combined = [ ...(studentPayments || []), ...synthetic ]
+                      .slice()
+                      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-full">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Data</TableHead>
+                              <TableHead>Curso/Turma</TableHead>
+                              <TableHead>Método</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="text-right">Valor</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {combined.map((row: any) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="text-sm">
+                                  {new Date(row.created_at).toLocaleDateString('pt-BR')}
+                                </TableCell>
+
+                                <TableCell>
+                                  <div className="max-w-[200px]">
+                                    <div className="font-medium truncate text-sm">
+                                      {row.turma?.course?.title || (row.isLocal ? 'Matrícula' : 'N/A')}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      {row.turma?.name || row.description || '-'}
+                                    </div>
+                                  </div>
+                                </TableCell>
+
+                                <TableCell className="text-sm">
+                                  {row.isLocal ? (
+                                    <div className="text-xs text-muted-foreground">
+                                      {row.breakdown.pix > 0 && <div>PIX: {formatCurrency(row.breakdown.pix)}</div>}
+                                      {row.breakdown.cash > 0 && <div>Dinheiro: {formatCurrency(row.breakdown.cash)}</div>}
+                                      {row.breakdown.credit > 0 && <div>Crédito: {formatCurrency(row.breakdown.credit)}</div>}
+                                      {row.breakdown.debit > 0 && <div>Débito: {formatCurrency(row.breakdown.debit)}</div>}
+                                    </div>
+                                  ) : (
+                                    getPaymentTypeName(row.billing_type)
+                                  )}
+                                </TableCell>
+
+                                <TableCell>
+                                  {row.isLocal ? <Badge>Caixa Local</Badge> : getStatusBadge(row.status)}
+                                </TableCell>
+
+                                <TableCell className="text-right font-bold">
+                                  {row.total_refunded && row.total_refunded > 0 ? (
+                                    <div>
+                                      <div className="text-muted-foreground line-through text-xs">
+                                        {formatCurrency(Number(row.value))}
+                                      </div>
+                                      <div className="text-green-600">
+                                        {formatCurrency(Number(row.value) - row.total_refunded)}
+                                      </div>
+                                      <div className="text-xs text-orange-600">
+                                        -{formatCurrency(row.total_refunded)}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    formatCurrency(Number(row.value))
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    );
+                  })()
+                }
+
               </div>
             )}
             

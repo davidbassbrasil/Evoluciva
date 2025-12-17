@@ -70,6 +70,9 @@ interface Payment {
     created_at: string;
   }>;
   total_refunded?: number;
+  // optional: mark synthetic local payments
+  source?: 'local' | 'asaas';
+  enrollment_id?: string;
 }
 
 export default function Financeiro() {
@@ -299,6 +302,53 @@ export default function Financeiro() {
 
       setPayments(paymentsWithProfiles);
       calculateStats(paymentsWithProfiles);
+      
+      // Também carregar enrollments com colunas de caixa local e transformar em pagamentos sintéticos
+      try {
+        const { data: enrollmentsData, error: enrollErr } = await supabase
+          .from('enrollments')
+          .select('id, profile_id, turma_id, enrolled_at, paid_at, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit, payment_method_local_pix, payment_method_local_cash, payment_method_local_credit_card, payment_method_local_debit, profile:profiles(full_name,email), turma:turmas(name, course:courses(title))')
+          .order('created_at', { ascending: false });
+
+        if (!enrollErr && Array.isArray(enrollmentsData)) {
+          const synthetic = enrollmentsData.map((e: any) => {
+            const pix = Number(e.amount_paid_local_pix || 0);
+            const cash = Number(e.amount_paid_local_cash || 0);
+            const credit = Number(e.amount_paid_local_credit_card || 0);
+            const debit = Number(e.amount_paid_local_debit || 0);
+            const total = pix + cash + credit + debit;
+            return total > 0 ? {
+              id: `local_${e.id}`,
+              asaas_payment_id: `local_${e.id}`,
+              value: total,
+              net_value: total,
+              status: 'CONFIRMED',
+              billing_type: 'LOCAL',
+              due_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
+              payment_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
+              confirmed_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
+              description: `Caixa Local - ${e.turma?.name || ''}`,
+              user_id: e.profile_id,
+              turma_id: e.turma_id,
+              created_at: e.enrolled_at || new Date().toISOString(),
+              profiles: e.profile || null,
+              turmas: e.turma || null,
+              refunds: [],
+              total_refunded: 0,
+              source: 'local',
+              enrollment_id: e.id,
+            } : null;
+          }).filter(Boolean) as Payment[];
+
+          if (synthetic.length > 0) {
+            const all = [...paymentsWithProfiles, ...synthetic];
+            setPayments(all);
+            calculateStats(all);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar enrollments para caixa local:', err);
+      }
     } catch (error) {
       console.error('Erro ao carregar pagamentos:', error);
       toast({
@@ -360,6 +410,51 @@ export default function Financeiro() {
     });
   };
 
+  // Persistir os valores do caixa local (enrollment) na tabela payments
+  const registerEnrollmentPayments = async (enrollmentId: string) => {
+    // Load enrollment with local fields
+    const { data: e, error: eErr } = await supabase
+      .from('enrollments')
+      .select('id, profile_id, turma_id, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit, payment_method_local_pix, payment_method_local_cash, payment_method_local_credit_card, payment_method_local_debit')
+      .eq('id', enrollmentId)
+      .single();
+
+    if (eErr) throw eErr;
+
+    const parts: Array<{ method: string; value: number }> = [];
+    if (Number(e.amount_paid_local_pix || 0) > 0) parts.push({ method: 'PIX', value: Number(e.amount_paid_local_pix) });
+    if (Number(e.amount_paid_local_cash || 0) > 0) parts.push({ method: 'CASH', value: Number(e.amount_paid_local_cash) });
+    if (Number(e.amount_paid_local_credit_card || 0) > 0) parts.push({ method: 'CREDIT_CARD', value: Number(e.amount_paid_local_credit_card) });
+    if (Number(e.amount_paid_local_debit || 0) > 0) parts.push({ method: 'DEBIT_CARD', value: Number(e.amount_paid_local_debit) });
+
+    if (parts.length === 0) return;
+
+    const now = new Date();
+    const inserts: any[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const billingType = part.method === 'CASH' ? 'UNDEFINED' : part.method;
+      inserts.push({
+        user_id: e.profile_id,
+        turma_id: e.turma_id,
+        enrollment_id: e.id,
+        value: part.value,
+        status: 'CONFIRMED',
+        billing_type: billingType,
+        asaas_payment_id: `admin_local_${e.id}_${i + 1}`,
+        asaas_customer_id: e.profile_id,
+        due_date: now.toISOString().split('T')[0],
+        payment_date: now.toISOString(),
+        confirmed_date: now.toISOString(),
+        description: `Pagamento Caixa Local (${part.method}) - matrícula ${e.id}`,
+        metadata: { source: 'admin_cash_local', payment_part: `${i + 1}/${parts.length}` },
+      });
+    }
+
+    const { error: insertErr } = await supabase.from('payments').insert(inserts);
+    if (insertErr) throw insertErr;
+  };
+
   const filterPayments = () => {
     let filtered = [...payments];
     
@@ -391,7 +486,8 @@ export default function Financeiro() {
     
     // Filtro de tipo
     if (typeFilter !== 'all') {
-      filtered = filtered.filter(p => p.billing_type === typeFilter);
+      // include synthetic LOCAL entries
+      filtered = filtered.filter(p => p.billing_type === typeFilter || (typeFilter === 'LOCAL' && p.source === 'local'));
     }
     
     // Filtro de turma
@@ -427,10 +523,34 @@ export default function Financeiro() {
     setProcessingRefund(true);
 
     try {
+      // Resolve synthetic/local payments to actual payment rows if needed
+      let paymentToUse: any = selectedPayment;
+      const idStr = String(selectedPayment.id || '');
+      if (idStr.startsWith('local_') || (selectedPayment as any).source === 'local') {
+        const enrollmentId = (selectedPayment as any).enrollment_id || idStr.replace(/^local_/, '');
+        const { data: realPayments, error: realErr } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('enrollment_id', enrollmentId)
+          .ilike('asaas_payment_id', 'admin_local_%')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (realErr) throw realErr;
+        if (!realPayments || realPayments.length === 0) {
+          toast({ title: 'Erro', description: 'Nenhum pagamento registrado para esta matrícula. Registre-os antes de solicitar estorno.', variant: 'destructive' });
+          setProcessingRefund(false);
+          return;
+        }
+        paymentToUse = realPayments[0];
+        setSelectedPayment(paymentToUse as any);
+        setRefundValue(String(paymentToUse.value));
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('refunds').insert({
-        payment_id: selectedPayment.id,
+        payment_id: paymentToUse.id,
         refund_value: value,
         reason: refundReason,
         description: refundDescription || null,
@@ -489,6 +609,7 @@ export default function Financeiro() {
       BOLETO: 'Boleto',
       CASH: 'Dinheiro',
       UNDEFINED: 'Não Definido',
+      LOCAL: 'Caixa Local',
     };
     return types[type] || type;
   };
@@ -833,8 +954,9 @@ export default function Financeiro() {
                   <SelectItem value="CREDIT_CARD_INSTALLMENT">Parcelado</SelectItem>
                   <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
-                  <SelectItem value="BOLETO">Boleto</SelectItem>
-                  <SelectItem value="CASH">Dinheiro</SelectItem>
+                    <SelectItem value="BOLETO">Boleto</SelectItem>
+                    <SelectItem value="CASH">Dinheiro</SelectItem>
+                    <SelectItem value="LOCAL">Caixa Local</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={turmaFilter} onValueChange={setTurmaFilter}>
@@ -926,6 +1048,9 @@ export default function Financeiro() {
                         <TableCell>
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             <span>{getPaymentTypeName(payment.billing_type)}</span>
+                            {payment.source === 'local' && (
+                              <span className="text-xs text-muted-foreground">(Caixa Local)</span>
+                            )}
                             {payment.installment_count && payment.installment_count > 1 && (
                               <Badge variant="outline" className="text-xs">
                                 {payment.installment_count}x
