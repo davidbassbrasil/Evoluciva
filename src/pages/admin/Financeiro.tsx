@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { format, startOfMonth, endOfMonth, startOfYear, startOfDay, endOfDay, subDays, startOfToday, endOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -102,6 +102,9 @@ export default function Financeiro() {
   const [selectedWebhookLog, setSelectedWebhookLog] = useState<WebhookLog | null>(null);
   const [showWebhookDetails, setShowWebhookDetails] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('payments');
+  const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null);
+  const [showDeleteRefundDialog, setShowDeleteRefundDialog] = useState(false);
+  const [selectedRefundToDelete, setSelectedRefundToDelete] = useState<any | null>(null);
   
   // Filtros de data
   const [dateFrom, setDateFrom] = useState<Date>(startOfToday());
@@ -311,13 +314,53 @@ export default function Financeiro() {
           .order('created_at', { ascending: false });
 
         if (!enrollErr && Array.isArray(enrollmentsData)) {
+          // Load enrollment_refunds for these enrollments in one query
+          const enrollmentIds = enrollmentsData.map((x: any) => x.id).filter(Boolean);
+          let refundsData: any[] = [];
+          try {
+            if (enrollmentIds.length > 0) {
+              const { data: rdata, error: rerr } = await supabase
+                .from('enrollment_refunds')
+                .select('id, refund_value, status, reason, description, created_at, enrollment_id')
+                .in('enrollment_id', enrollmentIds);
+              if (rerr) throw rerr;
+              refundsData = rdata || [];
+            }
+          } catch (rloadErr) {
+            console.error('Erro ao carregar enrollment_refunds:', rloadErr);
+          }
+
+          const refundsByEnrollment: Record<string, any[]> = {};
+          refundsData.forEach((rf: any) => {
+            if (!refundsByEnrollment[rf.enrollment_id]) refundsByEnrollment[rf.enrollment_id] = [];
+            refundsByEnrollment[rf.enrollment_id].push(rf);
+          });
+
           const synthetic = enrollmentsData.map((e: any) => {
             const pix = Number(e.amount_paid_local_pix || 0);
             const cash = Number(e.amount_paid_local_cash || 0);
             const credit = Number(e.amount_paid_local_credit_card || 0);
             const debit = Number(e.amount_paid_local_debit || 0);
             const total = pix + cash + credit + debit;
-            return total > 0 ? {
+            if (!(total > 0)) return null;
+
+            const refundsForEnrollment = refundsByEnrollment[e.id] || [];
+            const total_refunded = refundsForEnrollment
+              .filter((r: any) => ['COMPLETED', 'PROCESSING', 'APPROVED'].includes(r.status))
+              .reduce((sum: number, r: any) => sum + Number(r.refund_value || 0), 0);
+
+            // normalize refund shape similar to payments.refunds
+            const normalizedRefunds = refundsForEnrollment.map((r: any) => ({
+              id: r.id,
+              refund_value: Number(r.refund_value),
+              status: r.status,
+              reason: r.reason,
+              description: r.description,
+              created_at: r.created_at,
+              enrollment_id: r.enrollment_id,
+            }));
+
+            return {
               id: `local_${e.id}`,
               asaas_payment_id: `local_${e.id}`,
               value: total,
@@ -333,11 +376,11 @@ export default function Financeiro() {
               created_at: e.enrolled_at || new Date().toISOString(),
               profiles: e.profile || null,
               turmas: e.turma || null,
-              refunds: [],
-              total_refunded: 0,
+              refunds: normalizedRefunds,
+              total_refunded: total_refunded,
               source: 'local',
               enrollment_id: e.id,
-            } : null;
+            } as Payment;
           }).filter(Boolean) as Payment[];
 
           if (synthetic.length > 0) {
@@ -452,7 +495,20 @@ export default function Financeiro() {
     }
 
     const { error: insertErr } = await supabase.from('payments').insert(inserts);
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      // Surface a clear error for callers so they can react (likely RLS blocks frontend inserts).
+      const err = new Error(insertErr.message || 'Erro ao inserir pagamentos');
+      // attach supabase error for debugging
+      // @ts-ignore
+      err.details = insertErr;
+      // mark as permission error when status 403
+      // @ts-ignore
+      if (insertErr.status === 403 || insertErr.code === '42501') {
+        // @ts-ignore
+        err.name = 'RLS_FORBIDDEN';
+      }
+      throw err;
+    }
   };
 
   const filterPayments = () => {
@@ -523,34 +579,60 @@ export default function Financeiro() {
     setProcessingRefund(true);
 
     try {
-      // Resolve synthetic/local payments to actual payment rows if needed
-      let paymentToUse: any = selectedPayment;
+      // If this is a Caixa Local (synthetic) entry we must handle refund differently
+      // because Caixa Local values live on `enrollments` (not `payments`).
       const idStr = String(selectedPayment.id || '');
       if (idStr.startsWith('local_') || (selectedPayment as any).source === 'local') {
+        // Extract enrollment id
         const enrollmentId = (selectedPayment as any).enrollment_id || idStr.replace(/^local_/, '');
-        const { data: realPayments, error: realErr } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('enrollment_id', enrollmentId)
-          .ilike('asaas_payment_id', 'admin_local_%')
-          .order('created_at', { ascending: false })
-          .limit(1);
 
-        if (realErr) throw realErr;
-        if (!realPayments || realPayments.length === 0) {
-          toast({ title: 'Erro', description: 'Nenhum pagamento registrado para esta matrícula. Registre-os antes de solicitar estorno.', variant: 'destructive' });
+        // Insert into enrollment_refunds table (separate from payments.refunds)
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const { error: insertErr } = await supabase.from('enrollment_refunds').insert({
+            enrollment_id: enrollmentId,
+            refund_value: value,
+            reason: refundReason,
+            description: refundDescription || null,
+            status: 'COMPLETED',
+            approved_by: user?.id,
+            approved_at: new Date().toISOString(),
+            refund_date: new Date().toISOString(),
+          });
+
+          if (insertErr) {
+            // If table doesn't exist or permission denied, surface a helpful error
+            console.error('Erro ao inserir enrollment_refund:', insertErr);
+            if (insertErr.status === 403) {
+              toast({ title: 'Permissão negada', description: 'Não foi possível gravar o estorno do Caixa Local. Configure um endpoint servidor com SUPABASE_SERVICE_ROLE_KEY ou ajuste as políticas RLS.', variant: 'destructive' });
+            } else {
+              toast({ title: 'Erro', description: insertErr.message || 'Não foi possível registrar o estorno do Caixa Local', variant: 'destructive' });
+            }
+            setProcessingRefund(false);
+            return;
+          }
+
+          toast({ title: 'Estorno registrado', description: 'Estorno do Caixa Local registrado com sucesso.' });
+          setShowRefundDialog(false);
+          setRefundValue('');
+          setRefundReason('');
+          setRefundDescription('');
+          loadPayments();
+          setProcessingRefund(false);
+          return;
+        } catch (err: any) {
+          console.error('Erro no fluxo de estorno Caixa Local:', err);
+          toast({ title: 'Erro', description: err.message || 'Erro ao processar estorno do Caixa Local', variant: 'destructive' });
           setProcessingRefund(false);
           return;
         }
-        paymentToUse = realPayments[0];
-        setSelectedPayment(paymentToUse as any);
-        setRefundValue(String(Number(paymentToUse.value) - (paymentToUse.total_refunded || 0)));
       }
 
+      // default flow: refunds against payments
       const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('refunds').insert({
-        payment_id: paymentToUse.id,
+        payment_id: selectedPayment.id,
         refund_value: value,
         reason: refundReason,
         description: refundDescription || null,
@@ -581,6 +663,50 @@ export default function Financeiro() {
       });
     } finally {
       setProcessingRefund(false);
+    }
+  };
+
+  const handleDeleteRefund = (refund: any) => {
+    // open confirmation modal
+    setSelectedRefundToDelete(refund);
+    setShowDeleteRefundDialog(true);
+  };
+
+  const performDeleteRefund = async () => {
+    const refund = selectedRefundToDelete;
+    if (!refund || !refund.id) return;
+    setDeletingRefundId(refund.id);
+    try {
+      if (refund.enrollment_id) {
+        const { error } = await supabase.from('enrollment_refunds').delete().eq('id', refund.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('refunds').delete().eq('id', refund.id);
+        if (error) throw error;
+      }
+
+      toast({ title: 'Estorno removido', description: 'O estorno foi excluído com sucesso.' });
+
+      // Update the in-memory selectedPayment to remove this refund so UI updates immediately
+      if (selectedPayment) {
+        const newRefunds = (selectedPayment.refunds || []).filter((r: any) => r.id !== refund.id);
+        const newTotalRefunded = newRefunds.reduce((sum: number, r: any) => sum + Number(r.refund_value || 0), 0);
+        setSelectedPayment({ ...selectedPayment, refunds: newRefunds, total_refunded: newTotalRefunded });
+      }
+
+      // refresh global payments/enrollments list as well
+      await loadPayments();
+    } catch (err: any) {
+      console.error('Erro ao deletar estorno:', err);
+      if (err?.status === 403) {
+        toast({ title: 'Permissão negada', description: 'Seu usuário não tem permissão para excluir estornos. Use um endpoint servidor com SUPABASE_SERVICE_ROLE_KEY ou ajuste RLS.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Erro', description: err.message || 'Não foi possível excluir o estorno', variant: 'destructive' });
+      }
+    } finally {
+      setDeletingRefundId(null);
+      setShowDeleteRefundDialog(false);
+      setSelectedRefundToDelete(null);
     }
   };
 
@@ -1197,7 +1323,7 @@ export default function Financeiro() {
                     <div className="space-y-2">
                       {selectedPayment.refunds.map((refund) => (
                         <div key={refund.id} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                          <div className="flex justify-between items-start">
+                            <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <p className="font-medium text-orange-900">
                                 {formatCurrency(Number(refund.refund_value))}
@@ -1212,12 +1338,27 @@ export default function Financeiro() {
                                 {format(new Date(refund.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                               </p>
                             </div>
-                            <Badge 
-                              variant={refund.status === 'COMPLETED' ? 'default' : 'secondary'}
-                              className={refund.status === 'COMPLETED' ? 'bg-green-500' : 'bg-yellow-500'}
-                            >
-                              {refund.status}
-                            </Badge>
+                            <div className="flex items-start gap-2">
+                              <Badge 
+                                variant={refund.status === 'COMPLETED' ? 'default' : 'secondary'}
+                                className={refund.status === 'COMPLETED' ? 'bg-green-500' : 'bg-yellow-500'}
+                              >
+                                {refund.status}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteRefund(refund)}
+                                title="Deletar estorno"
+                                disabled={deletingRefundId === refund.id}
+                              >
+                                {deletingRefundId === refund.id ? (
+                                  <Loader2 className="w-4 h-4 text-destructive animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1238,6 +1379,33 @@ export default function Financeiro() {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+        {/* Delete Refund Confirmation Modal */}
+        <Dialog open={showDeleteRefundDialog} onOpenChange={setShowDeleteRefundDialog}>
+          <DialogContent className="w-full max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar exclusão de estorno</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p>Tem certeza que deseja excluir este estorno? Esta ação não pode ser desfeita.</p>
+              {selectedRefundToDelete && (
+                <div className="p-3 bg-orange-50 rounded border border-orange-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{formatCurrency(Number(selectedRefundToDelete.refund_value))}</div>
+                      <div className="text-xs text-muted-foreground">{selectedRefundToDelete.reason}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{format(new Date(selectedRefundToDelete.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowDeleteRefundDialog(false)}>Cancelar</Button>
+                <Button onClick={performDeleteRefund} disabled={deletingRefundId !== null} className="bg-destructive hover:bg-destructive/90">{deletingRefundId ? 'Excluindo...' : 'Excluir estorno'}</Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 
