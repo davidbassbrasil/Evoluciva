@@ -1183,7 +1183,7 @@ export default function Financeiro() {
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             <span>{getPaymentTypeName(payment.billing_type)}</span>
                             {payment.source === 'local' && (
-                              <span className="text-xs text-muted-foreground">(Caixa Local)</span>
+                              <span className="text-xs text-muted-foreground"></span>
                             )}
                             {payment.installment_count && payment.installment_count > 1 && (
                               <Badge variant="outline" className="text-xs">
