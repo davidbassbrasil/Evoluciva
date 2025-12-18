@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { getCourses, getUsers, getTestimonials, getBanners, getProfessors, getTags, getFAQs, getLessons, getCurrentUser } from '@/lib/localStorage';
-import { Course, Testimonial, User } from '@/types';
+import { Course, Testimonial, User, Banner } from '@/types';
 import { BookOpen, Users, MessageSquare, Image, TrendingUp, GraduationCap, Tag, HelpCircle, PlayCircle, Eye, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -83,7 +83,12 @@ export default function AdminDashboard() {
           lessonsResult,
           turmasResult,
           paymentsResult,
-          enrollmentsResult
+          enrollmentsResult,
+          testimonialsResult,
+          bannersResult,
+          professorsResult,
+          tagsResult,
+          faqsResult,
         ] = await Promise.all([
           // Buscar cursos (limit reduzido para dashboard)
           supabase
@@ -122,6 +127,29 @@ export default function AdminDashboard() {
           supabase
             .from('enrollments')
             .select('profile_id, turma_id, turmas(course_id)')
+          ,
+          // Testemunhos / depoimentos
+          supabase
+            .from('testimonials')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100),
+          // Banners
+          supabase
+            .from('banners')
+            .select('*'),
+          // Professores
+          supabase
+            .from('professors')
+            .select('*'),
+          // Tags
+          supabase
+            .from('tags')
+            .select('*'),
+          // FAQ
+          supabase
+            .from('faqs')
+            .select('*'),
         ]);
 
         // Processar cursos
@@ -185,16 +213,20 @@ export default function AdminDashboard() {
         // Temporarily disable revenue reporting until prices/configuration is finalized
         const displayRevenue = 0;
         
-        const testimonials = getTestimonials();
-        
+        const testimonials = (testimonialsResult?.data || []) as Testimonial[];
+        const banners = (bannersResult?.data || []) as Banner[];
+        const professors = (professorsResult?.data || []) as any[];
+        const tags = (tagsResult?.data || []) as any[];
+        const faqs = (faqsResult?.data || []) as any[];
+
         setStats({
           courses: courses.length,
           users: users.length,
           testimonials: testimonials.length,
-          banners: getBanners().length,
-          professors: getProfessors().length,
-          tags: getTags().length,
-          faqs: getFAQs().length,
+          banners: banners.length,
+          professors: professors.length,
+          tags: tags.length,
+          faqs: faqs.length,
           lessons: lessonsCount,
           totalRevenue: displayRevenue,
         });
@@ -372,7 +404,7 @@ export default function AdminDashboard() {
                       <p className="text-sm text-muted-foreground">{course.instructor}</p>
                     </div>
                     {showCategory && <Badge variant="secondary">{course.category}</Badge>}
-                    <span className="font-bold text-primary">R$ {displayPrice}</span>
+                    {false && <span className="font-bold text-primary">R$ {displayPrice}</span>}
                   </div>
                 );
               })}
