@@ -186,16 +186,32 @@ export default function AdminAulas() {
       return;
     }
 
+    // Nota: sem confirmação modal para 'all' — a ação será aplicada diretamente quando selecionado 'Todas as turmas'.
+
     setSavingLive(true);
     try {
-      const { error } = await supabase
-        .from('turmas')
-        .update({ lesson_live: liveForm.lesson_live })
-        .eq('id', liveForm.turma_id);
-      
-      if (error) throw error;
-      
-      toast({ title: 'Aula ao vivo ativada!', description: 'Os alunos já podem acessar.' });
+      let res;
+      if (liveForm.turma_id === 'all') {
+        // Atualiza todas as turmas — PostgREST exige uma cláusula WHERE para PATCH, então usamos 'id IS NOT NULL'
+        res = await supabase
+          .from('turmas')
+          .update({ lesson_live: liveForm.lesson_live })
+          .not('id', 'is', null);
+      } else {
+        res = await supabase
+          .from('turmas')
+          .update({ lesson_live: liveForm.lesson_live })
+          .eq('id', liveForm.turma_id);
+      }
+
+      if (res.error) throw res.error;
+
+      if (liveForm.turma_id === 'all') {
+        toast({ title: 'Aulas ao vivo ativadas!', description: 'O link foi aplicado para todas as turmas.' });
+      } else {
+        toast({ title: 'Aula ao vivo ativada!', description: 'Os alunos já podem acessar.' });
+      }
+
       setOpenLive(false);
       setLiveForm({ turma_id: '', lesson_live: '' });
       await loadData(); // Recarregar turmas para atualizar o indicador
@@ -346,6 +362,7 @@ export default function AdminAulas() {
                       <SelectValue placeholder="Selecione uma turma" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem key="all" value="all">Todas as turmas</SelectItem>
                       {turmas.map((turma) => (
                         <SelectItem key={turma.id} value={turma.id}>
                           {turma.name} - {turma.course_title}
@@ -353,6 +370,10 @@ export default function AdminAulas() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {liveForm.turma_id === 'all' && (
+                    <p className="text-xs text-destructive mt-2">
+                    </p>
+                  )}
                 </div>
 
                 <div>

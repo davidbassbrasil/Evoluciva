@@ -110,6 +110,28 @@ USING (
   )
 );
 
+-- Admins podem atualizar permissões (necessário para upsert e operações de update via REST)
+DROP POLICY IF EXISTS "Admins can update permissions" ON user_permissions;
+CREATE POLICY "Admins can update permissions"
+ON user_permissions
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  )
+);
+
+
 -- Moderadores podem ver suas próprias permissões
 DROP POLICY IF EXISTS "Users can view own permissions" ON user_permissions;
 CREATE POLICY "Users can view own permissions"
@@ -158,5 +180,6 @@ SELECT unnest(ARRAY[
   'depoimentos',
   'faq',
   'alunos',
-  'financeiro'
+  'financeiro',
+  'modulos'
 ]) as available_permissions;

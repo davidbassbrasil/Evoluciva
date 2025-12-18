@@ -107,7 +107,9 @@ export default function AdminAcesso() {
 
       if (error) throw error;
       // Garantir que a permissão 'dashboard' sempre exista e fique marcada
-      const perms = data?.map(p => p.permission_key) || [];
+      const permsRaw = data?.map(p => p.permission_key) || [];
+      // Remover duplicatas vindas do banco (se houver) e garantir dashboard
+      const perms = Array.from(new Set(permsRaw));
       if (!perms.includes('dashboard')) {
         // Coloca 'dashboard' no começo para consistência
         perms.unshift('dashboard');
@@ -171,16 +173,21 @@ export default function AdminAcesso() {
         .delete()
         .eq('user_id', selectedUser.id);
 
-      // Inserir novas permissões
-      if (userPermissions.length > 0) {
-        const permissionsToInsert = userPermissions.map(key => ({
+      // Inserir novas permissões (deduplicando para evitar chaves duplicadas)
+      const uniqueKeys = Array.from(new Set(userPermissions));
+      // Garantir que dashboard esteja presente
+      if (!uniqueKeys.includes('dashboard')) uniqueKeys.unshift('dashboard');
+
+      if (uniqueKeys.length > 0) {
+        const permissionsToInsert = uniqueKeys.map(key => ({
           user_id: selectedUser.id,
           permission_key: key,
         }));
 
+        // Usar upsert com onConflict para tolerar possíveis duplicatas e evitar 23505
         const { error } = await supabase
           .from('user_permissions')
-          .insert(permissionsToInsert);
+          .upsert(permissionsToInsert, { onConflict: ['user_id', 'permission_key'] });
 
         if (error) throw error;
       }
@@ -333,12 +340,13 @@ export default function AdminAcesso() {
 
       // Se for moderador, criar permissões padrão (dashboard apenas)
       if (newUserForm.role === 'moderator') {
+        // Usar upsert para evitar tentativa de inserir duplicata (23505)
         const { error: permError } = await supabase
           .from('user_permissions')
-          .insert({
+          .upsert({
             user_id: authData.user.id,
             permission_key: 'dashboard'
-          });
+          }, { onConflict: ['user_id', 'permission_key'] });
 
         if (permError) {
           console.error('Erro ao criar permissão padrão:', permError);

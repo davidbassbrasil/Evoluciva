@@ -71,13 +71,17 @@ export interface Professor {
   slug?: string;
   created_at?: string;
   updated_at?: string;
+  // Novo: indica se o professor está ativo (visível na página pública)
+  active?: boolean;
+  // Novo: campo para controlar a ordem de exibição (0 = primeiro)
+  order?: number;
   courses?: {
     id: string;
     title: string;
     slug: string;
     image?: string;
   }[];
-}
+} 
 
 export interface Tag {
   id: string;

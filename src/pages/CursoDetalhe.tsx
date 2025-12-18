@@ -95,8 +95,9 @@ export default function CursoDetalhe() {
           .eq('course_id', data.id);
         
         if (professorLinks && professorLinks.length > 0) {
+          // professorLinks may contain 'professors' as an object or an array depending on the join.
           const profs = professorLinks
-            .map(link => link.professors)
+            .flatMap((link: any) => link.professors ? (Array.isArray(link.professors) ? link.professors : [link.professors]) : [])
             .filter(Boolean) as Professor[];
           setProfessors(profs);
         }
@@ -335,17 +336,17 @@ export default function CursoDetalhe() {
               {/* Professor Cards */}
               {professors.length > 0 && (
                 <div className="bg-card rounded-2xl p-4 border border-border/50">
-                  <div className="flex flex-wrap gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {professors.map((prof) => (
-                      <div key={prof.id} className="flex items-center gap-3">
+                      <div key={prof.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/5">
                         <img 
                           src={prof.image} 
                           alt={prof.name}
                           className="w-12 h-12 rounded-full object-cover border-2 border-primary/20"
                         />
-                        <div>
-                          <h3 className="font-semibold text-sm">{prof.name}</h3>
-                          <p className="text-xs text-muted-foreground">{prof.specialty}</p>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{prof.name}</h3>
+                          <p className="text-xs text-muted-foreground truncate">{prof.specialty}</p>
                         </div>
                       </div>
                     ))}

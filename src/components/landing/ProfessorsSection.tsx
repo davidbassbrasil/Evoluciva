@@ -14,11 +14,12 @@ export function ProfessorsSection() {
     const load = async () => {
       if (!supabase) return;
       try {
-        // Carregar professores
+        // Carregar professores (apenas ativos) e ordenar por 'order'
         const { data: professorsData, error: professorsError } = await supabase
           .from('professors')
           .select('*')
-          .order('name', { ascending: true });
+          .eq('active', true)
+          .order('order', { ascending: true });
 
         if (professorsError) throw professorsError;
 

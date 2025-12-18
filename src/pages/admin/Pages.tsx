@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, Image as ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Banners Page
@@ -494,7 +494,7 @@ export function AdminProfessores() {
         const { data: professorsData, error: professorsError } = await supabase
           .from('professors')
           .select('*')
-          .order('name', { ascending: true });
+          .order('order', { ascending: true });
         
         if (professorsError) throw professorsError;
 
@@ -637,7 +637,11 @@ export function AdminProfessores() {
       specialty: form.specialty.trim(),
       bio: form.bio.trim(),
       image: imageUrl,
-    };
+      // Mantemos o estado atual ou assumimos ativo por padrão
+      active: selected?.active ?? true,
+      // Define ordem como a posição atual no array caso seja novo
+      order: selected?.order ?? items.length,
+    }; 
 
     try {
       if (supabase) {
@@ -746,6 +750,73 @@ export function AdminProfessores() {
       toast({
         title: 'Erro',
         description: 'Não foi possível excluir o professor.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const changeOrderProf = async (id: string, direction: 'up' | 'down') => {
+    const index = items.findIndex(i => i.id === id);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === items.length - 1) return;
+
+    const newItems = [...items];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
+
+    // Atualiza valores de order
+    newItems.forEach((item, idx) => {
+      item.order = idx;
+    });
+
+    try {
+      if (supabase) {
+        for (const item of newItems) {
+          await supabase
+            .from('professors')
+            .update({ order: item.order })
+            .eq('id', item.id);
+        }
+      }
+
+      setItems(newItems);
+      setProfessors(newItems);
+      toast({ title: 'Ordem alterada!' });
+    } catch (error) {
+      console.error('Error updating professor order:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível alterar a ordem.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const toggleActive = async (id: string) => {
+    const prof = items.find(i => i.id === id);
+    if (!prof) return;
+    const newActive = !prof.active;
+
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('professors')
+          .update({ active: newActive })
+          .eq('id', id);
+
+        if (error) throw error;
+      }
+
+      const newItems = items.map(i => i.id === id ? { ...i, active: newActive } : i);
+      setItems(newItems);
+      setProfessors(newItems);
+      toast({ title: newActive ? 'Professor ativado' : 'Professor desativado' });
+    } catch (error) {
+      console.error('Error toggling active:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível alterar o estado.',
         variant: 'destructive',
       });
     }
@@ -932,21 +1003,25 @@ export function AdminProfessores() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {items.map(item => (
+          {items.map((item, index) => (
             <div
               key={item.id}
-              className="bg-card p-6 rounded-xl border border-border/50 hover:shadow-lg transition-shadow"
+              className="bg-card p-4 md:p-6 rounded-xl border border-border/50 hover:shadow-lg transition-shadow"
             >
-              <div className="flex gap-4">
+              <div className="flex flex-col md:flex-row gap-4">
                 <img
                   src={item.image}
                   alt={item.name}
-                  className="w-20 h-20 object-cover rounded-full"
+                  className="w-14 h-14 md:w-20 md:h-20 object-cover rounded-full"
                 />
                 <div className="flex-1">
                   <h3 className="font-bold text-lg mb-1">{item.name}</h3>
                   <p className="text-sm text-primary font-medium mb-2">{item.specialty}</p>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <p className="text-xs text-muted-foreground">Ordem: {typeof item.order === 'number' ? item.order + 1 : '-'}</p>
+                    {!item.active && <p className="text-xs text-destructive">Inativo</p>}
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-1 md:line-clamp-2 mb-2">
                     {item.bio}
                   </p>
                   {item.courses && item.courses.length > 0 && (
@@ -959,7 +1034,38 @@ export function AdminProfessores() {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center mt-2 md:mt-0">
+                  <div className="flex gap-1 flex-row md:flex-col md:mr-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => changeOrderProf(item.id, 'up')}
+                      disabled={index === 0}
+                      title="Mover para cima"
+                      className="md:mb-1"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => changeOrderProf(item.id, 'down')}
+                      disabled={index === items.length - 1}
+                      title="Mover para baixo"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <Button
+                    variant={item.active ? 'default' : 'outline'}
+                    size="icon"
+                    onClick={() => toggleActive(item.id)}
+                    title={item.active ? 'Desativar' : 'Ativar'}
+                  >
+                    {item.active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="icon"
