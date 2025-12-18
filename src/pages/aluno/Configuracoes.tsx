@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { getCurrentUser, updateUser } from '@/lib/localStorage';
 import { User as UserType } from '@/types';
-import supabase from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 import { useStudentModules, confirmModuleReceipt } from '@/lib/moduleService';
 
 const ESTADOS = [
@@ -104,13 +104,14 @@ export default function AlunoConfiguracoes() {
   }, [navigate]);
 
   useEffect(() => {
-    if (activeTab === 'financeiro' && user?.id) {
     if (activeTab === 'modulos') {
       refetchModules();
     }
+
+    if (activeTab === 'financeiro' && user?.id) {
       loadPayments();
     }
-  }, [activeTab, user?.id]);
+  }, [activeTab, user?.id, refetchModules]);
 
   const loadPayments = async () => {
     if (!user?.id) return;
@@ -348,54 +349,48 @@ export default function AlunoConfiguracoes() {
     }
   };
 
-  const [financeFeatureEnabled, setFinanceFeatureEnabled] = useState<boolean>(true);
-  const [modulesFeatureEnabled, setModulesFeatureEnabled] = useState<boolean>(true);
+  const [financeFeatureEnabled, setFinanceFeatureEnabled] = useState<boolean | null>(null);
+  const [modulesFeatureEnabled, setModulesFeatureEnabled] = useState<boolean | null>(null);
+  const [featuresLoaded, setFeaturesLoaded] = useState<boolean>(false);
 
   useEffect(() => {
-    const loadFinanceFlag = async () => {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'active_aluno_financeiro')
-          .single();
+    const loadFlags = async () => {
+      if (!supabase) {
+        setFinanceFeatureEnabled(true);
+        setModulesFeatureEnabled(true);
+        setFeaturesLoaded(true);
+        return;
+      }
 
-        if (!error && data && data.value !== undefined) {
-          const v = data.value;
-          setFinanceFeatureEnabled(Boolean(v === true || v === 'true' || v === '"true"' || v === '1' || v === 1));
+      try {
+        const [fRes, mRes] = await Promise.all([
+          supabase.from('app_settings').select('value').eq('key', 'active_aluno_financeiro').single(),
+          supabase.from('app_settings').select('value').eq('key', 'active_aluno_modulos').single(),
+        ]);
+
+        if (!fRes.error && fRes.data && fRes.data.value !== undefined) {
+          const v = fRes.data.value;
+          setFinanceFeatureEnabled(Boolean(v === true || v === 'true' || v === '\"true\"' || v === '1' || v === 1));
         } else {
           setFinanceFeatureEnabled(true);
         }
-      } catch (err) {
-        console.error('Erro ao verificar flag financeiro:', err);
-        setFinanceFeatureEnabled(true);
-      }
-    };
 
-    const loadModulesFlag = async () => {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', 'active_aluno_modulos')
-          .single();
-
-        if (!error && data && data.value !== undefined) {
-          const v = data.value;
-          setModulesFeatureEnabled(Boolean(v === true || v === 'true' || v === '"true"' || v === '1' || v === 1));
+        if (!mRes.error && mRes.data && mRes.data.value !== undefined) {
+          const v = mRes.data.value;
+          setModulesFeatureEnabled(Boolean(v === true || v === 'true' || v === '\"true\"' || v === '1' || v === 1));
         } else {
           setModulesFeatureEnabled(true);
         }
       } catch (err) {
-        console.error('Erro ao verificar flag modulos:', err);
+        console.error('Erro ao verificar flags de features:', err);
+        setFinanceFeatureEnabled(true);
         setModulesFeatureEnabled(true);
+      } finally {
+        setFeaturesLoaded(true);
       }
     };
 
-    loadFinanceFlag();
-    loadModulesFlag();
+    loadFlags();
   }, []);
 
   const tabs = [
@@ -405,12 +400,16 @@ export default function AlunoConfiguracoes() {
     { id: 'senha', label: 'Senha', icon: Key },
   ];
 
-  if (modulesFeatureEnabled) {
-    tabs.push({ id: 'modulos', label: 'Módulos', icon: Package });
-  }
+  // Only add feature tabs after we've loaded the feature flags to avoid
+  // a flash of content (they briefly appear with default=true then disappear).
+  if (featuresLoaded) {
+    if (modulesFeatureEnabled) {
+      tabs.push({ id: 'modulos', label: 'Módulos', icon: Package });
+    }
 
-  if (financeFeatureEnabled) {
-    tabs.push({ id: 'financeiro', label: 'Financeiro', icon: Receipt });
+    if (financeFeatureEnabled) {
+      tabs.push({ id: 'financeiro', label: 'Financeiro', icon: Receipt });
+    }
   }
 
   return (

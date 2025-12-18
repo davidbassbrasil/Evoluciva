@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import supabase from './supabaseClient';
 import { Module, ModuleDelivery, ModuleWithDeliveries } from '@/types';
 
@@ -364,11 +364,11 @@ export function useStudentModules() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchStudentModules();
-  }, []);
+  const isFetchingRef = useRef(false);
 
-  const fetchStudentModules = async () => {
+  const fetchStudentModules = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       setLoading(true);
       setError(null);
@@ -376,7 +376,7 @@ export function useStudentModules() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user) throw new Error('Usuário não autenticado');
 
-      console.log('🔍 Buscando módulos para aluno:', userData.user.id);
+      // debug: removed verbose fetch log
 
       // Teste 1: Buscar todas as entregas sem filtro (para ver se há problema de RLS)
       const { data: testAll, error: testError } = await supabase
@@ -384,7 +384,8 @@ export function useStudentModules() {
         .select('*')
         .eq('student_id', userData.user.id);
       
-      console.log('🧪 Teste sem filtros:', JSON.stringify(testAll, null, 2), 'Erro:', testError);
+      // debug: removed test logs
+      if (testError) console.error('Erro no teste sem filtros:', testError);
 
       // Buscar entregas de módulos para o aluno (somente os já entregues)
       const { data: deliveries, error: deliveriesError } = await supabase
@@ -406,10 +407,9 @@ export function useStudentModules() {
         .not('delivered_at', 'is', null)
         .order('delivered_at', { ascending: false });
 
-      console.log('📦 Módulos encontrados:', deliveries);
-      console.log('❌ Erro na query:', deliveriesError);
-      
+      // debug: removed result log
       if (deliveriesError) {
+        console.error('❌ Erro na query:', deliveriesError);
         console.error('Erro detalhado:', JSON.stringify(deliveriesError, null, 2));
         throw deliveriesError;
       }
@@ -420,8 +420,13 @@ export function useStudentModules() {
       console.error('Erro ao buscar módulos do aluno:', err);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchStudentModules();
+  }, [fetchStudentModules]);
 
   return { modules, loading, error, refetch: fetchStudentModules };
 }
