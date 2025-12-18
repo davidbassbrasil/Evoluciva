@@ -38,6 +38,7 @@ const AVAILABLE_PERMISSIONS: Permission[] = [
   { key: 'alunos', label: 'Alunos', description: 'Gerenciar alunos e matrículas' },
   { key: 'financeiro', label: 'Financeiro', description: 'Visualizar e gerenciar pagamentos' },
   { key: 'modulos', label: 'Módulos', description: 'Controle de estoque e entregas de módulos' },
+  { key: 'app_settings', label: 'App Settings', description: 'Acesso à página de configurações globais do aplicativo' },
 ];
 
 export default function AdminAcesso() {

@@ -140,6 +140,7 @@ export default function AdminAlunos() {
   });
   
   const { toast } = useToast();
+  
 
   // Load data
   useEffect(() => {

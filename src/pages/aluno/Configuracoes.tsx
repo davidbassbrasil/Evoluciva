@@ -348,14 +348,70 @@ export default function AlunoConfiguracoes() {
     }
   };
 
+  const [financeFeatureEnabled, setFinanceFeatureEnabled] = useState<boolean>(true);
+  const [modulesFeatureEnabled, setModulesFeatureEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    const loadFinanceFlag = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'active_aluno_financeiro')
+          .single();
+
+        if (!error && data && data.value !== undefined) {
+          const v = data.value;
+          setFinanceFeatureEnabled(Boolean(v === true || v === 'true' || v === '"true"' || v === '1' || v === 1));
+        } else {
+          setFinanceFeatureEnabled(true);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar flag financeiro:', err);
+        setFinanceFeatureEnabled(true);
+      }
+    };
+
+    const loadModulesFlag = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'active_aluno_modulos')
+          .single();
+
+        if (!error && data && data.value !== undefined) {
+          const v = data.value;
+          setModulesFeatureEnabled(Boolean(v === true || v === 'true' || v === '"true"' || v === '1' || v === 1));
+        } else {
+          setModulesFeatureEnabled(true);
+        }
+      } catch (err) {
+        console.error('Erro ao verificar flag modulos:', err);
+        setModulesFeatureEnabled(true);
+      }
+    };
+
+    loadFinanceFlag();
+    loadModulesFlag();
+  }, []);
+
   const tabs = [
     { id: 'site', label: 'Site', icon: Globe },
     { id: 'contato', label: 'Suporte', icon: MessageCircle },
     { id: 'dados', label: 'Meus Dados', icon: UserCircle },
     { id: 'senha', label: 'Senha', icon: Key },
-    { id: 'modulos', label: 'Módulos', icon: Package },
-    { id: 'financeiro', label: 'Financeiro', icon: Receipt },
   ];
+
+  if (modulesFeatureEnabled) {
+    tabs.push({ id: 'modulos', label: 'Módulos', icon: Package });
+  }
+
+  if (financeFeatureEnabled) {
+    tabs.push({ id: 'financeiro', label: 'Financeiro', icon: Receipt });
+  }
 
   return (
     <div className="min-h-screen bg-background">

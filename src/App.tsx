@@ -29,6 +29,7 @@ import AdminAlunos from "./pages/admin/Alunos";
 import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminAcesso from "./pages/admin/Acesso";
 import AdminModulos from "./pages/admin/Modulos";
+import AdminAppSettings from "./pages/admin/AppSettings";
 import CheckoutCart from "./pages/CheckoutCart";
 import Cart from "./pages/Cart";
 import TermosDeUso from "./pages/TermosDeUso";
@@ -93,6 +94,7 @@ const App = () => {
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
           <Route path="/admin/acesso" element={<AdminAcesso />} />
           <Route path="/admin/modulos" element={<AdminModulos />} />
+          <Route path="/admin/app-settings" element={<AdminAppSettings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

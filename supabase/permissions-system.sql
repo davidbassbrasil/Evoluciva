@@ -66,6 +66,21 @@ WITH CHECK (
   )
 );
 
+-- Admins podem deletar perfis (necessário para permitir exclusão de usuários pelo painel)
+DROP POLICY IF EXISTS "Admins can delete any profile" ON profiles;
+CREATE POLICY "Admins can delete any profile"
+ON profiles
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles p
+    WHERE p.id = auth.uid()
+    AND p.role = 'admin'
+  )
+);
+
+
 -- PASSO 5B: Policies para user_permissions
 
 -- Admins podem ver todas as permissões
@@ -182,4 +197,5 @@ SELECT unnest(ARRAY[
   'alunos',
   'financeiro',
   'modulos'
+  'app-settings'
 ]) as available_permissions;
