@@ -36,6 +36,8 @@ export default function CursoDetalhe() {
   const [loading, setLoading] = useState(true);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrolledTurmaId, setEnrolledTurmaId] = useState<string | null>(null);
+  const [precoOpcional, setPrecoOpcional] = useState<any | null>(null);
+  const [precoMap, setPrecoMap] = useState<Record<string, { presential?: any; online?: any }>>({});
   const { toast } = useToast();
 
   // SEO - Schemas e meta tags (DEVE estar ANTES de qualquer return condicional!)
@@ -183,6 +185,79 @@ export default function CursoDetalhe() {
     loadCourse();
   }, [courseId, turmaIdFromUrl]);
 
+  // Carregar preço opcional vigente sempre que a turma selecionada ou modalidade mudar
+  useEffect(() => {
+    const loadPrecoOpcional = async (turmaId: string, channel: string) => {
+      try {
+        const today = new Date().toISOString().slice(0,10);
+        const { data, error } = await supabase
+          .from('turma_precos_opcionais')
+          .select('*')
+          .eq('turma_id', turmaId)
+          .gte('expires_at', today)
+          .in('channel', ['both', channel])
+          .order('expires_at', { ascending: true })
+          .limit(1);
+
+        if (error) throw error;
+        setPrecoOpcional((data && data.length > 0) ? data[0] : null);
+      } catch (err: any) {
+        console.error('Erro ao buscar preço opcional:', err);
+        setPrecoOpcional(null);
+      }
+    };
+
+    if (selectedTurma) {
+      loadPrecoOpcional(selectedTurma.id, selectedModality);
+    } else {
+      setPrecoOpcional(null);
+    }
+  }, [selectedTurma, selectedModality]);
+
+  // Carregar preços opcionais para todas as turmas listadas (para mostrar na lista)
+  useEffect(() => {
+    const loadPrecosForTurmas = async () => {
+      if (!turmas || turmas.length === 0) {
+        setPrecoMap({});
+        return;
+      }
+
+      try {
+        const turmaIds = turmas.map(t => t.id);
+        const today = new Date().toISOString().slice(0,10);
+        const { data, error } = await supabase
+          .from('turma_precos_opcionais')
+          .select('*')
+          .in('turma_id', turmaIds)
+          .gte('expires_at', today)
+          .order('expires_at', { ascending: true });
+
+        if (error) throw error;
+
+        const map: Record<string, { presential?: any; online?: any }> = {};
+        (data || []).forEach((p: any) => {
+          const id = p.turma_id;
+          if (!map[id]) map[id] = {};
+          if (p.channel === 'both') {
+            if (!map[id].presential) map[id].presential = p;
+            if (!map[id].online) map[id].online = p;
+          } else if (p.channel === 'presential') {
+            if (!map[id].presential) map[id].presential = p;
+          } else if (p.channel === 'online') {
+            if (!map[id].online) map[id].online = p;
+          }
+        });
+
+        setPrecoMap(map);
+      } catch (err: any) {
+        console.error('Erro ao carregar preços opcionais para turmas:', err);
+        setPrecoMap({});
+      }
+    };
+
+    loadPrecosForTurmas();
+  }, [turmas]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -280,6 +355,17 @@ export default function CursoDetalhe() {
   const seoDescription = course
     ? seoHelpers.generateDescription(`${course.description} Curso preparatório completo com ${course.instructor}. Modalidades presencial em Maceió e online para todo Brasil. Matricule-se agora!`)
     : 'Curso preparatório para concursos públicos';
+
+  // Preços efetivos (evita flicker): prioridade precoMap -> precoOpcional -> turma
+  const selectedId = selectedTurma?.id;
+  const mapEntry = selectedId ? precoMap[selectedId] : undefined;
+  const effectivePresential = (mapEntry?.presential?.price !== undefined)
+    ? Number(mapEntry!.presential.price)
+    : (precoOpcional && (precoOpcional.channel === 'both' || precoOpcional.channel === 'presential') ? Number(precoOpcional.price) : Number(selectedTurma?.price ?? course?.price ?? 0));
+  const effectiveOnline = (mapEntry?.online?.price !== undefined)
+    ? Number(mapEntry!.online.price)
+    : (precoOpcional && (precoOpcional.channel === 'both' || precoOpcional.channel === 'online') ? Number(precoOpcional.price) : Number(selectedTurma?.price_online ?? course?.price ?? 0));
+  const effectiveDisplayed = selectedTurma ? (selectedModality === 'online' ? effectiveOnline : effectivePresential) : Number(course?.price ?? 0);
 
   return (
     <>
@@ -417,31 +503,28 @@ export default function CursoDetalhe() {
                 </div>
 
                 <div className="mb-6">
-                  {selectedTurma && selectedTurma.original_price > selectedTurma.price && selectedModality === 'presential' && (
+                        {selectedTurma && !precoOpcional && selectedTurma.original_price > selectedTurma.price && selectedModality === 'presential' && (
                     <span className="text-sm text-muted-foreground line-through block mb-1">
                       De R$ {Number(selectedTurma.original_price).toFixed(2)}
                     </span>
                   )}
-                  {selectedTurma && selectedTurma.original_price_online > selectedTurma.price_online && selectedModality === 'online' && (
+                        {selectedTurma && !precoOpcional && selectedTurma.original_price_online > selectedTurma.price_online && selectedModality === 'online' && (
                     <span className="text-sm text-muted-foreground line-through block mb-1">
                       De R$ {Number(selectedTurma.original_price_online).toFixed(2)}
                     </span>
                   )}
-                  <div className="text-3xl font-bold text-primary">
-                    R$ {
-                      selectedTurma 
-                        ? (selectedModality === 'online' 
-                            ? Number(selectedTurma.price_online).toFixed(2) 
-                            : Number(selectedTurma.price).toFixed(2)
-                          )
-                        : Number(course.price || 0).toFixed(2)
-                    }
-                  </div>
-                  {selectedTurma?.allow_installments && selectedModality === 'presential' && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      ou até {selectedTurma.max_installments}x de R$ {(Number(selectedTurma.price) / selectedTurma.max_installments).toFixed(2)}
-                    </p>
-                  )}
+                        <div>
+                          {/* label: prefer mapEntry label (per-channel) then precoOpcional.label */}
+                          {((mapEntry && ((selectedModality === 'presential' && mapEntry.presential) || (selectedModality === 'online' && mapEntry.online)))?.label || precoOpcional?.label) && (
+                            <div className="text-sm text-muted-foreground mb-1">{((mapEntry && ((selectedModality === 'presential' && mapEntry.presential) || (selectedModality === 'online' && mapEntry.online)))?.label) || precoOpcional?.label}</div>
+                          )}
+                          <div className="text-3xl font-bold text-primary">R$ {effectiveDisplayed.toFixed(2)}</div>
+                        </div>
+                        {selectedTurma?.allow_installments && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            ou até {selectedTurma.max_installments}x de R$ {(effectiveDisplayed / selectedTurma.max_installments).toFixed(2)}
+                          </p>
+                        )}
                 </div>
 
                 {/* Seleção de Turma */}
@@ -489,7 +572,7 @@ export default function CursoDetalhe() {
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">Presencial:</span>{' '}
                                 <span className="font-bold text-primary">
-                                  R$ {Number(turma.price).toFixed(2)}
+                                  R$ {precoMap[turma.id] && precoMap[turma.id].presential ? Number(precoMap[turma.id].presential.price).toFixed(2) : Number(turma.price).toFixed(2)}
                                 </span>
                                 {turma.presential_slots > 0 && (
                                   <Badge variant={turma.presential_slots <= 5 ? "destructive" : "secondary"} className="text-xs">
@@ -506,7 +589,7 @@ export default function CursoDetalhe() {
                                 <div>
                                   <span className="font-medium">Online:</span>{' '}
                                   <span className="font-bold text-primary">
-                                    R$ {Number(turma.price_online).toFixed(2)}
+                                    R$ {precoMap[turma.id] && precoMap[turma.id].online ? Number(precoMap[turma.id].online.price).toFixed(2) : Number(turma.price_online).toFixed(2)}
                                   </span>
                                 </div>
                               )}
@@ -542,7 +625,7 @@ export default function CursoDetalhe() {
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            R$ {Number(selectedTurma.price).toFixed(2)}
+                            R$ {effectivePresential.toFixed(2)}
                             {selectedTurma.allow_installments && (
                               <span> ou até {selectedTurma.max_installments}x</span>
                             )}
@@ -555,7 +638,10 @@ export default function CursoDetalhe() {
                           <Label htmlFor="online" className="flex-1 cursor-pointer">
                             <div className="font-medium">Online</div>
                             <div className="text-sm text-muted-foreground">
-                              R$ {Number(selectedTurma.price_online).toFixed(2)}
+                              R$ {effectiveOnline.toFixed(2)}
+                              {selectedTurma.allow_installments && (
+                                <span> ou até {selectedTurma.max_installments}x</span>
+                              )}
                             </div>
                           </Label>
                         </div>

@@ -39,6 +39,17 @@ interface TurmaForm {
   coupon_discount: string;
 }
 
+interface TurmaPreco {
+  id: string;
+  turma_id: string;
+  label?: string;
+  price: string | number;
+  channel: string;
+  expires_at: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 interface Turma extends TurmaForm {
   id: string;
   course_title?: string;
@@ -53,6 +64,10 @@ export default function AdminTurmas() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Turma | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turmaPrecos, setTurmaPrecos] = useState<TurmaPreco[]>([]);
+  const [loadingPrecos, setLoadingPrecos] = useState(false);
+  const [precoEditingId, setPrecoEditingId] = useState<string | null>(null);
+  const [precoForm, setPrecoForm] = useState({ label: '', price: '', expires_at: '', channel: 'both' });
   const [form, setForm] = useState<TurmaForm>({
     name: '',
     course_id: '',
@@ -127,6 +142,24 @@ export default function AdminTurmas() {
     }
   };
 
+  const loadPrecos = async (turmaId: string) => {
+    setLoadingPrecos(true);
+    try {
+      const { data, error } = await supabase
+        .from('turma_precos_opcionais')
+        .select('*')
+        .eq('turma_id', turmaId)
+        .order('expires_at', { ascending: true });
+
+      if (error) throw error;
+      setTurmaPrecos(data || []);
+    } catch (err: any) {
+      toast({ title: 'Erro ao carregar preços opcionais', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoadingPrecos(false);
+    }
+  };
+
   // Funções antigas removidas - agora tudo carrega em paralelo no loadData
   const loadCourses = async () => { /* deprecated */ };
   const loadTurmas = async () => { /* deprecated */ };
@@ -153,13 +186,79 @@ export default function AdminTurmas() {
       allow_pix: true,
       allow_boleto: true,
       discount_cash: '0',
-      discount_pix: '0',
-      discount_debit: '0',
-      coupon_code: '',
-      coupon_discount: '0',
-    });
-    setSelected(null);
-  };
+    discount_pix: '0',
+    discount_debit: '0',
+    coupon_code: '',
+    coupon_discount: '0',
+  });
+  setSelected(null);
+};
+
+const resetPrecoForm = () => {
+  setPrecoEditingId(null);
+  setPrecoForm({ label: '', price: '', expires_at: '', channel: 'both' });
+};
+
+const handleSavePreco = async () => {
+  if (!selected?.id) {
+    toast({ title: 'Salve a turma antes de adicionar preços opcionais', variant: 'destructive' });
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const payload = {
+      turma_id: selected.id,
+      label: precoForm.label || null,
+      price: Number(precoForm.price) || 0,
+      channel: precoForm.channel || 'both',
+      expires_at: precoForm.expires_at || null,
+    };
+
+    if (precoEditingId) {
+      const { error } = await supabase
+        .from('turma_precos_opcionais')
+        .update(payload)
+        .eq('id', precoEditingId);
+      if (error) throw error;
+      toast({ title: 'Preço opcional atualizado' });
+    } else {
+      const { error } = await supabase
+        .from('turma_precos_opcionais')
+        .insert([payload]);
+      if (error) throw error;
+      toast({ title: 'Preço opcional criado' });
+    }
+
+    await loadPrecos(selected.id);
+    resetPrecoForm();
+  } catch (err: any) {
+    toast({ title: 'Erro ao salvar preço', description: err.message, variant: 'destructive' });
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleEditPreco = (p: TurmaPreco) => {
+  setPrecoEditingId(p.id);
+  setPrecoForm({ label: p.label || '', price: String(p.price || ''), expires_at: p.expires_at || '', channel: p.channel || 'both' });
+};
+
+const handleDeletePreco = async (id: string) => {
+  if (!confirm('Deseja realmente excluir este preço opcional?')) return;
+  try {
+    setLoading(true);
+    const { error } = await supabase.from('turma_precos_opcionais').delete().eq('id', id);
+    if (error) throw error;
+    toast({ title: 'Preço opcional excluído' });
+    if (selected?.id) await loadPrecos(selected.id);
+  } catch (err: any) {
+    toast({ title: 'Erro ao excluir preço', description: err.message, variant: 'destructive' });
+  } finally {
+    setLoading(false);
+  }
+};
+ 
 
   const handleSave = async () => {
     if (!form.name || !form.course_id) {
@@ -271,6 +370,7 @@ export default function AdminTurmas() {
       coupon_discount: String(turma.coupon_discount || 0),
     });
     setOpen(true);
+    if (turma.id) loadPrecos(turma.id);
   };
 
   const handleEdit = (turma: Turma) => {
@@ -302,6 +402,7 @@ export default function AdminTurmas() {
       coupon_discount: String(turma.coupon_discount || 0),
     });
     setOpen(true);
+    if (turma.id) loadPrecos(turma.id);
   };
 
   const getStatusBadge = (status: string) => {
@@ -530,6 +631,84 @@ export default function AdminTurmas() {
                                 <p className="text-xs text-muted-foreground">
                   Se não preencher o preço original, apenas o preço de venda será exibido na página do curso
                 </p>
+
+                {selected?.id && (
+                  <div className="space-y-4 border-t pt-4">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <Tag className="w-4 h-4" />
+                      Preços Opcionais (Presencial / Online)
+                    </h4>
+
+                    {loadingPrecos ? (
+                      <p className="text-sm text-muted-foreground">Carregando preços opcionais...</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {turmaPrecos.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhum preço opcional cadastrado para esta turma.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {turmaPrecos.map((p) => (
+                              <div key={p.id} className="flex items-center justify-between bg-muted/40 p-2 rounded">
+                                <div>
+                                  <div className="font-medium">{p.label || (p.channel === 'presential' ? 'Presencial' : p.channel === 'online' ? 'Online' : 'Ambos')}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    R$ {Number(p.price).toFixed(2)} • expira em {new Date(p.expires_at + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge className="text-xs px-2 py-1">
+                                    {p.channel === 'both' ? 'Ambos' : p.channel === 'presential' ? 'Presencial' : 'Online'}
+                                  </Badge>
+                                  <Button variant="outline" size="icon" onClick={() => handleEditPreco(p)} title="Editar preço">
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="destructive" size="icon" onClick={() => handleDeletePreco(p.id)} title="Excluir preço">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+                          <div>
+                            <Label>Texto curto</Label>
+                            <Input value={precoForm.label} onChange={(e) => setPrecoForm({ ...precoForm, label: e.target.value })} placeholder="Ex: Oferta até dia..." />
+                          </div>
+                          <div>
+                            <Label>Valor (R$)</Label>
+                            <Input type="number" step="0.01" value={precoForm.price} onChange={(e) => setPrecoForm({ ...precoForm, price: e.target.value })} />
+                          </div>
+                          <div>
+                            <Label>Expira em</Label>
+                            <Input type="date" value={precoForm.expires_at} onChange={(e) => setPrecoForm({ ...precoForm, expires_at: e.target.value })} />
+                          </div>
+                          <div>
+                            <Label>Canal</Label>
+                            <Select value={precoForm.channel} onValueChange={(v) => setPrecoForm({ ...precoForm, channel: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="both">Ambos</SelectItem>
+                                <SelectItem value="presential">Presencial</SelectItem>
+                                <SelectItem value="online">Online</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button onClick={handleSavePreco} className="gradient-bg text-primary-foreground" disabled={loading}>
+                            {precoEditingId ? 'Atualizar preço' : 'Adicionar preço'}
+                          </Button>
+                          <Button variant="ghost" onClick={resetPrecoForm}>Cancelar</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Formas de Pagamento */}
