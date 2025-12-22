@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, CreditCard, Percent, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
+import { DAY_LABELS, formatSessions, validateSessions } from '../../lib/schedules';
 
 interface TurmaForm {
   name: string;
@@ -37,6 +38,8 @@ interface TurmaForm {
   discount_debit: string;
   coupon_code: string;
   coupon_discount: string;
+  weekdays?: string[];
+  sessions?: { day: string; start: string; end: string }[];
 }
 
 interface TurmaPreco {
@@ -93,6 +96,8 @@ export default function AdminTurmas() {
     discount_debit: '0',
     coupon_code: '',
     coupon_discount: '0',
+    weekdays: [],
+    sessions: [],
   });
   const { toast } = useToast();
 
@@ -129,6 +134,8 @@ export default function AdminTurmas() {
           ...t,
           course_title: t.course?.title || '',
           course_image: t.course?.image || '',
+          weekdays: t.weekdays || [],
+          sessions: typeof t.sessions === 'string' ? JSON.parse(t.sessions) : (t.sessions || []),
         }));
         setTurmas(formatted);
       } else if (turmasResult.error) {
@@ -190,6 +197,8 @@ export default function AdminTurmas() {
     discount_debit: '0',
     coupon_code: '',
     coupon_discount: '0',
+    weekdays: [],
+    sessions: [],
   });
   setSelected(null);
 };
@@ -267,6 +276,8 @@ const handleDeletePreco = async (id: string) => {
     }
 
     try {
+      // Validação básica das sessions
+      validateSessions(form.sessions);
       setLoading(true);
       
       const turmaData = {
@@ -294,22 +305,41 @@ const handleDeletePreco = async (id: string) => {
         discount_debit: Number(form.discount_debit) || 0,
         coupon_code: form.coupon_code || null,
         coupon_discount: Number(form.coupon_discount) || 0,
+        weekdays: form.weekdays || [],
+        sessions: form.sessions || [],
       };
 
       if (selected?.id) {
-        const { error } = await supabase
+        const { data: updatedRow, error } = await supabase
           .from('turmas')
           .update(turmaData)
-          .eq('id', selected.id);
+          .eq('id', selected.id)
+          .select()
+          .single();
         
         if (error) throw error;
+        // Verificar se campos foram persistidos
+        if (!updatedRow.weekdays || !Array.isArray(updatedRow.weekdays)) {
+          toast({ title: 'Atenção', description: 'Os dias da semana não foram salvos no banco. Verifique a coluna `weekdays`.', variant: 'destructive' });
+        }
+        if (!updatedRow.sessions) {
+          toast({ title: 'Atenção', description: 'Os horários (sessions) não foram salvos no banco. Verifique a coluna `sessions`.', variant: 'destructive' });
+        }
         toast({ title: 'Turma atualizada com sucesso!' });
       } else {
-        const { error } = await supabase
+        const { data: insertedRow, error } = await supabase
           .from('turmas')
-          .insert([turmaData]);
+          .insert([turmaData])
+          .select()
+          .single();
         
         if (error) throw error;
+        if (!insertedRow.weekdays || !Array.isArray(insertedRow.weekdays)) {
+          toast({ title: 'Atenção', description: 'Os dias da semana não foram salvos no banco. Verifique a coluna `weekdays`.', variant: 'destructive' });
+        }
+        if (!insertedRow.sessions) {
+          toast({ title: 'Atenção', description: 'Os horários (sessions) não foram salvos no banco. Verifique a coluna `sessions`.', variant: 'destructive' });
+        }
         toast({ title: 'Turma criada com sucesso!' });
       }
 
@@ -368,6 +398,8 @@ const handleDeletePreco = async (id: string) => {
       discount_debit: String(turma.discount_debit || 0),
       coupon_code: turma.coupon_code || '',
       coupon_discount: String(turma.coupon_discount || 0),
+      weekdays: turma.weekdays || [],
+      sessions: (turma.sessions && typeof turma.sessions === 'string') ? JSON.parse(turma.sessions) : ((turma.sessions as any) || []),
     });
     setOpen(true);
     if (turma.id) loadPrecos(turma.id);
@@ -400,6 +432,8 @@ const handleDeletePreco = async (id: string) => {
       discount_debit: String(turma.discount_debit || 0),
       coupon_code: turma.coupon_code || '',
       coupon_discount: String(turma.coupon_discount || 0),
+      weekdays: turma.weekdays || [],
+      sessions: (turma.sessions && typeof turma.sessions === 'string') ? JSON.parse(turma.sessions) : ((turma.sessions as any) || []),
     });
     setOpen(true);
     if (turma.id) loadPrecos(turma.id);
@@ -417,6 +451,8 @@ const handleDeletePreco = async (id: string) => {
         return null;
     }
   };
+
+  // DAY_LABELS and formatSessions moved to shared utility in src/lib/schedules.ts
 
   return (
     <AdminLayout>
@@ -519,6 +555,51 @@ const handleDeletePreco = async (id: string) => {
                       value={form.access_end_date}
                       onChange={(e) => setForm({ ...form, access_end_date: e.target.value })}
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dias e Horários */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Dias e Horários
+                </h3>
+
+                <div>
+                </div>
+
+                <div>
+                  <Label className="text-sm">Horários (sessions)</Label>
+                  <div className="space-y-2 mt-2">
+                    {(form.sessions || []).map((s, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <select
+                          value={s.day}
+                          onChange={(e) => {
+                            const next = (form.sessions || []).slice();
+                            next[idx] = { ...next[idx], day: e.target.value };
+                            setForm({ ...form, sessions: next });
+                          }}
+                          className="border rounded px-2 py-1"
+                        >
+                          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
+                            <option key={d} value={d}>{DAY_LABELS[d]}</option>
+                          ))}
+                        </select>
+                        <Input type="time" value={s.start} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], start: e.target.value }; setForm({ ...form, sessions: next }); }} />
+                        <Input type="time" value={s.end} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], end: e.target.value }; setForm({ ...form, sessions: next }); }} />
+                        <Button variant="destructive" size="icon" onClick={() => { const next = (form.sessions || []).slice(); next.splice(idx,1); setForm({ ...form, sessions: next }); }} title="Remover horário">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    <div>
+                      <Button onClick={() => setForm({ ...form, sessions: [...(form.sessions || []), { day: (form.weekdays && form.weekdays[0]) || 'Mon', start: '', end: '' }] })} className="mt-2 gradient-bg text-primary-foreground">
+                        + Adicionar Horário
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -899,6 +980,12 @@ const handleDeletePreco = async (id: string) => {
                       <span className="flex items-center gap-1 font-semibold text-primary">
                         <Calendar className="w-3 h-3" />
                         Início das Aulas: {new Date(turma.start_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </span>
+                    )}
+                    {turma.sessions && turma.sessions.length > 0 && (
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Calendar className="w-3 h-3" />
+                        {formatSessions(turma.sessions)}
                       </span>
                     )}
                     

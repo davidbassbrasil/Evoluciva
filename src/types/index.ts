@@ -47,6 +47,8 @@ export interface Turma {
   discount_debit: number;
   coupon_code: string | null;
   coupon_discount: number;
+  weekdays?: string[];
+  sessions?: { day: string; start: string; end?: string }[];
   created_at?: string;
   updated_at?: string;
   // Campos do JOIN com courses

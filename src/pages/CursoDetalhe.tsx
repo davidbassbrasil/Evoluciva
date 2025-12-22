@@ -15,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import { SEOHead, seoHelpers } from '@/components/SEOHead';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { getCourseSchema, getOrganizationSchema, injectSchema } from '@/lib/schemas';
+import { formatSessions, DAY_LABELS } from '@/lib/schedules';
 
 interface Professor {
   id: string;
@@ -525,6 +526,20 @@ export default function CursoDetalhe() {
                             ou até {selectedTurma.max_installments}x de R$ {(effectiveDisplayed / selectedTurma.max_installments).toFixed(2)}
                           </p>
                         )}
+                        {selectedTurma && selectedTurma.sessions && selectedTurma.sessions.length > 0 && (
+                          <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
+                            <Calendar className="w-3 h-3" />
+                            <span className="flex gap-2 items-center">
+                              {selectedTurma.sessions.map((s: any, i: number) => (
+                                <span key={i} className="mr-2">
+                                  <strong className="font-semibold">{DAY_LABELS[s.day] || s.day}</strong>{' '}
+                                  <strong className="font-semibold">{s.start}{s.end ? '–' + s.end : ''}</strong>
+                                  {i < (selectedTurma.sessions.length - 1) ? ', ' : ''}
+                                </span>
+                              ))}
+                            </span>
+                          </p>
+                        )}
                 </div>
 
                 {/* Seleção de Turma */}
@@ -591,6 +606,17 @@ export default function CursoDetalhe() {
                                   <span className="font-bold text-primary">
                                     R$ {precoMap[turma.id] && precoMap[turma.id].online ? Number(precoMap[turma.id].online.price).toFixed(2) : Number(turma.price_online).toFixed(2)}
                                   </span>
+                                </div>
+                              )}
+                              {turma.sessions && turma.sessions.length > 0 && (
+                                <div className="text-xs text-muted-foreground mt-2">
+                                  {turma.sessions.map((s: any, i: number) => (
+                                    <span key={i} className="mr-2">
+                                      <strong className="font-semibold">{DAY_LABELS[s.day] || s.day}</strong>{' '}
+                                      <strong className="font-semibold">{s.start}{s.end ? '–' + s.end : ''}</strong>
+                                      {i < (turma.sessions.length - 1) ? ', ' : ''}
+                                    </span>
+                                  ))}
                                 </div>
                               )}
                             </div>
