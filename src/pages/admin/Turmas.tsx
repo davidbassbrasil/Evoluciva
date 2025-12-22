@@ -475,7 +475,7 @@ export default function AdminTurmas() {
                     <Label className="font-semibold">Presencial</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                       <div>
-                        <Label>Preço Original (R$)</Label>
+                        <Label>Preço Original (R$) (Opcional)</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -501,7 +501,7 @@ export default function AdminTurmas() {
                     <Label className="font-semibold">Online</Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                       <div>
-                        <Label>Preço Original (R$)</Label>
+                        <Label>Preço Original (R$) (Opcional)</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -526,6 +526,9 @@ export default function AdminTurmas() {
 
                 <p className="text-xs text-muted-foreground">
                   Se não preencher o preço online, apenas a modalidade presencial estará disponível
+                </p>
+                                <p className="text-xs text-muted-foreground">
+                  Se não preencher o preço original, apenas o preço de venda será exibido na página do curso
                 </p>
               </div>
 

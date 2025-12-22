@@ -189,7 +189,9 @@ export function CoursesSection() {
                     </p>
                     
                     <div className="flex items-end justify-between">
-                      <div>
+                     
+                     {/*}
+                     <div>
                         {turma.original_price > turma.price && (
                           <span className="text-muted-foreground text-sm line-through">
                             R$ {Number(turma.original_price).toFixed(2)}
@@ -198,7 +200,8 @@ export function CoursesSection() {
                         <div className="text-2xl font-bold text-primary">
                           R$ {Number(turma.price).toFixed(2)}
                         </div>
-                      </div>
+                      </div>*/}
+
                       <Link to={`/curso/${turma.course?.slug || turma.course_id}?turma=${turma.id}`}>
                         <Button className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                           Saber mais
