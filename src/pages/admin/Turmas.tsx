@@ -772,7 +772,6 @@ const handleDeletePreco = async (id: string) => {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="both">Ambos</SelectItem>
                                 <SelectItem value="presential">Presencial</SelectItem>
                                 <SelectItem value="online">Online</SelectItem>
                               </SelectContent>
