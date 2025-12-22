@@ -113,6 +113,60 @@ app.get('/share/curso/:slug', async (req, res) => {
   }
 });
 
+// Serve OG tags on the normal course path for crawlers (Facebook, WhatsApp, Twitter)
+app.get('/curso/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  const isCrawler = /facebookexternalhit|linkedinbot|twitterbot|whatsapp|telegrambot|slackbot|discordbot|bingbot|googlebot/.test(ua);
+
+  if (!isCrawler) {
+    // regular browser -> redirect to public SPA URL
+    const publicUrl = `${SITE_URL.replace(/\/$/, '')}/curso/${encodeURIComponent(slug)}`;
+    return res.redirect(302, publicUrl);
+  }
+
+  // Crawler -> return same OG HTML as /share/curso/:slug
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return res.status(500).send('Supabase não configurado');
+  try {
+    const restUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/courses?select=title,description,full_description,image,slug,active&slug=eq.${encodeURIComponent(slug)}&limit=1`;
+    const r = await fetch(restUrl, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Accept: 'application/json'
+      }
+    });
+    if (!r.ok) return res.status(502).send('Erro ao buscar course');
+    const arr = await r.json();
+    const course = Array.isArray(arr) && arr[0];
+    if (!course) return res.status(404).send('Not found');
+
+    const title = escapeHtml(course.title || '');
+    const desc = escapeHtml(course.description || course.full_description || '');
+    let img = course.image || '';
+    if (img && !/^https?:\/\//i.test(img)) {
+      img = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/images/${img}`;
+    }
+    const publicUrl = `${SITE_URL.replace(/\/$/, '')}/curso/${encodeURIComponent(course.slug || slug)}`;
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(`<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${desc}" />
+    ${img ? `<meta property="og:image" content="${img}" />` : ''}
+    <meta property="og:url" content="${publicUrl}" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>Course preview</body>
+</html>`);
+  } catch (error) {
+    res.status(500).send('Internal error');
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`✅ Proxy Asaas rodando em http://localhost:${PORT}`);
