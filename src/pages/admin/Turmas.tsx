@@ -570,10 +570,10 @@ const handleDeletePreco = async (id: string) => {
                 </div>
 
                 <div>
-                  <Label className="text-sm">Horários (sessions)</Label>
+                  <Label className="text-sm">Grade de horários (Escolha um ou mais dias)</Label>
                   <div className="space-y-2 mt-2">
                     {(form.sessions || []).map((s, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
+                      <div key={idx} className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                         <select
                           value={s.day}
                           onChange={(e) => {
@@ -581,15 +581,15 @@ const handleDeletePreco = async (id: string) => {
                             next[idx] = { ...next[idx], day: e.target.value };
                             setForm({ ...form, sessions: next });
                           }}
-                          className="border rounded px-2 py-1"
+                          className="border rounded px-2 py-1 w-20 flex-shrink-0"
                         >
                           {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
                             <option key={d} value={d}>{DAY_LABELS[d]}</option>
                           ))}
                         </select>
-                        <Input type="time" value={s.start} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], start: e.target.value }; setForm({ ...form, sessions: next }); }} />
-                        <Input type="time" value={s.end} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], end: e.target.value }; setForm({ ...form, sessions: next }); }} />
-                        <Button variant="destructive" size="icon" onClick={() => { const next = (form.sessions || []).slice(); next.splice(idx,1); setForm({ ...form, sessions: next }); }} title="Remover horário">
+                        <Input className="w-28 flex-shrink-0" type="time" value={s.start} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], start: e.target.value }; setForm({ ...form, sessions: next }); }} />
+                        <Input className="w-28 flex-shrink-0" type="time" value={s.end} onChange={(e) => { const next = (form.sessions || []).slice(); next[idx] = { ...next[idx], end: e.target.value }; setForm({ ...form, sessions: next }); }} />
+                        <Button className="shrink-0" variant="destructive" size="icon" onClick={() => { const next = (form.sessions || []).slice(); next.splice(idx,1); setForm({ ...form, sessions: next }); }} title="Remover horário">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
