@@ -3,6 +3,8 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -30,6 +32,84 @@ app.all('/api/asaas/*', async (req, res) => {
     res.status(response.status).json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Helpers for sharing (Open Graph) ---
+function readEnvFile(envPath) {
+  try {
+    if (!fs.existsSync(envPath)) return null;
+    const content = fs.readFileSync(envPath, 'utf8');
+    return content.split(/\r?\n/).reduce((acc, line) => {
+      const m = line.match(/^([^=]+)=(.*)$/);
+      if (m) acc[m[1].trim()] = m[2].trim();
+      return acc;
+    }, {});
+  } catch (err) {
+    return null;
+  }
+}
+
+function getEnvVar(name) {
+  if (process.env[name]) return process.env[name];
+  const envLocal = readEnvFile(path.join(__dirname, '.env.local')) || readEnvFile(path.join(__dirname, '.env'));
+  if (envLocal && envLocal[name]) return envLocal[name];
+  return undefined;
+}
+
+const SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL');
+const SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY');
+const SITE_URL = getEnvVar('SITE_URL') || 'https://seusite.com';
+
+function escapeHtml(s = '') {
+  return String(s).replace(/[&<>\"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+app.get('/share/curso/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  if (!slug) return res.status(400).send('Missing slug');
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return res.status(500).send('Supabase não configurado');
+
+  try {
+    const restUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/courses?select=title,description,full_description,image,slug,active&slug=eq.${encodeURIComponent(slug)}&limit=1`;
+    const r = await fetch(restUrl, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Accept: 'application/json'
+      }
+    });
+    if (!r.ok) return res.status(502).send('Erro ao buscar course');
+    const arr = await r.json();
+    const course = Array.isArray(arr) && arr[0];
+    if (!course) return res.status(404).send('Not found');
+
+    const title = escapeHtml(course.title || '');
+    const desc = escapeHtml(course.description || course.full_description || '');
+    let img = course.image || '';
+    if (img && !/^https?:\/\//i.test(img)) {
+      // assume storage bucket 'images' (see supabase schema comments)
+      img = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/images/${img}`;
+    }
+
+    const publicUrl = `${SITE_URL.replace(/\/$/, '')}/curso/${encodeURIComponent(course.slug || slug)}`;
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(`<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${desc}" />
+    ${img ? `<meta property="og:image" content="${img}" />` : ''}
+    <meta property="og:url" content="${publicUrl}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta http-equiv="refresh" content="0; url=${publicUrl}" />
+  </head>
+  <body>Redirecting...</body>
+</html>`);
+  } catch (error) {
+    res.status(500).send('Internal error');
   }
 });
 
