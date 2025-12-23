@@ -539,7 +539,7 @@ export default function AlunoDashboard() {
                         <div className="p-4">
                           <h4 className="font-semibold text-sm line-clamp-2 mb-2">{course.title}</h4>
                           <div className="flex items-center justify-between">
-                            <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span>
+                         {/*}   <span className="text-primary font-bold">R$ {Number(course.price || 0).toFixed(2)}</span> */}
                             <Link to={`/curso/${course.slug || course.id}`}>
                               <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                                 Ver mais

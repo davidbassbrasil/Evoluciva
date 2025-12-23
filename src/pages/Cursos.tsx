@@ -271,7 +271,7 @@ export default function Cursos() {
                             </Badge>
                           )}
                         </div>
-                        {turma.original_price > turma.price && (
+                      {/*}  {turma.original_price > turma.price && (
                           <span className="text-muted-foreground text-xs line-through">
                             R$ {Number(turma.original_price).toFixed(2)}
                           </span>
@@ -289,9 +289,9 @@ export default function Cursos() {
                             )}
                             <div className="text-lg font-bold text-primary">
                               R$ {Number(turma.price_online).toFixed(2)}
-                            </div>
+                            </div> 
                           </>
-                        )}
+                        )} */}
                       </div>
                       <Button size="sm" className="gradient-bg text-primary-foreground shadow-glow hover:opacity-90">
                         Ver Detalhes
