@@ -59,7 +59,7 @@ export default function Popup() {
       <div className="absolute inset-0 bg-black/60" onClick={close} />
       <div className="bg-card p-6 rounded-xl z-10 max-w-xl w-full mx-4">
         <div className="flex justify-end">
-          <button onClick={close} className="text-muted-foreground">Fechar</button>
+          <button onClick={close} className="text-muted-foreground mb-2">X</button>
         </div>
         <div className="text-center">
           {item.title && <h3 className="font-bold text-lg mb-2">{item.title}</h3>}
@@ -73,7 +73,7 @@ export default function Popup() {
           )}
           {item.type === 'text' && item.content && (
             <div
-              className={`text-left mt-3 ${item.course_id ? 'cursor-pointer' : ''}`}
+              className={`text-center mt-3 ${item.course_id ? 'cursor-pointer' : ''}`}
               onClick={item.course_id ? handleClick : undefined}
               dangerouslySetInnerHTML={{ __html: item.content }}
             />
