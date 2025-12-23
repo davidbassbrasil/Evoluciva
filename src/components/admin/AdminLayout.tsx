@@ -10,6 +10,7 @@ import logoPng from '@/assets/logo_.png';
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', permission: 'dashboard' },
   { icon: Image, label: 'Banners', path: '/admin/banners', permission: 'banners' },
+  { icon: MessageSquare, label: 'Popup', path: '/admin/popups', permission: 'popups' },
   { icon: BookOpen, label: 'Cursos', path: '/admin/cursos', permission: 'cursos' },
   { icon: UsersRound, label: 'Turmas', path: '/admin/turmas', permission: 'turmas' },
   { icon: PlayCircle, label: 'Aulas', path: '/admin/aulas', permission: 'aulas' },

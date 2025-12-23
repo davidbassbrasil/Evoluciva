@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   TESTIMONIALS: 'cursos_testimonials',
   FAQS: 'cursos_faqs',
   BANNERS: 'cursos_banners',
+  POPUPS: 'cursos_popups',
   USERS: 'cursos_users',
   CURRENT_USER: 'cursos_current_user',
   SETTINGS: 'cursos_settings',
@@ -72,6 +73,13 @@ export const setBanners = (banners: Banner[]) => setItem(STORAGE_KEYS.BANNERS, b
 export const addBanner = (banner: Banner) => setBanners([...getBanners(), banner]);
 export const updateBanner = (banner: Banner) => setBanners(getBanners().map(b => b.id === banner.id ? banner : b));
 export const deleteBanner = (id: string) => setBanners(getBanners().filter(b => b.id !== id));
+
+// Popups
+export const getPopups = (): any[] => getItem(STORAGE_KEYS.POPUPS, []);
+export const setPopups = (items: any[]) => setItem(STORAGE_KEYS.POPUPS, items);
+export const addPopup = (item: any) => setPopups([...getPopups(), item]);
+export const updatePopup = (item: any) => setPopups(getPopups().map(p => p.id === item.id ? item : p));
+export const deletePopup = (id: string) => setPopups(getPopups().filter(p => p.id !== id));
 
 // Users
 export const getUsers = (): User[] => getItem(STORAGE_KEYS.USERS, []);

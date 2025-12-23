@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { getBanners, setBanners, getProfessors, setProfessors, getTags, setTags, getTestimonials, setTestimonials, getFAQs, setFAQs, getUsers } from '@/lib/localStorage';
+import { getBanners, setBanners, getProfessors, setProfessors, getTags, setTags, getTestimonials, setTestimonials, getFAQs, setFAQs, getUsers, getCourses, getPopups, setPopups, addPopup, updatePopup, deletePopup } from '@/lib/localStorage';
 import { Banner, Professor, Tag, Testimonial, FAQ, User } from '@/types';
 import supabase from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Banners Page
@@ -225,6 +227,27 @@ export function AdminBanners() {
         description: 'Não foi possível excluir o banner.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const toggleActive = async (id: string) => {
+    try {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      const newActive = !item.active;
+
+      if (supabase) {
+        const { error } = await supabase.from('popups').update({ active: newActive }).eq('id', id);
+        if (error) throw error;
+      } else {
+        updatePopup({ ...item, active: newActive, updated_at: new Date().toISOString() });
+      }
+
+      await loadPopups();
+      toast({ title: newActive ? 'Popup ativado' : 'Popup desativado' });
+    } catch (err) {
+      console.error('Error toggling popup active:', err);
+      toast({ title: 'Erro', description: 'Não foi possível alterar o status.', variant: 'destructive' });
     }
   };
 
@@ -448,6 +471,282 @@ export function AdminBanners() {
                 </div>
             </div>
           ))}
+        </div>
+      )}
+    </AdminLayout>
+  );
+}
+
+// Popups Page
+export function AdminPopups() {
+  const [items, setItems] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [form, setForm] = useState({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+  const [courses, setCourses] = useState<any[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadPopups();
+  }, []);
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const loadCourses = async () => {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('courses').select('id, title, slug').eq('active', true).order('title', { ascending: true });
+        if (!error && data) {
+          setCourses(data);
+          return;
+        }
+      } catch (err) {
+        console.error('Error loading courses for popups:', err);
+      }
+    }
+    setCourses(getCourses());
+  };
+
+  const loadPopups = async () => {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('popups')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setItems(data);
+          setPopups(data);
+          return;
+        }
+      } catch (err) {
+        console.error('Error loading popups from Supabase:', err);
+      }
+    }
+
+    setItems(getPopups());
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile || !supabase) return null;
+    setUploading(true);
+    try {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const filePath = `popups/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('images').upload(filePath, imageFile);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+      return publicUrl;
+    } catch (err) {
+      console.error('Error uploading popup image:', err);
+      toast({ title: 'Erro no upload', description: 'Não foi possível enviar a imagem.', variant: 'destructive' });
+      return null;
+    } finally { setUploading(false); }
+  };
+
+  const save = async () => {
+    if (form.type === 'image' && !imagePreview && !form.image) {
+      toast({ title: 'Imagem obrigatória', description: 'Envie uma imagem.', variant: 'destructive' });
+      return;
+    }
+
+    let imageUrl = form.image || '';
+    if (imageFile) {
+      const uploaded = await uploadImage();
+      if (!uploaded) return;
+      imageUrl = uploaded;
+    }
+
+    const popupData: any = {
+      type: form.type,
+      title: form.title || null,
+      content: form.type === 'text' ? form.content : null,
+      image: form.type === 'image' ? imageUrl : null,
+      active: typeof form.active === 'boolean' ? form.active : true,
+      course_id: form.course_id || null,
+    };
+
+    try {
+      if (supabase) {
+        if (selected) {
+          const { error } = await supabase.from('popups').update(popupData).eq('id', selected.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('popups').insert([popupData]);
+          if (error) throw error;
+        }
+      } else {
+        if (selected) {
+          updatePopup({ ...selected, ...popupData, updated_at: new Date().toISOString() });
+        } else {
+          addPopup({ id: Math.random().toString(36).slice(2), ...popupData, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        }
+      }
+
+      await loadPopups();
+      toast({ title: 'Salvo!' });
+      closeDialog();
+    } catch (err) {
+      console.error('Error saving popup:', err);
+      toast({ title: 'Erro', description: 'Não foi possível salvar o popup.', variant: 'destructive' });
+    }
+  };
+
+  const del = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este popup?')) return;
+    try {
+      if (supabase) {
+        const { error } = await supabase.from('popups').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        deletePopup(id);
+      }
+      await loadPopups();
+      toast({ title: 'Popup excluído' });
+    } catch (err) {
+      console.error('Error deleting popup:', err);
+      toast({ title: 'Erro', description: 'Não foi possível excluir.', variant: 'destructive' });
+    }
+  };
+
+  const openDialog = (item?: any) => {
+    if (item) {
+      setSelected(item);
+      setForm({ type: item.type || 'image', title: item.title || '', content: item.content || '', image: item.image || '', active: item.active ?? true, course_id: item.course_id || '' });
+      setImagePreview(item.image || '');
+    } else {
+      setSelected(null);
+      setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+      setImagePreview('');
+    }
+    setImageFile(null);
+    setOpen(true);
+  };
+
+  const closeDialog = () => {
+    setOpen(false);
+    setSelected(null);
+    setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+    setImageFile(null);
+    setImagePreview('');
+  };
+
+  return (
+    <AdminLayout>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Popup (texto ou imagem)</h1>
+          <p className="text-muted-foreground">Gerencie o popup que aparece na página principal <span className="text-red-500">(ativar um por vez)</span></p>
+        </div>
+        <div>
+          <button onClick={() => openDialog()} className="gradient-bg text-primary-foreground px-4 py-2 rounded">Novo Popup</button>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="bg-card rounded-2xl p-10 text-center border border-border/50">
+          <p className="text-muted-foreground">Nenhum popup cadastrado</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {items.map(item => (
+            <div key={item.id} className="bg-card p-4 rounded-xl border border-border/50 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold">{item.title || (item.type === 'image' ? 'Imagem' : 'Texto')}</h3>
+                <p className="text-sm text-muted-foreground">Tipo: {item.type} • {item.active ? 'Ativo' : 'Inativo'}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="icon" onClick={() => toggleActive(item.id)} title={item.active ? 'Desativar' : 'Ativar'}>
+                  {item.active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => openDialog(item)}><Pencil className="w-4 h-4" /></Button>
+                <Button variant="destructive" size="icon" onClick={() => del(item.id)}><Trash2 className="w-4 h-4" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dialog */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={closeDialog} />
+          <div className="bg-card p-6 rounded-xl z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">{selected ? 'Editar' : 'Novo'} Popup</h3>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="type" value="image" checked={form.type === 'image'} onChange={() => setForm({ ...form, type: 'image' })} /> Imagem
+                <input type="radio" name="type" value="text" checked={form.type === 'text'} onChange={() => setForm({ ...form, type: 'text' })} className="ml-4" /> Texto
+              </label>
+
+              <div>
+                <Label>Title (opcional)</Label>
+                <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+              </div>
+
+              <div>
+                <Label>Link do curso (se selecionado direciona p/ página do curso)</Label>
+                <Select
+                  value={form.course_id && form.course_id !== '' ? form.course_id : '__none'}
+                  onValueChange={value => setForm({ ...form, course_id: value === '__none' ? '' : value })}
+                >
+                  <SelectTrigger className="w-full bg-card">
+                    <SelectValue placeholder="Nenhum (apenas exibe imagem)" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border border-border z-50">
+                    <SelectItem value="__none">Nenhum (apenas exibe imagem)</SelectItem>
+                    {courses.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.type === 'text' && (
+                <div>
+                  <Label>Conteúdo (HTML permitido)</Label>
+                  <Textarea rows={6} value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
+                </div>
+              )}
+
+              {form.type === 'image' && (
+                <div>
+                  <Label>Imagem</Label>
+                  <Input type="file" accept="image/*" onChange={handleImageChange} />
+                  {imagePreview && <img src={imagePreview} alt="Preview" className="w-64 mt-2" />}
+                </div>
+              )}
+
+              <div>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={!!form.active} onChange={e => setForm({ ...form, active: e.target.checked })} />
+                  <span>Ativo</span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
+                <Button onClick={save} className="gradient-bg text-primary-foreground">Salvar</Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </AdminLayout>

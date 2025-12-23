@@ -24,7 +24,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import AdminCursos from "./pages/admin/Cursos";
 import AdminTurmas from "./pages/admin/Turmas";
 import AdminAulas from "./pages/admin/Aulas";
-import { AdminBanners, AdminProfessores, AdminTags, AdminDepoimentos, AdminFAQ } from "./pages/admin/Pages";
+import { AdminBanners, AdminProfessores, AdminTags, AdminDepoimentos, AdminFAQ, AdminPopups } from "./pages/admin/Pages";
 import AdminAlunos from "./pages/admin/Alunos";
 import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminAcesso from "./pages/admin/Acesso";
@@ -86,6 +86,7 @@ const App = () => {
           <Route path="/admin/turmas" element={<AdminTurmas />} />
           <Route path="/admin/aulas" element={<AdminAulas />} />
           <Route path="/admin/banners" element={<AdminBanners />} />
+          <Route path="/admin/popups" element={<AdminPopups />} />
           <Route path="/admin/professores" element={<AdminProfessores />} />
           <Route path="/admin/tags" element={<AdminTags />} />
           <Route path="/admin/depoimentos" element={<AdminDepoimentos />} />

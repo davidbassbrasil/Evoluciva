@@ -4,6 +4,7 @@ import { HeroBanner } from '@/components/landing/HeroBanner';
 import { CoursesSection } from '@/components/landing/CoursesSection';
 import { TagsSection } from '@/components/landing/TagsSection';
 import { ProfessorsSection } from '@/components/landing/ProfessorsSection';
+import Popup from '@/components/landing/Popup';
 import { TestimonialsSection } from '@/components/landing/TestimonialsSection';
 import { FAQSection } from '@/components/landing/FAQSection';
 import { Footer } from '@/components/landing/Footer';
@@ -29,6 +30,7 @@ const Index = () => {
       <div className="min-h-screen bg-background">
         <FloatingNav />
         <HeroBanner />
+        <Popup />
         <CoursesSection />
         <TagsSection />
         <ProfessorsSection />
