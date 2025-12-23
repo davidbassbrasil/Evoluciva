@@ -197,3 +197,33 @@ export async function runAllTests() {
   console.log('3. Faça deploy da Edge Function');
   console.log('4. Teste o checkout completo no frontend\n');
 }
+
+/**
+ * Testa o endpoint de validação de transferências (mecanismo Asaas)
+ */
+export async function testTransferValidation(transferId = `test-${Date.now()}`, value = 100, token = '') {
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-webhook`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'asaas-access-token': token } : {})
+      },
+      body: JSON.stringify({ type: 'TRANSFER', transfer: { id: transferId, value } })
+    });
+
+    const text = await res.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch (e) { json = { text }; }
+
+    return {
+      ok: res.ok,
+      status: res.status,
+      body: json
+    };
+  } catch (error) {
+    return { ok: false, status: 0, body: error instanceof Error ? error.message : String(error) };
+  }
+}
+
