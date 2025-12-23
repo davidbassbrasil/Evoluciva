@@ -460,7 +460,7 @@ export function AdminProfessores() {
   const [courses, setCourses] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Professor | null>(null);
-  const [form, setForm] = useState({ name: '', specialty: '', bio: '', selectedCourses: [] as string[] });
+  const [form, setForm] = useState({ name: '', specialty: '', bio: '', selectedCourses: [] as string[], order: 0 });
   const [uploading, setUploading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -517,11 +517,21 @@ export function AdminProfessores() {
           }
         });
 
-        // Juntar dados
-        const professorsWithCourses = professorsData?.map(prof => ({
+        // Juntar dados e normalizar + ordenar numericamente por order
+        const professorsWithCourses = (professorsData?.map(prof => ({
           ...prof,
+          // Coerce order to number if it's a string
+          order: typeof prof.order === 'string' ? (prof.order === null ? null : parseInt(prof.order, 10)) : prof.order,
           courses: coursesMap[prof.id] || []
-        })) || [];
+        })) || []).sort((a: any, b: any) => {
+          const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY;
+          const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          const aUpdated = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const bUpdated = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          // newest updated first within the same order to keep recently changed items together
+          return bUpdated - aUpdated;
+        });
         
         setItems(professorsWithCourses);
         setProfessors(professorsWithCourses); // Sync with localStorage
@@ -530,8 +540,20 @@ export function AdminProfessores() {
         console.error('Error loading professors from Supabase:', err);
       }
     }
-    // Fallback to localStorage
-    setItems(getProfessors());
+    // Fallback to localStorage: normalize and sort by order (tie-breaker: updated_at desc)
+    const localProfessors = getProfessors().map(p => ({
+      ...p,
+      order: typeof p.order === 'string' ? (p.order === null ? null : parseInt(p.order as any, 10)) : p.order
+    })).sort((a: any, b: any) => {
+      const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY;
+      const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY;
+      if (ao !== bo) return ao - bo;
+      const aUpdated = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const bUpdated = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return bUpdated - aUpdated;
+    });
+    setItems(localProfessors);
+    setProfessors(localProfessors);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -632,6 +654,8 @@ export function AdminProfessores() {
       return;
     }
 
+    const desiredOrder = (typeof form.order === 'number' && form.order > 0) ? form.order - 1 : items.length;
+
     const professorData = {
       name: form.name.trim(),
       specialty: form.specialty.trim(),
@@ -640,7 +664,7 @@ export function AdminProfessores() {
       // Mantemos o estado atual ou assumimos ativo por padrão
       active: selected?.active ?? true,
       // Define ordem como a posição atual no array caso seja novo
-      order: selected?.order ?? items.length,
+      order: selected ? (typeof form.order === 'number' && form.order > 0 ? form.order - 1 : selected.order) : desiredOrder,
     }; 
 
     try {
@@ -648,18 +672,20 @@ export function AdminProfessores() {
         let professorId = selected?.id;
 
         if (selected) {
-          // Update existing
+          // Update existing (ensure order is stored as string since DB column is TEXT)
+          const dbProfessorData = { ...professorData, order: String(professorData.order) } as any;
           const { error } = await supabase
             .from('professors')
-            .update(professorData)
+            .update(dbProfessorData)
             .eq('id', selected.id);
           
           if (error) throw error;
         } else {
-          // Insert new
+          // Insert new (store order as string)
+          const dbProfessorData = { ...professorData, order: String(professorData.order) } as any;
           const { data: newProfessor, error } = await supabase
             .from('professors')
-            .insert([professorData])
+            .insert([dbProfessorData])
             .select()
             .single();
           
@@ -689,10 +715,41 @@ export function AdminProfessores() {
             if (relError) throw relError;
           }
         }
+        // Instead of mass-reordering everyone, only set the saved professor's order value.
+        // This preserves other professors' order values and keeps items with the same order adjacent
+        if (supabase) {
+          // We already updated/inserted dbProfessorData above with order as string; nothing else to do here.
+        } else {
+          // Local-only: update localStorage entry for this professor (set order and updated_at)
+          try {
+            const current = getProfessors();
+            const found = current.find(p => p.id === professorId);
+            const now = new Date().toISOString();
+            if (found) {
+              const updated = current.map(p => p.id === professorId ? { ...p, ...professorData, order: professorData.order, updated_at: now } : p);
+              setProfessors(updated);
+              setItems(updated);
+            } else {
+              // If it's a new local-only insert, insert at the desired index (without renumbering others)
+              const others = current;
+              const insertIndex = desiredOrder >= 0 ? Math.min(desiredOrder, others.length) : others.length;
+              const newItem = { ...(professorData as any), id: professorId, updated_at: now } as any;
+              const newList = [...others.slice(0, insertIndex), newItem, ...others.slice(insertIndex)];
+              setProfessors(newList);
+              setItems(newList);
+            }
+            try { window.dispatchEvent(new CustomEvent('professorsUpdated')); } catch {}
+          } catch (err) {
+            console.error('Error updating local professor order:', err);
+          }
+        }
       }
 
       // Reload data
       await loadProfessors();
+
+      // Notify other parts of the app (public page) to reload professors
+      try { window.dispatchEvent(new CustomEvent('professorsUpdated')); } catch {}
       
       toast({ title: 'Sucesso!', description: 'Professor salvo.' });
       closeDialog();
@@ -775,7 +832,7 @@ export function AdminProfessores() {
         for (const item of newItems) {
           await supabase
             .from('professors')
-            .update({ order: item.order })
+            .update({ order: String(item.order) })
             .eq('id', item.id);
         }
       }
@@ -830,12 +887,13 @@ export function AdminProfessores() {
         name: professor.name, 
         specialty: professor.specialty, 
         bio: professor.bio,
-        selectedCourses: courseIds
+        selectedCourses: courseIds,
+        order: typeof professor.order === 'number' ? professor.order + 1 : items.length || 1
       });
       setImagePreview(professor.image);
     } else {
       setSelected(null);
-      setForm({ name: '', specialty: '', bio: '', selectedCourses: [] });
+      setForm({ name: '', specialty: '', bio: '', selectedCourses: [], order: items.length + 1 });
       setImagePreview('');
     }
     setImageFile(null);
@@ -974,6 +1032,18 @@ export function AdminProfessores() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="order">Ordem (posição na página)</Label>
+                <Input
+                  id="order"
+                  type="number"
+                  min={1}
+                  value={form.order}
+                  onChange={e => setForm({ ...form, order: parseInt(e.target.value || '0', 10) })}
+                />
+                <p className="text-xs text-muted-foreground">Número 1 = primeiro na listagem pública. Use números sequenciais.</p>
+              </div>
+
               <Button
                 onClick={save}
                 disabled={uploading}
@@ -1035,28 +1105,7 @@ export function AdminProfessores() {
                   )}
                 </div>
                 <div className="flex gap-2 items-center mt-2 md:mt-0">
-                  <div className="flex gap-1 flex-row md:flex-col md:mr-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => changeOrderProf(item.id, 'up')}
-                      disabled={index === 0}
-                      title="Mover para cima"
-                      className="md:mb-1"
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => changeOrderProf(item.id, 'down')}
-                      disabled={index === items.length - 1}
-                      title="Mover para baixo"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                  </div>
-
+                  
                   <Button
                     variant={item.active ? 'default' : 'outline'}
                     size="icon"

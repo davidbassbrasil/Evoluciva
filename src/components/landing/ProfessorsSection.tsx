@@ -14,12 +14,11 @@ export function ProfessorsSection() {
     const load = async () => {
       if (!supabase) return;
       try {
-        // Carregar professores (apenas ativos) e ordenar por 'order'
+        // Carregar professores (apenas ativos). We'll convert order to number and sort client-side
         const { data: professorsData, error: professorsError } = await supabase
           .from('professors')
           .select('*')
-          .eq('active', true)
-          .order('order', { ascending: true });
+          .eq('active', true);
 
         if (professorsError) throw professorsError;
 
@@ -42,11 +41,19 @@ export function ProfessorsSection() {
           }
         });
 
-        // Juntar dados
-        const professorsWithCourses = professorsData?.map(prof => ({
+        // Juntar dados e normalizar order para number
+        const professorsWithCourses = (professorsData?.map(prof => ({
           ...prof,
+          order: typeof prof.order === 'string' ? (prof.order === null ? null : parseInt(prof.order, 10)) : prof.order,
           courses: coursesMap[prof.id] || []
-        })) || [];
+        })) || []).sort((a: any, b: any) => {
+          const ao = typeof a.order === 'number' ? a.order : Number.POSITIVE_INFINITY;
+          const bo = typeof b.order === 'number' ? b.order : Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          const aUpdated = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+          const bUpdated = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+          return bUpdated - aUpdated;
+        });
 
         setProfessors(professorsWithCourses);
       } catch (err) {
@@ -55,6 +62,13 @@ export function ProfessorsSection() {
     };
 
     load();
+
+    // Listen to updates from admin
+    const handler = () => load();
+    window.addEventListener('professorsUpdated', handler as EventListener);
+    return () => {
+      window.removeEventListener('professorsUpdated', handler as EventListener);
+    };
   }, []);
 
   const scroll = (direction: 'left' | 'right') => {

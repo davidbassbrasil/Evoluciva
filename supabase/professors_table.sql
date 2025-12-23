@@ -15,12 +15,14 @@ CREATE TABLE IF NOT EXISTS public.professors (
   specialty TEXT NOT NULL,
   bio TEXT NOT NULL,
   image TEXT NOT NULL,
+  "order" INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Criar índice para ordenação por nome
+-- 2. Criar índices
 CREATE INDEX IF NOT EXISTS idx_professors_name ON public.professors(name);
+CREATE INDEX IF NOT EXISTS idx_professors_order ON public.professors("order");
 
 -- 3. Ativar Row Level Security (RLS)
 ALTER TABLE public.professors ENABLE ROW LEVEL SECURITY;
