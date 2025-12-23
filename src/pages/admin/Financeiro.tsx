@@ -1040,9 +1040,9 @@ export default function Financeiro() {
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
                   <SelectItem value="CONFIRMED">Confirmado</SelectItem>
-                  <SelectItem value="RECEIVED">Recebido</SelectItem>
+             {/*     <SelectItem value="RECEIVED">Recebido</SelectItem> */}
                   <SelectItem value="PENDING">Pendente</SelectItem>
-                  <SelectItem value="OVERDUE">Vencido</SelectItem>
+             {/*     <SelectItem value="OVERDUE">Vencido</SelectItem>   */}
                   <SelectItem value="REFUNDED">Reembolsado</SelectItem>
                   <SelectItem value="CANCELLED">Cancelado</SelectItem>
                 </SelectContent>
@@ -1059,7 +1059,7 @@ export default function Financeiro() {
                   <SelectItem value="DEBIT_CARD">Cartão de Débito</SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
                     <SelectItem value="BOLETO">Boleto</SelectItem>
-                    <SelectItem value="CASH">Dinheiro</SelectItem>
+                 {/*   <SelectItem value="CASH">Dinheiro</SelectItem> */}
                     <SelectItem value="LOCAL">Caixa Local</SelectItem>
                 </SelectContent>
               </Select>
@@ -1077,6 +1077,14 @@ export default function Financeiro() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setStatusFilter('PENDING')}>
+                  Pendentes
+                </Button>
+                <Button variant="ghost" onClick={() => setStatusFilter('all')}>
+                  Limpar
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1224,6 +1232,31 @@ export default function Financeiro() {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
+                            {payment.status === 'PENDING' && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!confirm('Deseja cancelar este pagamento pendente?')) return;
+                                  try {
+                                    const { error } = await supabase
+                                      .from('payments')
+                                      .update({ status: 'CANCELLED' })
+                                      .eq('id', payment.id);
+                                    if (error) throw error;
+                                    toast({ title: 'Pagamento cancelado', variant: 'default' });
+                                    await loadPayments();
+                                  } catch (err: any) {
+                                    console.error('Erro ao cancelar pagamento:', err);
+                                    toast({ title: 'Erro', description: err.message || 'Falha ao cancelar', variant: 'destructive' });
+                                  }
+                                }}
+                                className="text-white"
+                                title="Cancelar pagamento pendente"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                             {['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(payment.status) && (
                               <Button
                                 variant="ghost"
