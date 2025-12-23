@@ -857,7 +857,7 @@ const handleDeletePreco = async (id: string) => {
               <div className="space-y-4">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <Percent className="w-4 h-4" />
-                  Descontos por Forma de Pagamento (%)
+                  Descontos por Forma de Pagamento (R$)
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
@@ -866,8 +866,7 @@ const handleDeletePreco = async (id: string) => {
                       type="number"
                       step="0.01"
                       min="0"
-                      max="100"
-                      placeholder="0"
+                      placeholder="0.00"
                       value={form.discount_cash}
                       onChange={(e) => setForm({ ...form, discount_cash: e.target.value })}
                     />
@@ -878,8 +877,7 @@ const handleDeletePreco = async (id: string) => {
                       type="number"
                       step="0.01"
                       min="0"
-                      max="100"
-                      placeholder="0"
+                      placeholder="0.00"
                       value={form.discount_pix}
                       onChange={(e) => setForm({ ...form, discount_pix: e.target.value })}
                     />
@@ -890,8 +888,7 @@ const handleDeletePreco = async (id: string) => {
                       type="number"
                       step="0.01"
                       min="0"
-                      max="100"
-                      placeholder="0"
+                      placeholder="0.00"
                       value={form.discount_debit}
                       onChange={(e) => setForm({ ...form, discount_debit: e.target.value })}
                     />
@@ -928,7 +925,7 @@ const handleDeletePreco = async (id: string) => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Cupom com 100% de desconto = matrícula gratuita (só para usuários logados)
+                  Cupom com 100% de desconto = matrícula gratuita
                 </p>
               </div>
 

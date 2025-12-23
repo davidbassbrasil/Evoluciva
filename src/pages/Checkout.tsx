@@ -400,13 +400,13 @@ export default function Checkout() {
       const turmaForDiscount = firstItemForDiscount?.turma;
       if (turmaForDiscount) {
         if (paymentMethod === 'CREDIT_CARD_ONE' && turmaForDiscount.discount_cash > 0) {
-          const discount = totalValue * (Number(turmaForDiscount.discount_cash) / 100);
+          const discount = Number(turmaForDiscount.discount_cash) || 0;
           totalValue -= discount;
         } else if (paymentMethod === 'PIX' && turmaForDiscount.discount_pix > 0) {
-          const discount = totalValue * (Number(turmaForDiscount.discount_pix) / 100);
+          const discount = Number(turmaForDiscount.discount_pix) || 0;
           totalValue -= discount;
         } else if (paymentMethod === 'DEBIT_CARD' && turmaForDiscount.discount_debit > 0) {
-          const discount = totalValue * (Number(turmaForDiscount.discount_debit) / 100);
+          const discount = Number(turmaForDiscount.discount_debit) || 0;
           totalValue -= discount;
         }
       }
@@ -820,11 +820,11 @@ export default function Checkout() {
     const firstTurma = firstItem?.turma;
     if (firstTurma) {
       if (paymentMethod === 'CREDIT_CARD_ONE' && firstTurma.discount_cash > 0) {
-        paymentDiscount = subtotalBase * (Number(firstTurma.discount_cash) / 100);
+        paymentDiscount = Number(firstTurma.discount_cash) || 0;
       } else if (paymentMethod === 'PIX' && firstTurma.discount_pix > 0) {
-        paymentDiscount = subtotalBase * (Number(firstTurma.discount_pix) / 100);
+        paymentDiscount = Number(firstTurma.discount_pix) || 0;
       } else if (paymentMethod === 'DEBIT_CARD' && firstTurma.discount_debit > 0) {
-        paymentDiscount = subtotalBase * (Number(firstTurma.discount_debit) / 100);
+        paymentDiscount = Number(firstTurma.discount_debit) || 0;
       }
     }
     // Aplicar desconto de cupom (se aplicável)
@@ -1131,7 +1131,7 @@ export default function Checkout() {
                       id="coupon"
                       type="text"
                       className="h-12 rounded-xl"
-                      placeholder="Código do cupom (ex: PROMO50)"
+                      placeholder="Código (ex: PROMO50)"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                     />
@@ -1145,24 +1145,24 @@ export default function Checkout() {
                 <div className="border-t border-border pt-6">
                   <h3 className="font-semibold text-lg mb-4">Método de Pagamento</h3>
                   
-                  <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)} className="w-full">
+<Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as any)} className="w-full">
                     <div className="space-y-3">
                       {/* Top row: Opções de crédito (se permitido) */}
                       {(firstTurma?.allow_credit_card || firstTurma?.allow_installments) && (
-                        <TabsList className="grid w-full grid-cols-2 gap-2">
+                        <TabsList className="flex flex-col sm:grid sm:grid-cols-2 gap-2 h-auto">
                           {firstTurma?.allow_credit_card && (
-                            <TabsTrigger value="CREDIT_CARD_ONE" className="gap-2 flex items-center w-full justify-start">
-                              <CreditCard className="w-4 h-4" />
-                              <span>Cartão à vista</span>
+                            <TabsTrigger value="CREDIT_CARD_ONE" className="gap-2 flex items-center w-full justify-start h-auto py-3 px-4">
+                              <CreditCard className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm">Cartão à vista</span>
                               {firstTurma?.discount_cash > 0 && (
-                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_cash}%</span>
+                                <span className="text-xs text-green-600 ml-auto whitespace-nowrap">-R$ {Number(firstTurma.discount_cash || 0).toFixed(2)}</span>
                               )}
                             </TabsTrigger>
                           )}
                           {firstTurma?.allow_installments && (
-                            <TabsTrigger value="CREDIT_CARD_INSTALL" className="gap-2 flex items-center w-full justify-start">
-                              <CreditCard className="w-4 h-4" />
-                              <span>Cartão parcelado</span>
+                            <TabsTrigger value="CREDIT_CARD_INSTALL" className="gap-2 flex items-center w-full justify-start h-auto py-3 px-4">
+                              <CreditCard className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm">Cartão parcelado</span>
                             </TabsTrigger>
                           )}
                         </TabsList>
@@ -1170,33 +1170,33 @@ export default function Checkout() {
 
                       {/* Bottom row: Débito | PIX | Boleto (conforme permitido) */}
                       {(firstTurma?.allow_debit_card || firstTurma?.allow_pix || firstTurma?.allow_boleto) && (
-                        <TabsList className={`grid w-full gap-2 ${
+                        <TabsList className={`flex flex-col gap-2 h-auto ${
                           [firstTurma?.allow_debit_card, firstTurma?.allow_pix, firstTurma?.allow_boleto].filter(Boolean).length === 3 
-                            ? 'grid-cols-3' 
-                            : 'grid-cols-2'
+                            ? 'sm:grid sm:grid-cols-3' 
+                            : 'sm:grid sm:grid-cols-2'
                         }`}>
                           {firstTurma?.allow_debit_card && (
-                            <TabsTrigger value="DEBIT_CARD" className="gap-2 flex items-center w-full justify-start">
-                              <CreditCard className="w-4 h-4" />
-                              <span>Débito</span>
+                            <TabsTrigger value="DEBIT_CARD" className="gap-2 flex items-center w-full justify-start h-auto py-3 px-4">
+                              <CreditCard className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm">Débito</span>
                               {firstTurma?.discount_debit > 0 && (
-                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_debit}%</span>
+                                <span className="text-xs text-green-600 ml-auto whitespace-nowrap">-R$ {Number(firstTurma.discount_debit || 0).toFixed(2)}</span>
                               )}
                             </TabsTrigger>
                           )}
                           {firstTurma?.allow_pix && (
-                            <TabsTrigger value="PIX" className="gap-2 flex items-center w-full justify-start">
-                              <QrCode className="w-4 h-4" />
-                              <span>PIX</span>
+                            <TabsTrigger value="PIX" className="gap-2 flex items-center w-full justify-start h-auto py-3 px-4">
+                              <QrCode className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm">PIX</span>
                               {firstTurma?.discount_pix > 0 && (
-                                <span className="text-xs text-green-600 ml-auto">-{firstTurma.discount_pix}%</span>
+                                <span className="text-xs text-green-600 ml-auto whitespace-nowrap">-R$ {Number(firstTurma.discount_pix || 0).toFixed(2)}</span>
                               )}
                             </TabsTrigger>
                           )}
                           {firstTurma?.allow_boleto && (
-                            <TabsTrigger value="BOLETO" className="gap-2 flex items-center w-full justify-start">
-                              <Barcode className="w-4 h-4" />
-                              <span>Boleto</span>
+                            <TabsTrigger value="BOLETO" className="gap-2 flex items-center w-full justify-start h-auto py-3 px-4">
+                              <Barcode className="w-4 h-4 flex-shrink-0" />
+                              <span className="text-sm">Boleto</span>
                             </TabsTrigger>
                           )}
                         </TabsList>
@@ -1207,7 +1207,7 @@ export default function Checkout() {
                     <TabsContent value="CREDIT_CARD_ONE" className="space-y-4 mt-4">
                       {firstTurma?.discount_cash > 0 && (
                         <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-sm text-green-700 dark:text-green-400">
-                          💳 Desconto de {firstTurma.discount_cash}% no pagamento à vista!
+                          💳 R$ {Number(firstTurma.discount_cash || 0).toFixed(2)} de desconto no pagamento à vista!
                         </div>
                       )}
                       <div className="space-y-2">
@@ -1334,14 +1334,14 @@ export default function Checkout() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="installments">Parcelas</Label>
-                        <div className="relative inline-block">
-                          <select
-                            id="installments"
-                            value={installmentCount}
-                            onChange={(e) => setInstallmentCount(Number(e.target.value))}
-                            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm w-40 appearance-none"
-                          >
+<Label htmlFor="installments">Parcelas:</Label>
+<div className="relative inline-block ml-2">
+  <select
+    id="installments"
+    value={installmentCount}
+    onChange={(e) => setInstallmentCount(Number(e.target.value))}
+    className="flex h-10 rounded-md border border-input bg-background px-2 py-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm w-40 appearance-none"
+  >
                             {Array.from({ length: firstTurma?.max_installments || 12 }).map((_, i) => {
                               const val = i + 1;
                               if (val < 2) return null;
@@ -1359,6 +1359,12 @@ export default function Checkout() {
 
                     {/* Débito */}
                     <TabsContent value="DEBIT_CARD" className="space-y-4 mt-4">
+                      {firstTurma?.discount_debit > 0 && (
+                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg text-sm text-green-700 dark:text-green-400">
+                          💳 R$ {Number(firstTurma.discount_debit || 0).toFixed(2)} de desconto no pagamento por débito!
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label htmlFor="debitName">Nome no cartão *</Label>
                         <Input
@@ -1508,7 +1514,7 @@ export default function Checkout() {
                           {firstTurma?.discount_pix > 0 && (
                             <div className="mt-4 inline-block bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-lg">
                               <span className="text-green-600 dark:text-green-400 font-semibold">
-                                🎉 {firstTurma.discount_pix}% de desconto no PIX
+                                🎉 R$ {Number(firstTurma.discount_pix || 0).toFixed(2)} de desconto no PIX
                               </span>
                             </div>
                           )}
@@ -1628,12 +1634,12 @@ export default function Checkout() {
                       ) : paymentMethod === 'CREDIT_CARD_ONE' ? (
                         <>
                           <Check className="w-5 h-5 mr-2" />
-                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Finalizar Compra - R$ ${subtotal.toFixed(2)}`}
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Finalizar Compra: R$ ${subtotal.toFixed(2)}`}
                         </>
                       ) : paymentMethod === 'CREDIT_CARD_INSTALL' ? (
                         <>
                           <Check className="w-5 h-5 mr-2" />
-                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Parcelado - ${installmentCount}x - R$ ${subtotal.toFixed(2)}`}
+                          {subtotal <= 0 ? 'Finalizar Matrícula' : `Parcelado: ${installmentCount}x de R$ ${(installmentCount > 0 ? (subtotal / installmentCount).toFixed(2) : subtotal.toFixed(2))}`}
                         </>
                       ) : paymentMethod === 'PIX' ? (
                         <>
