@@ -354,7 +354,7 @@ export default function CursoDetalhe() {
     ? seoHelpers.generateTitle(`${course.title} | Preparatório para Concurso`) 
     : 'Curso';
   const seoDescription = course
-    ? seoHelpers.generateDescription(`${course.description} Curso preparatório completo com ${course.instructor}. Modalidades presencial em Maceió e online para todo Brasil. Matricule-se agora!`)
+    ? seoHelpers.generateDescription(`${seoHelpers.stripHtml(course.description)} Curso preparatório completo com ${course.instructor}. Modalidades presencial em Maceió e online para todo Brasil. Matricule-se agora!`)
     : 'Curso preparatório para concursos públicos';
 
   // Preços efetivos (evita flicker): prioridade precoMap -> precoOpcional -> turma

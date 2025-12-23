@@ -32,8 +32,10 @@ export function SEOHead({
     ? title
     : `${title} | Edu Sampaio Cursos`;
   
-  // Imagem padrão se não fornecida
-  const ogImage = image || `${window.location.origin}/logo_.png`;
+  // Imagem padrão se não fornecida. Se for caminho relativo, prefixar com origin para gerar URL absoluta
+  const ogImage = image
+    ? (image.startsWith('http') ? image : `${window.location.origin}${image}`)
+    : `${window.location.origin}/logo_.png`;
   
   // URL canônica
   const canonicalUrl = canonical || currentUrl;
@@ -63,6 +65,7 @@ export function SEOHead({
     updateMetaTag('property', 'og:type', type);
     updateMetaTag('property', 'og:url', currentUrl);
     updateMetaTag('property', 'og:image', ogImage);
+    updateMetaTag('property', 'og:image:alt', title);
     updateMetaTag('property', 'og:site_name', 'Edu Sampaio Cursos');
     updateMetaTag('property', 'og:locale', 'pt_BR');
 
@@ -71,6 +74,7 @@ export function SEOHead({
     updateMetaTag('name', 'twitter:title', fullTitle);
     updateMetaTag('name', 'twitter:description', description);
     updateMetaTag('name', 'twitter:image', ogImage);
+    updateMetaTag('name', 'twitter:image:alt', title);
 
     // Link canônico
     updateCanonical(canonicalUrl);

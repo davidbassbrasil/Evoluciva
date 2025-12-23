@@ -144,7 +144,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1 overflow-auto">
+          <nav className="flex-1 p-4 space-y-1 overflow-auto admin-scrollbar">
             {menuItems
               .filter(item => hasPermission(item.permission))
               .map((item) => (
@@ -180,7 +180,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       {/* Main Content */}
-      <div className="flex-1 lg:ml-64">
+      <div className="flex-1 lg:ml-64 admin-scrollbar">
         <header className="sticky top-0 z-30 bg-card border-b border-border px-4 py-3 flex items-center gap-4">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
             <Menu className="w-6 h-6" />

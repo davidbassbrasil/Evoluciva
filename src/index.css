@@ -287,3 +287,37 @@
   font-style: italic;
   color: hsl(var(--muted-foreground));
 }
+
+/* Admin dashboard custom scrollbar */
+.admin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,100,100,0.5) transparent;
+}
+
+.admin-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.admin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.12);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.dark .admin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.08);
+}
+
+.admin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.22);
+}
+
+.dark .admin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.14);
+}

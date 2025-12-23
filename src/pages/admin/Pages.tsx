@@ -652,7 +652,7 @@ export function AdminPopups() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Popup (texto ou imagem)</h1>
-          <p className="text-muted-foreground">Gerencie o popup que aparece na página principal <span className="text-red-500">(ativar um por vez)</span></p>
+          <p className="text-muted-foreground">Gerencie o popup que aparece na página principal <span className="text-red-500">(ativar um popup por vez)</span></p>
         </div>
         <div>
           <button onClick={() => openDialog()} className="gradient-bg text-primary-foreground px-4 py-2 rounded">Novo Popup</button>
