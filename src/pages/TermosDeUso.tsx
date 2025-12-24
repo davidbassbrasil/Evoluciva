@@ -1,5 +1,6 @@
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
+import { formatBRDateTime } from '@/lib/dates';
 import { FloatingButtons } from '@/components/landing/FloatingButtons';
 
 export default function TermosDeUso() {
@@ -13,7 +14,7 @@ export default function TermosDeUso() {
           
           <div className="prose prose-lg max-w-none text-foreground">
             <p className="text-muted-foreground mb-6">
-              Última atualização: {new Date().toLocaleDateString('pt-BR')}
+              Última atualização: {formatBRDateTime(new Date())}
             </p>
 
             <section className="mb-8">

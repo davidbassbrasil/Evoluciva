@@ -16,6 +16,7 @@ import { useModules, useStudentsWithModuleStatus, deleteModule, getModuleStats, 
 import { Module } from "@/types";
 import { Plus, Search, MoreVertical, Edit, Trash2, Package, CheckCircle2, AlertCircle, Loader2, PackageCheck, Download, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatBRDateTime } from '@/lib/dates';
 
 // Componente para exibir entregas inline
 function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh: () => void }) {
@@ -96,7 +97,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
         <h1>Relatório de Entregas de Módulos</h1>
         <h2>Módulo: ${module.name} - Turma: ${module.turma_name || "N/A"}</h2>
         <div class="info">
-          Gerado em: ${new Date().toLocaleString('pt-BR')}
+          Gerado em: ${formatBRDateTime(new Date())}
         </div>
         <div class="stats">
           <div class="stat-card">
@@ -137,7 +138,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                     ${student.delivered ? 'Entregue' : 'Pendente'}
                   </span>
                 </td>
-                <td>${student.delivered_at ? new Date(student.delivered_at).toLocaleDateString('pt-BR') : '-'}</td>
+                <td>${student.delivered_at ? formatBRDateTime(student.delivered_at) : '-'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -300,7 +301,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                                   </Badge>
                                   {student.confirmed_at && (
                                     <span className="text-xs text-muted-foreground">
-                                      {new Date(student.confirmed_at).toLocaleDateString("pt-BR")}
+                                      {formatBRDateTime(student.confirmed_at)}
                                     </span>
                                   )}
                                 </div>
@@ -311,7 +312,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
                               )}
                             </TableCell>
                             <TableCell className="text-center text-sm">
-                              {student.delivered_at ? new Date(student.delivered_at).toLocaleDateString("pt-BR") : "-"}
+                              {student.delivered_at ? formatBRDateTime(student.delivered_at) : "-"}
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex justify-center">
@@ -519,7 +520,7 @@ function ModuleDeliveriesMobileCard({ module, onRefresh }: { module: Module; onR
 
                       <div className="text-muted-foreground">
                         {student.delivered && student.student_confirmed ? (
-                          <div className="text-xs">✓ Confirmado{student.confirmed_at ? ` · ${new Date(student.confirmed_at).toLocaleDateString('pt-BR')}` : ''}</div>
+                          <div className="text-xs">✓ Confirmado{student.confirmed_at ? ` · ${formatBRDateTime(student.confirmed_at)}` : ''}</div>
                         ) : student.delivered ? (
                           <div className="text-xs">Aguardando confirmação</div>
                         ) : (
@@ -528,7 +529,7 @@ function ModuleDeliveriesMobileCard({ module, onRefresh }: { module: Module; onR
                       </div>
 
                       <div className="text-right text-sm text-muted-foreground">
-                        {student.delivered_at ? new Date(student.delivered_at).toLocaleDateString('pt-BR') : '-'}
+                        {student.delivered_at ? formatBRDateTime(student.delivered_at) : '-'}
                       </div>
                     </div>
                   </div>

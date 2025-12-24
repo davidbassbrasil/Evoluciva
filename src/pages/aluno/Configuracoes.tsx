@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { formatBRDateTime } from '@/lib/dates';
 import { getCurrentUser, updateUser, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
 import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
 import { User as UserType } from '@/types';
@@ -800,7 +801,7 @@ export default function AlunoConfiguracoes() {
                                 {delivery.module.turma?.course?.title || "-"}
                               </TableCell>
                               <TableCell className="text-center">
-                                {new Date(delivery.delivered_at).toLocaleDateString("pt-BR")}
+                                {formatBRDateTime(delivery.delivered_at)}
                               </TableCell>
                               <TableCell className="text-center">
                                 {delivery.student_confirmed ? (
@@ -819,7 +820,7 @@ export default function AlunoConfiguracoes() {
                                 {delivery.student_confirmed ? (
                                   <div className="text-sm text-muted-foreground">
                                     Confirmado em{" "}
-                                    {new Date(delivery.confirmed_at).toLocaleDateString("pt-BR")}
+                                    {formatBRDateTime(delivery.confirmed_at)}
                                   </div>
                                 ) : (
                                   <Button
@@ -946,14 +947,14 @@ export default function AlunoConfiguracoes() {
                                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs md:text-sm text-muted-foreground">
                                     <div className="flex items-center gap-1">
                                       <Calendar className="w-3 h-3" />
-                                      <span>Pago em: {enrollment.paid_at ? new Date(enrollment.paid_at).toLocaleDateString('pt-BR') : new Date(enrollment.created_at).toLocaleDateString('pt-BR')}</span>
+                                      <span>Pago em: {enrollment.paid_at ? formatBRDateTime(enrollment.paid_at) : formatBRDateTime(enrollment.created_at)}</span>
                                     </div>
                                     {enrollment.access_expires_at && (
                                       <>
                                         <span className="text-muted-foreground/50">•</span>
                                         <div className="flex items-center gap-1">
                                           <Calendar className="w-3 h-3" />
-                                          <span>Expira: {new Date(enrollment.access_expires_at).toLocaleDateString('pt-BR')}</span>
+                                          <span>Expira: {formatBRDateTime(enrollment.access_expires_at)}</span>
                                         </div>
                                       </>
                                     )}

@@ -160,7 +160,7 @@ export default function AlunoModulos() {
                         {delivery.module.turma?.course?.title || "-"}
                       </TableCell>
                       <TableCell className="text-center">
-                        {new Date(delivery.delivered_at).toLocaleDateString("pt-BR")}
+                        {formatBRDateTime(delivery.delivered_at)}
                       </TableCell>
                       <TableCell className="text-center">
                         {delivery.student_confirmed ? (
@@ -179,7 +179,7 @@ export default function AlunoModulos() {
                         {delivery.student_confirmed ? (
                           <div className="text-sm text-muted-foreground">
                             Confirmado em{" "}
-                            {new Date(delivery.confirmed_at).toLocaleDateString("pt-BR")}
+                            {formatBRDateTime(delivery.confirmed_at)}
                           </div>
                         ) : (
                           <Button

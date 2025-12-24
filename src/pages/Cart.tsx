@@ -9,6 +9,7 @@ import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import supabase from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
+import { todayKeyBR } from '@/lib/dates';
 
 export default function Cart() {
   const [items, setItems] = useState<Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>>([]);
@@ -80,18 +81,63 @@ export default function Cart() {
           .in('id', turmaIds);
 
         if (!error && data) {
-          // Manter ordem do carrinho e associar itemId + modality
-          const orderedItems = cartItems
-            .map(itemId => {
-              const parts = itemId.split(':');
-              const turmaId = parts[1];
-              const modality = (parts[2] || 'presential') as 'presential' | 'online';
-              const turma = data.find((t: any) => t.id === turmaId);
-              return turma ? { item: turma, itemId, modality } : null;
-            })
-            .filter(Boolean) as Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>;
-          
-          setItems(orderedItems);
+          // Carregar preços opcionais para as turmas do carrinho e aplicar quando existirem
+          try {
+            const turmaIdsUnique = Array.from(new Set(turmaIds));
+            const today = todayKeyBR();
+            const { data: precos, error: precosError } = await supabase
+              .from('turma_precos_opcionais')
+              .select('*')
+              .in('turma_id', turmaIdsUnique)
+              .gte('expires_at', today)
+              .order('expires_at', { ascending: true });
+
+            const precoMap: Record<string, { presential?: any; online?: any }> = {};
+            (precos || []).forEach((p: any) => {
+              const id = p.turma_id;
+              if (!precoMap[id]) precoMap[id] = {};
+              if (p.channel === 'both') {
+                if (!precoMap[id].presential) precoMap[id].presential = p;
+                if (!precoMap[id].online) precoMap[id].online = p;
+              } else if (p.channel === 'presential') {
+                if (!precoMap[id].presential) precoMap[id].presential = p;
+              } else if (p.channel === 'online') {
+                if (!precoMap[id].online) precoMap[id].online = p;
+              }
+            });
+
+            // Manter ordem do carrinho e associar itemId + modality
+            const orderedItems = cartItems
+              .map(itemId => {
+                const parts = itemId.split(':');
+                const turmaId = parts[1];
+                const modality = (parts[2] || 'presential') as 'presential' | 'online';
+                const turma = data.find((t: any) => t.id === turmaId);
+                if (turma) {
+                  const mapEntry = precoMap[turma.id];
+                  if (mapEntry) {
+                    if (mapEntry.presential) turma._effective_price_presential = Number(mapEntry.presential.price);
+                    if (mapEntry.online) turma._effective_price_online = Number(mapEntry.online.price);
+                  }
+                }
+                return turma ? { item: turma, itemId, modality } : null;
+              })
+              .filter(Boolean) as Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>;
+
+            setItems(orderedItems);
+          } catch (err) {
+            console.error('Erro ao carregar preços opcionais no carrinho:', err);
+            const orderedItems = cartItems
+              .map(itemId => {
+                const parts = itemId.split(':');
+                const turmaId = parts[1];
+                const modality = (parts[2] || 'presential') as 'presential' | 'online';
+                const turma = data.find((t: any) => t.id === turmaId);
+                return turma ? { item: turma, itemId, modality } : null;
+              })
+              .filter(Boolean) as Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }>;
+            setItems(orderedItems);
+          }
 
           // Carregar cursos de upsell
           const courseIdsInCart = orderedItems.map(item => item.item.course.id);
@@ -215,7 +261,9 @@ export default function Cart() {
   };
 
   const total = items.reduce((acc, item) => {
-    const price = item.modality === 'online' ? Number(item.item.price_online) : Number(item.item.price);
+    const price = item.modality === 'online'
+      ? Number(item.item._effective_price_online ?? item.item.price_online ?? 0)
+      : Number(item.item._effective_price_presential ?? item.item.price ?? 0);
     return acc + price;
   }, 0);
 
@@ -262,7 +310,9 @@ export default function Cart() {
           <div className="grid md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-4">
               {items.map(({ item: turma, itemId, modality }) => {
-                const displayPrice = modality === 'online' ? Number(turma.price_online) : Number(turma.price);
+                const displayPrice = modality === 'online'
+                  ? Number(turma._effective_price_online ?? turma.price_online ?? 0)
+                  : Number(turma._effective_price_presential ?? turma.price ?? 0);
                 const displayOriginalPrice = modality === 'online' ? Number(turma.original_price_online) : Number(turma.original_price);
                 
                 return (

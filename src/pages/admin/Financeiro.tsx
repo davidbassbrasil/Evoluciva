@@ -106,13 +106,11 @@ export default function Financeiro() {
   const [deletingRefundId, setDeletingRefundId] = useState<string | null>(null);
   const [showDeleteRefundDialog, setShowDeleteRefundDialog] = useState(false);
   const [selectedRefundToDelete, setSelectedRefundToDelete] = useState<any | null>(null);
-  
   // Filtros de data
   const [dateFrom, setDateFrom] = useState<Date>(startOfToday());
   const [dateTo, setDateTo] = useState<Date>(endOfToday());
   const [datePreset, setDatePreset] = useState<string>('today');
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
   const [stats, setStats] = useState({
     periodRevenue: 0,
     periodSales: 0,
@@ -126,6 +124,89 @@ export default function Financeiro() {
     avgTicket: 0,
     uniqueCustomers: 0,
   });
+
+  // Helpers de formatação no fuso de Brasília
+  const formatBRDateTime = (iso?: string | null) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
+      }).format(d).replace(',', '');
+    } catch (e) {
+      return String(iso);
+    }
+  };
+
+  const formatBRDate = (iso?: string | null) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: 'America/Sao_Paulo'
+      }).format(d);
+    } catch (e) {
+      return String(iso);
+    }
+  };
+
+  const formatBRWithAt = (iso?: string | null) => {
+    const dt = formatBRDateTime(iso);
+    if (dt === '-') return '-';
+    // Intl geralmente retorna 'DD/MM/YYYY HH:MM'
+    const parts = dt.split(' ');
+    if (parts.length >= 2) return `${parts[0]} às ${parts[1]}`;
+    return dt;
+  };
+
+  // Formata uma chave de data no fuso BR no formato ISO-date (YYYY-MM-DD)
+  const formatBRDateKey = (value?: string | Date | null) => {
+    if (!value) return null;
+    try {
+      const d = typeof value === 'string' ? new Date(value) : value as Date;
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Helpers para limites em fuso America/Sao_Paulo
+  const partsInTZ = (date: Date, tz = 'America/Sao_Paulo') => {
+    const df = new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const parts = df.formatToParts(date);
+    const map: any = {};
+    parts.forEach(p => { if (p.type !== 'literal') map[p.type] = p.value; });
+    return map; // { year, month, day, hour, minute, second }
+  };
+
+  const brStartOfDay = (date: Date) => {
+    const p = partsInTZ(date);
+    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), 0, 0, 0, 0));
+  };
+
+  const brEndOfDay = (date: Date) => {
+    const p = partsInTZ(date);
+    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), 23, 59, 59, 999));
+  };
+
+  const brStartOfMonth = (date: Date) => {
+    const p = partsInTZ(date);
+    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, 1, 0, 0, 0, 0));
+  };
+
+  const brEndOfMonth = (date: Date) => {
+    const p = partsInTZ(date);
+    const nextMonth = new Date(Date.UTC(Number(p.year), Number(p.month), 1, 0, 0, 0, 0));
+    return new Date(nextMonth.getTime() - 1);
+  };
+
+  const brStartOfYear = (date: Date) => {
+    const p = partsInTZ(date);
+    return new Date(Date.UTC(Number(p.year), 0, 1, 0, 0, 0, 0));
+  };
 
   useEffect(() => {
     loadPayments();
@@ -418,24 +499,28 @@ export default function Financeiro() {
     const refunded = data.filter(p => p.status === 'REFUNDED');
     
     const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
-    const yearStart = startOfYear(now);
-    
-    // Filtrar por período selecionado
+
+    // Filtrar por período selecionado (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
+    const startKey = formatBRDateKey(dateFrom) || '';
+    const endKey = formatBRDateKey(dateTo) || '';
     const periodPayments = confirmed.filter(p => {
-      const date = new Date(p.payment_date || p.created_at);
-      return date >= dateFrom && date <= dateTo;
+      const key = formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '';
+      return key >= startKey && key <= endKey;
     });
-    
+
+    // Para mês/ano, calcular diretamente a chave BR do 'now' e comparar prefixos
+    const brNowKey = formatBRDateKey(now) || '';
+    const monthPrefix = brNowKey.slice(0, 7); // YYYY-MM
+    const yearPrefix = brNowKey.slice(0, 4); // YYYY
+
     const monthPayments = confirmed.filter(p => {
-      const date = new Date(p.payment_date || p.created_at);
-      return date >= monthStart && date <= monthEnd;
+      const key = (formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 7);
+      return key === monthPrefix;
     });
-    
+
     const yearPayments = confirmed.filter(p => {
-      const date = new Date(p.payment_date || p.created_at);
-      return date >= yearStart;
+      const key = (formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 4);
+      return key === yearPrefix;
     });
     
     // Calcular receitas descontando estornos
@@ -527,10 +612,12 @@ export default function Financeiro() {
       filtered = filtered.filter(p => p.status !== 'CANCELLED');
     }
     
-    // Filtro por data
+    // Filtro por data (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
+    const startKey = formatBRDateKey(dateFrom) || '';
+    const endKey = formatBRDateKey(dateTo) || '';
     filtered = filtered.filter(p => {
-      const date = new Date(p.payment_date || p.created_at);
-      return date >= dateFrom && date <= dateTo;
+      const key = formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '';
+      return key >= startKey && key <= endKey;
     });
     
     // Filtro de busca
@@ -758,7 +845,7 @@ export default function Financeiro() {
   const exportToCSV = () => {
     const headers = ['Data', 'Cliente', 'Email', 'Curso', 'Método', 'Status', 'Valor'];
     const rows = filteredPayments.map(p => [
-      p.payment_date ? format(new Date(p.payment_date), 'dd/MM/yyyy HH:mm') : '-',
+      p.confirmed_date ? formatBRDateTime(p.confirmed_date) : p.payment_date ? formatBRDateTime(p.payment_date) : '-',
       p.profiles?.full_name || 'N/A',
       p.profiles?.email || 'N/A',
       p.turmas?.course?.title || p.description || '-',
@@ -1113,7 +1200,7 @@ export default function Financeiro() {
                       <div className="min-w-0">
                         <div className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</div>
                         <div className="text-xs text-muted-foreground truncate">{p.profiles?.email || ''}</div>
-                        <div className="text-xs text-muted-foreground mt-2">{p.payment_date ? format(new Date(p.payment_date), 'dd/MM/yyyy', { locale: ptBR }) : format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                        <div className="text-xs text-muted-foreground mt-2">{p.confirmed_date ? formatBRDate(p.confirmed_date) : p.payment_date ? formatBRDate(p.payment_date) : formatBRDate(p.created_at)}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-bold text-primary">{formatCurrency(Number(p.value))}</div>
@@ -1165,9 +1252,9 @@ export default function Financeiro() {
                     {filteredPayments.map((payment) => (
                       <TableRow key={payment.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium whitespace-nowrap">
-                          {payment.payment_date 
-                            ? format(new Date(payment.payment_date), 'dd/MM/yyyy HH:mm', { locale: ptBR }) 
-                            : format(new Date(payment.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                          {payment.confirmed_date ? formatBRDateTime(payment.confirmed_date)
+                            : payment.payment_date ? formatBRDateTime(payment.payment_date)
+                            : formatBRDateTime(payment.created_at)}
                         </TableCell>
                         <TableCell>
                           <div className="min-w-[150px]">
@@ -1315,10 +1402,10 @@ export default function Financeiro() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Data de Pagamento</p>
-                    <p className="font-medium">
-                      {selectedPayment.payment_date || selectedPayment.confirmed_date
-                        ? format(new Date(selectedPayment.payment_date || selectedPayment.confirmed_date!), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                        : format(new Date(selectedPayment.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      <p className="font-medium">
+                      {selectedPayment.confirmed_date || selectedPayment.payment_date
+                        ? formatBRWithAt(selectedPayment.confirmed_date || selectedPayment.payment_date)
+                        : formatBRWithAt(selectedPayment.created_at)}
                     </p>
                   </div>
                   {selectedPayment.total_refunded && selectedPayment.total_refunded > 0 && (

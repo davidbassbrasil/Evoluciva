@@ -17,6 +17,7 @@ import {
   Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { formatBRDate, formatBRDateTime } from '@/lib/dates';
 import { supabase } from '@/lib/supabaseClient';
 import { adminCreateUserViaEdgeFunction } from '@/lib/createUserEdgeFunction';
 
@@ -312,7 +313,7 @@ export default function AdminAlunos() {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('pt-BR');
+    return formatBRDate(dateStr);
   };
 
   const getWhatsAppHref = (phone?: string) => {
@@ -813,7 +814,7 @@ export default function AdminAlunos() {
         <h1>Lista de Alunos</h1>
         ${turmaInfo ? `<h2>Turma: ${turmaName}${courseName ? ` - ${courseName}` : ''}</h2>` : ''}
         <div class="info">
-          Gerado em: ${new Date().toLocaleString('pt-BR')}
+          Gerado em: ${formatBRDateTime(new Date())}
         </div>
         <table>
           <thead>
@@ -2034,7 +2035,7 @@ export default function AdminAlunos() {
                             {combined.map((row: any) => (
                               <TableRow key={row.id}>
                                 <TableCell className="text-sm">
-                                  {new Date(row.created_at).toLocaleDateString('pt-BR')}
+                                  {formatBRDateTime(row.created_at)}
                                 </TableCell>
 
                                 <TableCell>

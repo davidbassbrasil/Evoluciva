@@ -1,6 +1,7 @@
 import { FloatingNav } from '@/components/landing/FloatingNav';
 import { Footer } from '@/components/landing/Footer';
 import { FloatingButtons } from '@/components/landing/FloatingButtons';
+import { formatBRDateTime } from '@/lib/dates';
 
 export default function LGPD() {
   return (
@@ -13,7 +14,7 @@ export default function LGPD() {
           
           <div className="prose prose-lg max-w-none text-foreground">
             <p className="text-muted-foreground mb-6">
-              Última atualização: {new Date().toLocaleDateString('pt-BR')}
+              Última atualização: {formatBRDateTime(new Date())}
             </p>
 
             <section className="mb-8">

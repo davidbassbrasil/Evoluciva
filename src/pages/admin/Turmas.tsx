@@ -12,6 +12,7 @@ import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, Credit
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 import { DAY_LABELS, formatSessions, validateSessions } from '../../lib/schedules';
+import { formatBRDateTime } from '@/lib/dates';
 
 interface TurmaForm {
   name: string;
@@ -733,7 +734,7 @@ const handleDeletePreco = async (id: string) => {
                                 <div>
                                   <div className="font-medium">{p.label || (p.channel === 'presential' ? 'Presencial' : p.channel === 'online' ? 'Online' : 'Ambos')}</div>
                                   <div className="text-sm text-muted-foreground">
-                                    R$ {Number(p.price).toFixed(2)} • expira em {new Date(p.expires_at + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                    R$ {Number(p.price).toFixed(2)} • expira em {formatBRDateTime(p.expires_at)}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -975,7 +976,7 @@ const handleDeletePreco = async (id: string) => {
                     {turma.start_date && (
                       <span className="flex items-center gap-1 font-semibold text-primary">
                         <Calendar className="w-3 h-3" />
-                        Início das Aulas: {new Date(turma.start_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                        Início das Aulas: {formatBRDateTime(turma.start_date)}
                       </span>
                     )}
                     {turma.sessions && turma.sessions.length > 0 && (
@@ -988,9 +989,9 @@ const handleDeletePreco = async (id: string) => {
                     {(turma.sale_start_date || turma.sale_end_date) && (
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        Vendas: {turma.sale_start_date && new Date(turma.sale_start_date).toLocaleDateString('pt-BR')}
+                        Vendas: {turma.sale_start_date && formatBRDateTime(turma.sale_start_date)}
                         {turma.sale_start_date && turma.sale_end_date && ' - '}
-                        {turma.sale_end_date && new Date(turma.sale_end_date).toLocaleDateString('pt-BR')}
+                        {turma.sale_end_date && formatBRDateTime(turma.sale_end_date)}
                       </span>
                     )}
                     

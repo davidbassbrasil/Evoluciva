@@ -21,6 +21,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useStudentsWithModuleStatus, toggleDelivery } from '@/lib/moduleService';
 import { useToast } from '@/hooks/use-toast';
+import { formatBRDateTime } from '@/lib/dates';
 import { Loader2, Download, Search, CheckCircle2, XCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -99,7 +100,7 @@ export default function ModuleDeliveriesDialog({
     doc.setFontSize(12);
     doc.text(`Módulo: ${module.name}`, 14, 30);
     doc.text(`Turma: ${module.turma_name || 'N/A'}`, 14, 37);
-    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 14, 44);
+    doc.text(`Data: ${formatBRDateTime(new Date())}`, 14, 44);
 
     // Estatísticas
     const deliveredCount = students.filter(s => s.delivered).length;
@@ -113,7 +114,7 @@ export default function ModuleDeliveriesDialog({
       student.student_email,
       student.delivered ? 'Sim' : 'Não',
       student.delivered_at
-        ? new Date(student.delivered_at).toLocaleDateString('pt-BR')
+        ? formatBRDateTime(student.delivered_at)
         : '-',
     ]);
 
@@ -264,7 +265,7 @@ export default function ModuleDeliveriesDialog({
                         </TableCell>
                         <TableCell className="text-center text-sm">
                           {student.delivered_at
-                            ? new Date(student.delivered_at).toLocaleDateString('pt-BR')
+                            ? formatBRDateTime(student.delivered_at)
                             : '-'}
                         </TableCell>
                         <TableCell className="text-center">

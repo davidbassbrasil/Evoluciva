@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Mail, Phone, GraduationCap } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { setPreviewStudentId } from '@/lib/localStorage';
+import { formatBRDateTime } from '@/lib/dates';
 import { Eye } from 'lucide-react';
 
 export default function AdminImpersonarAluno() {
@@ -118,7 +119,7 @@ export default function AdminImpersonarAluno() {
                                   <div className="text-sm text-muted-foreground">Curso: {e.turmas?.course?.title || '-'}</div>
                                 </div>
                               </div>
-                              <div className="text-sm text-muted-foreground">{new Date(e.enrolled_at).toLocaleDateString('pt-BR')}</div>
+                              <div className="text-sm text-muted-foreground">{formatBRDateTime(e.enrolled_at)}</div>
                             </li>
                           ))}
                         </ul>

@@ -224,9 +224,100 @@ async function processWebhookEvent(
       throw new Error(`Failed to update payment: ${error.message}`);
     }
 
-    // Se pagamento confirmado/recebido, trigger automático já ativa a matrícula
+    // Se pagamento confirmado/recebido, garantir criação de matrículas com base em metadata (fallback se trigger não cobrir todos os itens)
     if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(mappedStatus)) {
-      console.log(`[webhook] Payment confirmed - enrollment auto-activated by trigger`);
+      console.log(`[webhook] Payment confirmed - verifying enrollments`);
+
+      // Recarregar pagamento atualizado com metadata e enrollments
+      const { data: updatedPayment, error: reloadError } = await supabase
+        .from('payments')
+        .select('*, enrollments(*)')
+        .eq('id', existingPayment.id)
+        .single();
+
+      if (reloadError) {
+        console.error('[webhook] Error reloading payment:', reloadError);
+      } else {
+        try {
+          const items = (updatedPayment.metadata && updatedPayment.metadata.items) || [];
+          const userId = updatedPayment.user_id;
+          const paymentId = updatedPayment.id;
+          const billingType = updatedPayment.billing_type;
+          const paymentNet = updatedPayment.net_value ?? updatedPayment.value ?? null;
+          const paymentDate = payment.paymentDate || payment.confirmedDate || new Date().toISOString();
+
+          if (Array.isArray(items) && items.length > 0) {
+            console.log(`[webhook] Found ${items.length} item(s) in payment metadata - ensuring enrollments`);
+            for (const it of items) {
+              const turmaId = it.turma_id;
+              const modality = it.modality || 'presential';
+
+              // Verificar se já existe matrícula para este usuário/turma
+              const { data: existingEnroll } = await supabase
+                .from('enrollments')
+                .select('id')
+                .eq('profile_id', userId)
+                .eq('turma_id', turmaId)
+                .limit(1)
+                .single();
+
+              if (!existingEnroll) {
+                console.log(`[webhook] Creating enrollment for user ${userId} turma ${turmaId}`);
+                const amount = paymentNet && typeof paymentNet === 'number' ? (paymentNet / items.length) : null;
+
+                const { error: insertErr } = await supabase
+                  .from('enrollments')
+                  .insert({
+                    profile_id: userId,
+                    turma_id: turmaId,
+                    modality,
+                    payment_status: 'paid',
+                    payment_method: billingType || 'unknown',
+                    payment_id: paymentId,
+                    amount_paid: amount,
+                    paid_at: paymentDate,
+                    enrolled_at: new Date().toISOString(),
+                  });
+
+                if (insertErr) {
+                  console.error('[webhook] Error creating enrollment:', insertErr);
+                } else {
+                  console.log(`[webhook] Enrollment created for turma ${turmaId}`);
+                }
+              } else {
+                console.log(`[webhook] Enrollment already exists for user ${userId} turma ${turmaId}`);
+              }
+            }
+          } else {
+            // Fallback: se nenhuma metadata de items, mas existe turma_id no pagamento e não há matrícula, criar uma matrícula única
+            const turmaId = updatedPayment.turma_id;
+            if (turmaId && (!updatedPayment.enrollments || updatedPayment.enrollments.length === 0)) {
+              console.log('[webhook] No items metadata - creating single enrollment based on payment.turma_id');
+              const { error: insertErr } = await supabase
+                .from('enrollments')
+                .insert({
+                  profile_id: updatedPayment.user_id,
+                  turma_id: turmaId,
+                  modality: 'presential',
+                  payment_status: 'paid',
+                  payment_method: updatedPayment.billing_type || 'unknown',
+                  payment_id: updatedPayment.id,
+                  amount_paid: updatedPayment.net_value ?? updatedPayment.value ?? null,
+                  paid_at: payment.paymentDate || payment.confirmedDate || new Date().toISOString(),
+                  enrolled_at: new Date().toISOString(),
+                });
+
+              if (insertErr) {
+                console.error('[webhook] Error creating fallback enrollment:', insertErr);
+              } else {
+                console.log('[webhook] Fallback enrollment created');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[webhook] Error ensuring enrollments:', err);
+        }
+      }
     }
 
   } else {

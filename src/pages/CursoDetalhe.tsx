@@ -16,6 +16,7 @@ import { SEOHead, seoHelpers } from '@/components/SEOHead';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { getCourseSchema, getOrganizationSchema, injectSchema } from '@/lib/schemas';
 import { formatSessions, DAY_LABELS } from '@/lib/schedules';
+import { formatBRDateTime, todayKeyBR } from '@/lib/dates';
 
 interface Professor {
   id: string;
@@ -190,7 +191,7 @@ export default function CursoDetalhe() {
   useEffect(() => {
     const loadPrecoOpcional = async (turmaId: string, channel: string) => {
       try {
-        const today = new Date().toISOString().slice(0,10);
+        const today = todayKeyBR();
         const { data, error } = await supabase
           .from('turma_precos_opcionais')
           .select('*')
@@ -225,7 +226,7 @@ export default function CursoDetalhe() {
 
       try {
         const turmaIds = turmas.map(t => t.id);
-        const today = new Date().toISOString().slice(0,10);
+        const today = todayKeyBR();
         const { data, error } = await supabase
           .from('turma_precos_opcionais')
           .select('*')
@@ -580,7 +581,7 @@ export default function CursoDetalhe() {
                             {turma.start_date && (
                               <div className="text-xs text-primary font-medium mb-2 flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                Início: {new Date(turma.start_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                                Início: {formatBRDateTime(turma.start_date)}
                               </div>
                             )}
                             <div className="text-xs text-muted-foreground space-y-1">

@@ -16,6 +16,7 @@ import { asaasService } from '@/lib/asaasService';
 import type { Turma, User } from '@/types';
 import supabase from '@/lib/supabaseClient';
 import logoPng from '@/assets/logo_.png';
+import { todayKeyBR, formatBRDateTime } from '@/lib/dates';
 
 export default function Checkout() {
   const { courseId } = useParams();
@@ -185,6 +186,26 @@ export default function Checkout() {
             setPaymentMethod('BOLETO');
           }
           
+          // Carregar preço opcional vigente para esta turma (single checkout)
+          try {
+            const today = todayKeyBR();
+            const { data: precoData, error: precoError } = await supabase
+              .from('turma_precos_opcionais')
+              .select('*')
+              .eq('turma_id', data.id)
+              .gte('expires_at', today)
+              .in('channel', ['both', modality])
+              .order('expires_at', { ascending: true })
+              .limit(1);
+            if (!precoError && precoData && precoData.length > 0) {
+              const p = precoData[0];
+              if (p.channel === 'both' || p.channel === 'presential') data._effective_price_presential = Number(p.price);
+              if (p.channel === 'both' || p.channel === 'online') data._effective_price_online = Number(p.price);
+            }
+          } catch (err) {
+            console.error('Erro ao carregar preço opcional (single):', err);
+          }
+
           // Não setar installmentCount automaticamente, deixar o padrão (1)
         } else {
           // Cart checkout
@@ -252,14 +273,57 @@ export default function Checkout() {
               return;
             }
             
-            // Ordenar conforme carrinho e associar modality
-            const orderedTurmas = parsedItems
-              .map(({ turmaId, modality }) => {
-                const turma = availableTurmas.find((t: any) => t.id === turmaId);
-                return turma ? { turma, modality } : null;
-              })
-              .filter(Boolean) as Array<{ turma: Turma; modality: 'presential' | 'online' }>;
-            setCartItems(orderedTurmas);
+            // Carregar preços opcionais para as turmas do carrinho e associar modality
+            try {
+              const turmaIdsUnique = Array.from(new Set(turmaIds));
+              const today = todayKeyBR();
+              const { data: precos, error: precosError } = await supabase
+                .from('turma_precos_opcionais')
+                .select('*')
+                .in('turma_id', turmaIdsUnique)
+                .gte('expires_at', today)
+                .order('expires_at', { ascending: true });
+
+              const precoMap: Record<string, { presential?: any; online?: any }> = {};
+              (precos || []).forEach((p: any) => {
+                const id = p.turma_id;
+                if (!precoMap[id]) precoMap[id] = {};
+                if (p.channel === 'both') {
+                  if (!precoMap[id].presential) precoMap[id].presential = p;
+                  if (!precoMap[id].online) precoMap[id].online = p;
+                } else if (p.channel === 'presential') {
+                  if (!precoMap[id].presential) precoMap[id].presential = p;
+                } else if (p.channel === 'online') {
+                  if (!precoMap[id].online) precoMap[id].online = p;
+                }
+              });
+
+              // Ordenar conforme carrinho e associar modality, aplicando preços opcionais quando existirem
+              const orderedTurmas = parsedItems
+                .map(({ turmaId, modality }) => {
+                  const turma = availableTurmas.find((t: any) => t.id === turmaId);
+                  if (!turma) return null;
+                  const mapEntry = precoMap[turma.id];
+                  if (mapEntry) {
+                    if (mapEntry.presential) turma._effective_price_presential = Number(mapEntry.presential.price);
+                    if (mapEntry.online) turma._effective_price_online = Number(mapEntry.online.price);
+                  }
+                  return turma ? { turma, modality } : null;
+                })
+                .filter(Boolean) as Array<{ turma: Turma; modality: 'presential' | 'online' }>;
+
+              setCartItems(orderedTurmas);
+            } catch (err) {
+              console.error('Erro ao carregar preços opcionais (cart):', err);
+              // Mesmo se falhar, continuar com preços originais
+              const orderedTurmasFallback = parsedItems
+                .map(({ turmaId, modality }) => {
+                  const turma = availableTurmas.find((t: any) => t.id === turmaId);
+                  return turma ? { turma, modality } : null;
+                })
+                .filter(Boolean) as Array<{ turma: Turma; modality: 'presential' | 'online' }>;
+              setCartItems(orderedTurmasFallback);
+            }
           }
         }
       } catch (err) {
@@ -361,8 +425,8 @@ export default function Checkout() {
       // Calcular total com desconto por método de pagamento
       let totalValue = itemsToPurchase.reduce((s, item) => {
         const price = item.modality === 'online'
-          ? Number(item.turma.price_online ?? 0)
-          : Number(item.turma.price ?? 0);
+          ? Number(item.turma._effective_price_online ?? item.turma.price_online ?? 0)
+          : Number(item.turma._effective_price_presential ?? item.turma.price ?? 0);
         return s + price;
       }, 0);
 
@@ -371,8 +435,8 @@ export default function Checkout() {
         // Se o cupom está associado a uma turma específica, aplica apenas nela
         if (appliedCoupon.turmaId) {
           const match = itemsToPurchase.find(i => i.turma.id === appliedCoupon.turmaId);
-          if (match) {
-            const price = match.modality === 'online' ? Number(match.turma.price_online ?? 0) : Number(match.turma.price ?? 0);
+            if (match) {
+            const price = match.modality === 'online' ? Number(match.turma._effective_price_online ?? match.turma.price_online ?? 0) : Number(match.turma._effective_price_presential ?? match.turma.price ?? 0);
             const cupomDiscount = price * (appliedCoupon.discount / 100);
             totalValue -= cupomDiscount;
           }
@@ -476,7 +540,7 @@ export default function Checkout() {
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: paymentData.description,
-            metadata: payment,
+            metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
           }).select().single();
 
           if (paymentError) {
@@ -590,7 +654,7 @@ export default function Checkout() {
           billing_type: 'PIX',
           due_date: dueDate.toISOString().split('T')[0],
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
-          metadata: payment,
+          metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
         });
 
         toast({ title: 'PIX Gerado!', description: 'Escaneie o QR Code ou copie o código PIX para pagar.' });
@@ -621,7 +685,7 @@ export default function Checkout() {
           billing_type: 'BOLETO',
           due_date: dueDate.toISOString().split('T')[0],
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
-          metadata: payment,
+          metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
         });
 
         toast({ title: 'Boleto Gerado!', description: 'Você pode visualizar e pagar o boleto.' });
@@ -681,7 +745,7 @@ export default function Checkout() {
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
-            metadata: payment,
+            metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
           }).select().single();
 
           if (paymentError) {
@@ -801,16 +865,16 @@ export default function Checkout() {
     const itemsToShow = turma ? [{ turma, modality: turmaModality }] : cartItems;
     
     const subtotalOriginal = itemsToShow.reduce((s, item) => {
-      const originalPrice = item.modality === 'online' 
+      const originalPrice = item.modality === 'online'
         ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
         : Number(item.turma.original_price ?? item.turma.price ?? 0);
       return s + originalPrice;
     }, 0);
     
     const subtotalBase = itemsToShow.reduce((s, item) => {
-      const price = item.modality === 'online' 
-        ? Number(item.turma.price_online ?? 0)
-        : Number(item.turma.price ?? 0);
+      const price = item.modality === 'online'
+        ? Number(item.turma._effective_price_online ?? item.turma.price_online ?? 0)
+        : Number(item.turma._effective_price_presential ?? item.turma.price ?? 0);
       return s + price;
     }, 0);
     
@@ -834,7 +898,9 @@ export default function Checkout() {
       if (appliedCoupon.turmaId) {
         const match = itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId);
         if (match) {
-          const price = match.modality === 'online' ? Number(match.turma.price_online ?? 0) : Number(match.turma.price ?? 0);
+          const price = match.modality === 'online'
+            ? Number(match.turma._effective_price_online ?? match.turma.price_online ?? 0)
+            : Number(match.turma._effective_price_presential ?? match.turma.price ?? 0);
           couponDiscount = price * (appliedCoupon.discount / 100);
         }
       } else {
@@ -891,9 +957,9 @@ export default function Checkout() {
               {itemsToShow.length === 1 ? (
                 (() => {
                   const item = itemsToShow[0];
-                  const displayPrice = item.modality === 'online' 
-                    ? Number(item.turma.price_online ?? 0)
-                    : Number(item.turma.price ?? 0);
+                  const displayPrice = item.modality === 'online'
+                    ? Number(item.turma._effective_price_online ?? item.turma.price_online ?? 0)
+                    : Number(item.turma._effective_price_presential ?? item.turma.price ?? 0);
                   const displayOriginalPrice = item.modality === 'online'
                     ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
                     : Number(item.turma.original_price ?? item.turma.price ?? 0);
@@ -934,9 +1000,9 @@ export default function Checkout() {
                 <div className="mb-4">
                   <ul className="space-y-4">
                     {itemsToShow.map((item) => {
-                      const displayPrice = item.modality === 'online' 
-                        ? Number(item.turma.price_online ?? 0)
-                        : Number(item.turma.price ?? 0);
+                      const displayPrice = item.modality === 'online'
+                        ? Number(item.turma._effective_price_online ?? item.turma.price_online ?? 0)
+                        : Number(item.turma._effective_price_presential ?? item.turma.price ?? 0);
                       const displayOriginalPrice = item.modality === 'online'
                         ? Number(item.turma.original_price_online ?? item.turma.price_online ?? 0)
                         : Number(item.turma.original_price ?? item.turma.price ?? 0);
