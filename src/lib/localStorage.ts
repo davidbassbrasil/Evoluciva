@@ -99,6 +99,27 @@ export const getCurrentUser = (): User | null => getItem(STORAGE_KEYS.CURRENT_US
 export const setCurrentUser = (user: User | null) => setItem(STORAGE_KEYS.CURRENT_USER, user);
 export const logout = () => localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
 
+// Preview (visualizar como aluno) helpers
+export const PREVIEW_KEY = 'cursos_preview_student_id';
+export const setPreviewStudentId = (id: string | null) => {
+  if (id) localStorage.setItem(PREVIEW_KEY, id);
+  else localStorage.removeItem(PREVIEW_KEY);
+};
+export const getPreviewStudentId = (): string | null => {
+  return localStorage.getItem(PREVIEW_KEY) || null;
+};
+export const clearPreviewStudentId = () => {
+  localStorage.removeItem(PREVIEW_KEY);
+};
+
+// Active user id helper (preview if set, otherwise current logged user)
+export const getActiveUserId = (): string | null => {
+  const preview = getPreviewStudentId();
+  if (preview) return preview;
+  const current = getCurrentUser();
+  return current?.id || null;
+};
+
 // Site Settings
 export const getSettings = (): SiteSettings => getItem(STORAGE_KEYS.SETTINGS, {
   siteName: 'Evoluciva',

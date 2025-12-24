@@ -30,6 +30,7 @@ import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminAcesso from "./pages/admin/Acesso";
 import AdminModulos from "./pages/admin/Modulos";
 import AdminAppSettings from "./pages/admin/AppSettings";
+import AdminImpersonarAluno from "./pages/admin/ImpersonarAluno";
 import CheckoutCart from "./pages/CheckoutCart";
 import Cart from "./pages/Cart";
 import TermosDeUso from "./pages/TermosDeUso";
@@ -92,6 +93,7 @@ const App = () => {
           <Route path="/admin/depoimentos" element={<AdminDepoimentos />} />
           <Route path="/admin/faq" element={<AdminFAQ />} />
           <Route path="/admin/alunos" element={<AdminAlunos />} />
+          <Route path="/admin/alunos/impersonate/:profileId" element={<AdminImpersonarAluno />} />
           <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
           <Route path="/admin/acesso" element={<AdminAcesso />} />
           <Route path="/admin/modulos" element={<AdminModulos />} />

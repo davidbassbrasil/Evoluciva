@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -140,6 +141,7 @@ export default function AdminAlunos() {
   });
   
   const { toast } = useToast();
+  const navigate = useNavigate();
   
 
   // Load data
@@ -1570,6 +1572,14 @@ export default function AdminAlunos() {
                             title="Financeiro"
                           >
                             <DollarSign className="w-4 h-4 text-blue-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate(`/admin/alunos/impersonate/${profile.id}`)}
+                            title="Ver como admin"
+                          >
+                            <Eye className="w-4 h-4 text-indigo-600" />
                           </Button>
                           <Button
                             variant="ghost"

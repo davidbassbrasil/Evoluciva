@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import logoPng from '@/assets/logo_.png';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { getCurrentUser, logout } from '@/lib/localStorage';
+import { getCurrentUser, logout, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
+import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
 import supabase from '@/lib/supabaseClient';
 
 interface EnrolledTurma {
@@ -45,29 +46,37 @@ export default function AlunoDashboard() {
 
   useEffect(() => {
     const loadUserData = async () => {
+      const previewId = getPreviewStudentId();
       const currentUser = getCurrentUser();
-      if (!currentUser) {
-        navigate('/aluno/login');
-        return;
-      }
 
-      setUserId(currentUser.id);
+      // If preview mode active, show as that student (admin still authenticated)
+      if (previewId) {
+        setUserId(previewId);
+      } else {
+        if (!currentUser) {
+          navigate('/aluno/login');
+          return;
+        }
+        setUserId(currentUser.id);
+      }
       
       // Try to fetch full profile data from Supabase
       try {
+        const idToFetch = getPreviewStudentId() || currentUser?.id;
         const { data: profile } = await supabase
           .from('profiles')
           .select('full_name')
-          .eq('id', currentUser.id)
+          .eq('id', idToFetch)
           .single();
-        
-        setUserName(profile?.full_name || currentUser.name || 'Aluno');
+
+        setUserName(profile?.full_name || currentUser?.name || 'Aluno');
       } catch (e) {
-        setUserName(currentUser.name || 'Aluno');
+        setUserName(currentUser?.name || 'Aluno');
       }
 
       // Load enrolled turmas with progress
       try {
+        const idToUse = previewId || currentUser?.id || '';
         const { data: enrollments, error } = await supabase
           .from('enrollments')
           .select(`
@@ -87,7 +96,7 @@ export default function AlunoDashboard() {
               )
             )
           `)
-          .eq('profile_id', currentUser.id);
+          .eq('profile_id', idToUse);
 
         if (error) throw error;
 
@@ -130,7 +139,7 @@ export default function AlunoDashboard() {
             supabase
               .from('lesson_progress')
               .select('lesson_id, completed')
-              .eq('profile_id', currentUser.id)
+              .eq('profile_id', idToUse)
               .eq('completed', true)
           ]);
 
@@ -227,6 +236,8 @@ export default function AlunoDashboard() {
     loadUserData();
   }, [navigate]);
 
+  const isPreview = Boolean(getPreviewStudentId());
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -313,6 +324,14 @@ export default function AlunoDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
+      {isPreview && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-900 py-2 px-4 text-sm flex items-center justify-between">
+          <div>Visualizando como aluno — <strong>MODO ADMIN</strong></div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { clearPreviewStudentId(); exitPreviewAndCloseWindow(); }}>Sair do modo visualização</Button>
+          </div>
+        </div>
+      )}
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
         <div className="w-full md:container md:mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">

@@ -7,23 +7,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useStudentModules, confirmModuleReceipt } from "@/lib/moduleService";
 import { Package, CheckCircle2, Clock, Loader2, Settings, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getCurrentUser, logout } from "@/lib/localStorage";
+import { getCurrentUser, logout, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
+import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
+import { supabase } from '@/lib/supabaseClient';
 import logoPng from "@/assets/logo_.png";
 
 export default function AlunoModulos() {
   const { toast } = useToast();
-  const { modules, loading, refetch } = useStudentModules();
+  const previewId = getPreviewStudentId();
+  const { modules, loading, refetch } = useStudentModules(previewId);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const navigate = useNavigate();
 
   useEffect(() => {
+    const previewId = getPreviewStudentId();
     const user = getCurrentUser();
-    if (!user) {
+    if (!user && !previewId) {
       navigate('/aluno/login');
       return;
     }
-    setUserName(user.name);
+
+    if (previewId) {
+      // Fetch profile for preview name
+      (async () => {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', previewId)
+            .single();
+          setUserName(profile?.full_name || 'Aluno');
+        } catch (e) {
+          setUserName('Aluno');
+        }
+      })();
+    } else {
+      setUserName(user.name);
+    }
   }, [navigate]);
 
   const handleLogout = () => {
@@ -53,6 +74,14 @@ export default function AlunoModulos() {
 
   return (
     <div className="min-h-screen bg-background">
+      {previewId && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-900 py-2 px-4 text-sm flex items-center justify-between">
+          <div>Visualizando como aluno — <strong>MODO ADMIN</strong></div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { clearPreviewStudentId(); exitPreviewAndCloseWindow(); }}>Sair do modo visualização</Button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6 sticky top-0 z-50">
         <div className="w-full md:container md:mx-auto flex items-center justify-between">

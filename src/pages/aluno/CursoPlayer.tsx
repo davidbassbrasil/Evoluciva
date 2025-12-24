@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { getCurrentUser } from '@/lib/localStorage';
+import { getCurrentUser, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
+import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
 import supabase from '@/lib/supabaseClient';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -50,12 +51,14 @@ export default function CursoPlayer() {
 
   useEffect(() => {
     const load = async () => {
+      const previewId = getPreviewStudentId();
       const currentUser = getCurrentUser();
-      if (!currentUser) {
+      if (!currentUser && !previewId) {
         navigate('/aluno/login');
         return;
       }
-      setUserId(currentUser.id);
+      const activeId = previewId || currentUser?.id;
+      setUserId(activeId || '');
 
       if (!turmaId) {
         navigate('/aluno/dashboard');
@@ -67,7 +70,7 @@ export default function CursoPlayer() {
         const { data: enrollData, error: enrollError } = await supabase
           .from('enrollments')
           .select('id, access_expires_at, turma:turmas (id, name, course_id, access_end_date, courses (title))')
-          .eq('profile_id', currentUser.id)
+          .eq('profile_id', activeId)
           .eq('turma_id', turmaId)
           .single();
 
@@ -139,7 +142,7 @@ export default function CursoPlayer() {
         const { data: progressData, error: progressError } = await supabase
           .from('lesson_progress')
           .select('*')
-          .eq('profile_id', currentUser.id)
+          .eq('profile_id', activeId)
           .in('lesson_id', lessonsArray.map(l => l.id));
 
         if (!progressError && progressData) {
@@ -345,6 +348,14 @@ export default function CursoPlayer() {
 
   return (
     <div className="min-h-screen bg-background">
+      {getPreviewStudentId() && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-900 py-2 px-4 text-sm flex items-center justify-between">
+          <div>Visualizando como aluno — <strong>MODO ADMIN</strong></div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { clearPreviewStudentId(); exitPreviewAndCloseWindow(); }}>Sair do modo visualização</Button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className={cn(
         "bg-card border-b py-4 px-6 sticky top-0 z-10 transition-all duration-300",

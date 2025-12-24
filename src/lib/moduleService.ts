@@ -359,7 +359,7 @@ export async function getTurmasForFilter() {
 /**
  * Hook para buscar módulos entregues para o aluno logado
  */
-export function useStudentModules() {
+export function useStudentModules(studentId?: string) {
   const [modules, setModules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -373,19 +373,12 @@ export function useStudentModules() {
       setLoading(true);
       setError(null);
 
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData?.user) throw new Error('Usuário não autenticado');
-
-      // debug: removed verbose fetch log
-
-      // Teste 1: Buscar todas as entregas sem filtro (para ver se há problema de RLS)
-      const { data: testAll, error: testError } = await supabase
-        .from('module_deliveries')
-        .select('*')
-        .eq('student_id', userData.user.id);
-      
-      // debug: removed test logs
-      if (testError) console.error('Erro no teste sem filtros:', testError);
+      let idToUse = studentId;
+      if (!idToUse) {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) throw new Error('Usuário não autenticado');
+        idToUse = userData.user.id;
+      }
 
       // Buscar entregas de módulos para o aluno (somente os já entregues)
       const { data: deliveries, error: deliveriesError } = await supabase
@@ -403,7 +396,7 @@ export function useStudentModules() {
             )
           )
         `)
-        .eq('student_id', userData.user.id)
+        .eq('student_id', idToUse)
         .not('delivered_at', 'is', null)
         .order('delivered_at', { ascending: false });
 

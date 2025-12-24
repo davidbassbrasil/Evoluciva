@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { getCurrentUser, updateUser } from '@/lib/localStorage';
+import { getCurrentUser, updateUser, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
+import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
 import { User as UserType } from '@/types';
 import { supabase } from '@/lib/supabaseClient';
 import { useStudentModules, confirmModuleReceipt } from '@/lib/moduleService';
@@ -21,6 +22,7 @@ const ESTADOS = [
 
 export default function AlunoConfiguracoes() {
   const [user, setUser] = useState<UserType | null>(null);
+  const previewId = getPreviewStudentId();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('site');
@@ -45,30 +47,35 @@ export default function AlunoConfiguracoes() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { modules, loading: loadingModules, refetch: refetchModules } = useStudentModules();
+  const { modules, loading: loadingModules, refetch: refetchModules } = useStudentModules(previewId);
 
   useEffect(() => {
     const loadUserData = async () => {
+      const previewId = getPreviewStudentId();
       const currentUser = getCurrentUser();
-      if (!currentUser) {
+      if (!currentUser && !previewId) {
         navigate('/aluno/login');
         return;
       }
-      setUser(currentUser);
+
+      // If there's a preview active, we still keep admin session in localStorage
+      if (currentUser) setUser(currentUser);
+
+      const idToFetch = previewId || currentUser?.id;
 
       // Try to fetch complete profile from Supabase
-      if (supabase && currentUser.id) {
+      if (supabase && idToFetch) {
         try {
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', currentUser.id)
+            .eq('id', idToFetch)
             .single();
-          
+
           if (profile) {
             setProfileData({
-              name: profile.full_name || currentUser.name,
-              email: profile.email || currentUser.email,
+              name: profile.full_name || currentUser?.name || '',
+              email: profile.email || currentUser?.email || '',
               whatsapp: profile.whatsapp || '',
               cpf: profile.cpf || '',
               endereco: profile.address || '',
@@ -85,10 +92,10 @@ export default function AlunoConfiguracoes() {
         }
       }
 
-      // Fallback to localStorage data
+      // Fallback to localStorage data (admin user)
       setProfileData({
-        name: currentUser.name,
-        email: currentUser.email,
+        name: currentUser?.name || '',
+        email: currentUser?.email || '',
         whatsapp: '',
         cpf: '',
         endereco: '',
@@ -104,17 +111,22 @@ export default function AlunoConfiguracoes() {
   }, [navigate]);
 
   useEffect(() => {
+    const previewId = getPreviewStudentId();
+
     if (activeTab === 'modulos') {
       refetchModules();
     }
 
-    if (activeTab === 'financeiro' && user?.id) {
-      loadPayments();
+    if (activeTab === 'financeiro') {
+      const idToFetch = previewId || user?.id;
+      if (idToFetch) loadPayments();
     }
   }, [activeTab, user?.id, refetchModules]);
 
   const loadPayments = async () => {
-    if (!user?.id) return;
+    const previewId = getPreviewStudentId();
+    const idToFetch = previewId || user?.id;
+    if (!idToFetch) return;
     
     setLoadingPayments(true);
     try {
@@ -133,7 +145,7 @@ export default function AlunoConfiguracoes() {
             )
           )
         `)
-        .eq('profile_id', user.id)
+        .eq('profile_id', idToFetch)
         .eq('payment_status', 'paid')
         .order('created_at', { ascending: false });
 
@@ -223,9 +235,12 @@ export default function AlunoConfiguracoes() {
     if (!user) return;
     setLoading(true);
 
+    const previewId = getPreviewStudentId();
+    const idToUpdate = previewId || user.id;
+
     try {
       // Update in Supabase if available
-      if (supabase && user.id) {
+      if (supabase && idToUpdate) {
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -240,24 +255,26 @@ export default function AlunoConfiguracoes() {
             city: profileData.cidade,
             cep: profileData.cep,
           })
-          .eq('id', user.id);
+          .eq('id', idToUpdate);
 
         if (error) throw error;
       }
 
-      // Update localStorage
+      // Update localStorage only if not in preview
       const updatedUser: UserType = {
         ...user,
         name: profileData.name,
         email: profileData.email,
       };
 
-      updateUser(updatedUser);
+      if (!previewId) {
+        updateUser(updatedUser);
+      }
       setUser(updatedUser);
       
       toast({
         title: 'Sucesso!',
-        description: 'Seus dados foram atualizados.',
+        description: previewId ? 'Dados do aluno atualizados (admin).' : 'Seus dados foram atualizados.',
       });
     } catch (error) {
       toast({
@@ -414,6 +431,14 @@ export default function AlunoConfiguracoes() {
 
   return (
     <div className="min-h-screen bg-background">
+      {previewId && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-900 py-2 px-4 text-sm flex items-center justify-between">
+          <div>Visualizando como aluno — <strong>MODO ADMIN</strong></div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { clearPreviewStudentId(); exitPreviewAndCloseWindow(); }}>Sair do modo visualização</Button>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-foreground text-primary-foreground py-4 px-6">
         <div className="w-full md:container md:mx-auto md:max-w-4xl flex items-center justify-between">
