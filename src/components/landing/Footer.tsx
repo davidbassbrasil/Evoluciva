@@ -111,8 +111,8 @@ export function Footer() {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-3">
                 <Mail className="w-5 h-5 mt-0.5 text-primary-foreground/80" />
-                <a href="mailto:contato@edusampaiocursos.com.br" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-                  contato@edusampaiocursos.com.br
+                <a href="mailto:contato@edusampaio.com" className="text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+                  contato@edusampaio.com
                 </a>
               </li>
               <li className="flex items-start gap-3">

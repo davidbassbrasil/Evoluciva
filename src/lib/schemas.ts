@@ -48,7 +48,7 @@ export const getOrganizationSchema = () => {
       "addressCountry": "BR"
     },
     "telephone": "+55-82-3336-7480",
-    "email": "contato@edusampaio.com.br",
+    "email": "contato@edusampaio.com",
     "sameAs": [
       "https://www.instagram.com/edu_sampaio_cursos/",
       "https://www.facebook.com/edusampaio.portugues",

@@ -28,7 +28,7 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      const productionHost = 'edusampaiocursos.com.br';
+      const productionHost = 'edusampaio.com';
       const redirectTo = (typeof window !== 'undefined' && window.location.hostname.includes(productionHost))
         ? `https://www.${productionHost}/redefinir-senha`
         : `${window.location.origin}/redefinir-senha`;

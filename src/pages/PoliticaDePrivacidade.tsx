@@ -88,7 +88,7 @@ export default function PoliticaDePrivacidade() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">8. Contato</h2>
               <p className="text-muted-foreground">
-                Para questões sobre privacidade, entre em contato: contato@edusampaio.com.br
+                Para questões sobre privacidade, entre em contato: contato@edusampaio.com
               </p>
             </section>
           </div>

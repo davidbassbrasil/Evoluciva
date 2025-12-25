@@ -79,7 +79,7 @@ export default function TermosDeUso() {
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">8. Contato</h2>
               <p className="text-muted-foreground">
-                Em caso de dúvidas sobre estes Termos de Uso, entre em contato pelo e-mail: contato@edusampaio.com.br
+                Em caso de dúvidas sobre estes Termos de Uso, entre em contato pelo e-mail: contato@edusampaio.com
               </p>
             </section>
           </div>
