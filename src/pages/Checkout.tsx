@@ -504,7 +504,6 @@ export default function Checkout() {
             addressNumber: formData.addressNumber,
             phone: formData.phone.replace(/\D/g, ''),
           },
-          dueDate: formatDateLocal(dueDate),
         };
 
         // Adicionar campos de parcelamento se for pagamento parcelado
@@ -545,7 +544,7 @@ export default function Checkout() {
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: paymentMethod === 'CREDIT_CARD_INSTALL' ? 'CREDIT_CARD_INSTALLMENT' : 'CREDIT_CARD',
             installment_count: installmentCount > 1 ? installmentCount : null,
-            due_date: payment?.dueDate || formatDateLocal(dueDate),
+            due_date: payment?.dueDate ?? null,
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: paymentData.description,
@@ -707,7 +706,6 @@ export default function Checkout() {
           customer: customer.id,
           billingType: 'CREDIT_CARD' as any, // Asaas usa CREDIT_CARD para débito também
           value: totalValue,
-          dueDate: formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           creditCard: {
@@ -750,7 +748,7 @@ export default function Checkout() {
             value: totalValue,
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: 'DEBIT_CARD',
-            due_date: payment?.dueDate || formatDateLocal(dueDate),
+            due_date: payment?.dueDate ?? null,
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),

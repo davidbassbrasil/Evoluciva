@@ -101,7 +101,7 @@ interface AsaasDebitCardPayment {
   customer: string;
   billingType: 'DEBIT_CARD';
   value: number;
-  dueDate: string;
+  dueDate?: string; // opcional — permitimos omitir para que o gateway/banco determine o fechamento
   description?: string;
   externalReference?: string;
   creditCard: AsaasCreditCard;
