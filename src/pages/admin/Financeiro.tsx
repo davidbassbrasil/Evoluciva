@@ -14,6 +14,7 @@ import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader
 import { supabase } from '@/lib/supabaseClient';
 import { format, startOfMonth, endOfMonth, startOfYear, startOfDay, endOfDay, subDays, startOfToday, endOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatBRDateTime as libFormatBRDateTime, formatBRDate as libFormatBRDate, dateKeyBR as formatBRDateKey } from '@/lib/dates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -125,52 +126,15 @@ export default function Financeiro() {
     uniqueCustomers: 0,
   });
 
-  // Helpers de formatação no fuso de Brasília
-  const formatBRDateTime = (iso?: string | null) => {
-    if (!iso) return '-';
-    try {
-      const d = new Date(iso);
-      return new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-        timeZone: 'America/Sao_Paulo'
-      }).format(d).replace(',', '');
-    } catch (e) {
-      return String(iso);
-    }
-  };
-
-  const formatBRDate = (iso?: string | null) => {
-    if (!iso) return '-';
-    try {
-      const d = new Date(iso);
-      return new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        timeZone: 'America/Sao_Paulo'
-      }).format(d);
-    } catch (e) {
-      return String(iso);
-    }
-  };
-
+  // Use shared helpers from lib/dates (handles date-only 'YYYY-MM-DD' as Brasil timezone)
+  const formatBRDateTime = libFormatBRDateTime;
+  const formatBRDate = libFormatBRDate;
   const formatBRWithAt = (iso?: string | null) => {
     const dt = formatBRDateTime(iso);
     if (dt === '-') return '-';
-    // Intl geralmente retorna 'DD/MM/YYYY HH:MM'
     const parts = dt.split(' ');
     if (parts.length >= 2) return `${parts[0]} às ${parts[1]}`;
     return dt;
-  };
-
-  // Formata uma chave de data no fuso BR no formato ISO-date (YYYY-MM-DD)
-  const formatBRDateKey = (value?: string | Date | null) => {
-    if (!value) return null;
-    try {
-      const d = typeof value === 'string' ? new Date(value) : value as Date;
-      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-    } catch (e) {
-      return null;
-    }
   };
 
   // Helpers para limites em fuso America/Sao_Paulo
