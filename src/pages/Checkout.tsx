@@ -420,7 +420,13 @@ export default function Checkout() {
 
       // 2. Criar cobrança baseada no método de pagamento
       const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7); // Vencimento em 7 dias
+      // Deixar o Asaas decidir o agendamento da cobrança; usamos a data atual como fallback.
+      const formatDateLocal = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
 
       // Calcular total com desconto por método de pagamento
       let totalValue = itemsToPurchase.reduce((s, item) => {
@@ -481,8 +487,6 @@ export default function Checkout() {
         const paymentData: any = {
           customer: customer.id,
           billingType: 'CREDIT_CARD',
-          value: totalValue,
-          dueDate: dueDate.toISOString().split('T')[0],
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           creditCard: {
@@ -500,12 +504,17 @@ export default function Checkout() {
             addressNumber: formData.addressNumber,
             phone: formData.phone.replace(/\D/g, ''),
           },
+          dueDate: formatDateLocal(dueDate),
         };
 
         // Adicionar campos de parcelamento se for pagamento parcelado
         if (paymentMethod === 'CREDIT_CARD_INSTALL' && installmentCount > 1) {
           paymentData.installmentCount = installmentCount;
-          paymentData.installmentValue = Number((totalValue / installmentCount).toFixed(2));
+          // Enviar `totalValue` para o Asaas fazer a divisão e compensar arredondamentos
+          paymentData.totalValue = Number(totalValue.toFixed(2));
+        } else {
+          // Pagamento à vista — enviar `value`
+          paymentData.value = Number(totalValue.toFixed(2));
         }
 
         console.log('📤 Dados do cartão sendo enviados:', paymentData);
@@ -536,7 +545,7 @@ export default function Checkout() {
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: paymentMethod === 'CREDIT_CARD_INSTALL' ? 'CREDIT_CARD_INSTALLMENT' : 'CREDIT_CARD',
             installment_count: installmentCount > 1 ? installmentCount : null,
-            due_date: dueDate.toISOString().split('T')[0],
+            due_date: payment?.dueDate || formatDateLocal(dueDate),
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: paymentData.description,
@@ -627,7 +636,7 @@ export default function Checkout() {
           customer: customer.id,
           billingType: 'PIX',
           value: totalValue,
-          dueDate: dueDate.toISOString().split('T')[0],
+          dueDate: formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
         });
@@ -652,7 +661,7 @@ export default function Checkout() {
           value: totalValue,
           status: 'PENDING',
           billing_type: 'PIX',
-          due_date: dueDate.toISOString().split('T')[0],
+          due_date: payment?.dueDate || formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
           metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
         });
@@ -663,7 +672,7 @@ export default function Checkout() {
           customer: customer.id,
           billingType: 'BOLETO',
           value: totalValue,
-          dueDate: dueDate.toISOString().split('T')[0],
+          dueDate: formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
         });
@@ -683,7 +692,7 @@ export default function Checkout() {
           value: totalValue,
           status: 'PENDING',
           billing_type: 'BOLETO',
-          due_date: dueDate.toISOString().split('T')[0],
+          due_date: payment?.dueDate || formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
           metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
         });
@@ -698,7 +707,7 @@ export default function Checkout() {
           customer: customer.id,
           billingType: 'CREDIT_CARD' as any, // Asaas usa CREDIT_CARD para débito também
           value: totalValue,
-          dueDate: dueDate.toISOString().split('T')[0],
+          dueDate: formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           creditCard: {
@@ -741,7 +750,7 @@ export default function Checkout() {
             value: totalValue,
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: 'DEBIT_CARD',
-            due_date: dueDate.toISOString().split('T')[0],
+            due_date: payment?.dueDate || formatDateLocal(dueDate),
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
@@ -1597,7 +1606,7 @@ export default function Checkout() {
                             <div className="flex items-center justify-center gap-2 mb-2">
                               <Clock className="w-5 h-5 text-amber-600" />
                               <span className="font-semibold text-lg text-amber-700 dark:text-amber-400">
-                                Vencimento em 7 dias
+                                Vencimento definido pelo provedor de pagamento
                               </span>
                             </div>
                             <p className="text-sm text-amber-600 dark:text-amber-500">
@@ -1666,7 +1675,7 @@ export default function Checkout() {
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <Barcode className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                          <p className="mb-2 font-medium">Boleto bancário com vencimento em 7 dias</p>
+                          <p className="mb-2 font-medium">Boleto bancário — vencimento definido pelo provedor de pagamento</p>
                           <p className="text-sm">Clique em "Gerar Boleto" para criar a cobrança</p>
                         </div>
                       )}
