@@ -172,6 +172,26 @@ export default function Financeiro() {
     return new Date(Date.UTC(Number(p.year), 0, 1, 0, 0, 0, 0));
   };
 
+  // Extrai modalidade(s) de um pagamento (procura em metadata.items)
+  const getPaymentModalities = (p?: any) => {
+    if (!p) return '-';
+    try {
+      const items = p?.metadata?.items;
+      if (Array.isArray(items) && items.length > 0) {
+        const modalities = Array.from(new Set(items.map((it: any) => (it?.modality || '').toString())));
+        const human = modalities.map((m: string) => (m === 'online' ? 'Online' : m === 'presential' ? 'Presencial' : m || '-'));
+        return human.join(', ');
+      }
+
+      // fallback: se existir campo direto
+      if (p.modality) return p.modality === 'online' ? 'Online' : p.modality === 'presential' ? 'Presencial' : p.modality;
+
+      return '-';
+    } catch (e) {
+      return '-';
+    }
+  };
+
   useEffect(() => {
     loadPayments();
     loadWebhookLogs();
@@ -1408,6 +1428,12 @@ export default function Financeiro() {
                     <p className="text-sm text-muted-foreground">{selectedPayment.turmas.name}</p>
                   </div>
                 )}
+
+                {/* Mostrar modalidade (Online / Presencial) extraída do metadata.items ou fallback */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Modalidade</p>
+                  <p className="font-medium">{getPaymentModalities(selectedPayment)}</p>
+                </div>
                 
                 {selectedPayment.refunds && selectedPayment.refunds.length > 0 && (
                   <div className="pt-4 border-t">

@@ -1548,15 +1548,31 @@ export default function AdminAlunos() {
                       </TableCell>
                       <TableCell>
                         {profileEnrollments.length > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEnrollmentsView(profile)}
-                            className="text-primary"
-                          >
-                            <GraduationCap className="w-4 h-4 mr-1" />
-                            {profileEnrollments.length} turma(s)
-                          </Button>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEnrollmentsView(profile)}
+                              className="text-primary"
+                            >
+                              <GraduationCap className="w-4 h-4 mr-1" />
+                              {profileEnrollments.length} turma(s)
+                            </Button>
+
+                            <div className="flex items-center gap-2">
+                              { (profileEnrollments.filter(e => e.modality === 'presential').length) > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  Presencial - {profileEnrollments.filter(e => e.modality === 'presential').length}
+                                </Badge>
+                              ) }
+
+                              { (profileEnrollments.filter(e => e.modality === 'online').length) > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  Online - {profileEnrollments.filter(e => e.modality === 'online').length}
+                                </Badge>
+                              ) }
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-sm">Sem matrícula</span>
                         )}

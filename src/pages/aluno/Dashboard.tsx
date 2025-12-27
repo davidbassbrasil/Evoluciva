@@ -243,15 +243,17 @@ export default function AlunoDashboard() {
     navigate('/');
   };
 
-  // Sync enrolled carousel index on scroll
+  // Sync enrolled carousel index on scroll (use measured card width and proper bounds)
   useEffect(() => {
     const container = enrolledScrollRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      const cardWidth = 400;
+      const first = container.querySelector('.snap-start') as HTMLElement | null;
+      const cardWidth = first?.offsetWidth || 320;
       const index = Math.round(container.scrollLeft / cardWidth);
-      const clamped = Math.max(0, Math.min(index, Math.max(0, enrolledTurmas.length - 1)));
+      const maxIndex = Math.max(0, enrolledTurmas.length - 1);
+      const clamped = Math.max(0, Math.min(index, maxIndex));
       setEnrolledIndex(clamped);
     };
 
@@ -281,15 +283,20 @@ export default function AlunoDashboard() {
     return () => window.removeEventListener('resize', update);
   }, [enrolledTurmas.length]);
 
-  // Sync recommended carousel index on scroll
+  // Sync recommended carousel index on scroll (use measured card width and correct max index)
   useEffect(() => {
     const container = recommendedScrollRef.current;
     if (!container) return;
 
+    const filtered = allCourses.filter((c) => !enrolledTurmas.some(t => t.course_id === c.id)).slice(0, 5);
+    const count = Math.min(5, filtered.length) + 1; // +1 for 'Explorar Mais'
+
     const handleScroll = () => {
-      const cardWidth = 400;
+      const first = container.querySelector('.snap-start') as HTMLElement | null;
+      const cardWidth = first?.offsetWidth || 320;
       const index = Math.round(container.scrollLeft / cardWidth);
-      const clamped = Math.max(0, Math.min(index, Math.max(0, 5)));
+      const maxIndex = Math.max(0, count - 1);
+      const clamped = Math.max(0, Math.min(index, maxIndex));
       setRecommendedIndex(clamped);
     };
 
@@ -298,7 +305,7 @@ export default function AlunoDashboard() {
     handleScroll();
 
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [allCourses.length, enrolledTurmas.length]);
 
   // Show/hide recommended arrows depending on visible columns
   useEffect(() => {
@@ -498,12 +505,13 @@ export default function AlunoDashboard() {
                         key={index}
                         onClick={() => {
                           if (!enrolledScrollRef.current) return;
-                          const cardWidth = 400;
+                          const first = enrolledScrollRef.current.querySelector('.snap-start') as HTMLElement | null;
+                          const cardWidth = first?.offsetWidth || 320;
                           enrolledScrollRef.current.scrollTo({ left: cardWidth * index, behavior: 'smooth' });
                         }}
                         className={`w-2 h-2 rounded-full transition-all ${index === enrolledIndex ? 'bg-primary w-4' : 'bg-primary/30'}`}
                       />
-                    ))}
+                    ))} 
                   </div>
                 </div>
               )}
@@ -596,7 +604,8 @@ export default function AlunoDashboard() {
                         key={index}
                         onClick={() => {
                           if (!recommendedScrollRef.current) return;
-                          const cardWidth = 400;
+                          const first = recommendedScrollRef.current.querySelector('.snap-start') as HTMLElement | null;
+                          const cardWidth = first?.offsetWidth || 320;
                           recommendedScrollRef.current.scrollTo({ left: cardWidth * index, behavior: 'smooth' });
                         }}
                         className={`w-2 h-2 rounded-full transition-all ${index === recommendedIndex ? 'bg-primary w-4' : 'bg-primary/30'}`}
