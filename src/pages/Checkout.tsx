@@ -516,7 +516,25 @@ export default function Checkout() {
           paymentData.value = Number(totalValue.toFixed(2));
         }
 
-        console.log('📤 Dados do cartão sendo enviados:', paymentData);
+        const sanitizePaymentDataForLog = (pd: any) => {
+          try {
+            const copy: any = { ...pd };
+            if (copy.creditCard) {
+              const num = String(copy.creditCard.number || '');
+              const digits = num.replace(/\D/g, '');
+              const last4 = digits.slice(-4);
+              copy.creditCard = { ...copy.creditCard, number: last4 ? `**** **** **** ${last4}` : undefined, ccv: '***' };
+            }
+            if (copy.creditCardHolderInfo && copy.creditCardHolderInfo.cpfCnpj) {
+              const cpf = String(copy.creditCardHolderInfo.cpfCnpj).replace(/\D/g, '');
+              copy.creditCardHolderInfo = { ...copy.creditCardHolderInfo, cpfCnpj: cpf.replace(/.(?=.{3})/g, '*') };
+            }
+            return copy;
+          } catch (e) {
+            return { sanitized: true };
+          }
+        };
+        console.log('📤 Dados do cartão (mascarados) sendo enviados:', sanitizePaymentDataForLog(paymentData));
 
         const payment = await asaasService.createCreditCardPayment(paymentData);
 
