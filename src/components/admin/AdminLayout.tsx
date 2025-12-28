@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle, Shield, Package, Settings } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Users, MessageSquare, HelpCircle, Image, Tags, LogOut, Menu, X, Wallet, UsersRound, PlayCircle, Shield, Package, Settings, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getCurrentUser, logout, getSettings } from '@/lib/localStorage';
 import { cn } from '@/lib/utils';
@@ -130,6 +130,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     navigate('/');
   };
 
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : '/';
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -186,6 +188,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Menu className="w-6 h-6" />
           </Button>
           <h1 className="text-xl font-bold">Painel Administrativo</h1>
+          <a
+            href={siteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span>Visitar site</span>
+          </a>
         </header>
         <main className="p-6">{children}</main>
       </div>
