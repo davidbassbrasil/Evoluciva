@@ -16,7 +16,7 @@ import { SEOHead, seoHelpers } from '@/components/SEOHead';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { getCourseSchema, getOrganizationSchema, injectSchema } from '@/lib/schemas';
 import { formatSessions, DAY_LABELS } from '@/lib/schedules';
-import { formatBRDateTime, todayKeyBR } from '@/lib/dates';
+import { formatBRDateTime, formatBRDate, todayKeyBR } from '@/lib/dates';
 
 interface Professor {
   id: string;
@@ -137,6 +137,18 @@ export default function CursoDetalhe() {
             return true;
           });
           
+          // Ordenar turmas: 1) pela data de início (`start_date`) mais antiga primeiro
+          // 2) se igual ou ausente, usar `created_at` (turma "raiz"/mais antiga primeiro)
+          availableTurmas.sort((a: any, b: any) => {
+            const aStart = a.start_date ? new Date(a.start_date).getTime() : Infinity;
+            const bStart = b.start_date ? new Date(b.start_date).getTime() : Infinity;
+            if (aStart !== bStart) return aStart - bStart;
+
+            const aCreated = a.created_at ? new Date(a.created_at).getTime() : Infinity;
+            const bCreated = b.created_at ? new Date(b.created_at).getTime() : Infinity;
+            return aCreated - bCreated;
+          });
+
           setTurmas(availableTurmas);
           
           // Verificar se o aluno está matriculado em alguma turma deste curso
@@ -414,33 +426,15 @@ export default function CursoDetalhe() {
                 </p>
                 
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    {course.instructor}
-                  </div>
+                  {professors.length === 0 && (
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      {course.instructor}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Professor Cards */}
-              {professors.length > 0 && (
-                <div className="bg-card rounded-2xl p-4 border border-border/50">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {professors.map((prof) => (
-                      <div key={prof.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/5">
-                        <img 
-                          src={prof.image} 
-                          alt={prof.name}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-primary/20"
-                        />
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{prof.name}</h3>
-                          <p className="text-xs text-muted-foreground truncate">{prof.specialty}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+ 
 
               {/* Course Media: vídeo (se houver) ou imagem */}
               {course.link_video ? (
@@ -478,6 +472,31 @@ export default function CursoDetalhe() {
                   )}
                 </div>
               </div>
+
+              {/* Professores + Instrutor (moved) */}
+              {professors.length > 0 && (
+                <div className="bg-card rounded-2xl p-4 border border-border/50">
+                  <div className="flex items-center gap-3 mb-4">
+                    <User className="w-5 h-5" />
+                    <span className="font-medium">{course.instructor}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {professors.map((prof) => (
+                      <div key={prof.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-secondary/5">
+                        <img 
+                          src={prof.image} 
+                          alt={prof.name}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-primary/20"
+                        />
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{prof.name}</h3>
+                          <p className="text-xs text-muted-foreground truncate">{prof.specialty}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Benefits */}
               <div className="bg-card rounded-2xl p-6 border border-border/50">
@@ -580,8 +599,8 @@ export default function CursoDetalhe() {
                             </div>
                             {turma.start_date && (
                               <div className="text-xs text-primary font-medium mb-2 flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                Início: {formatBRDateTime(turma.start_date)}
+                                  <Calendar className="w-3 h-3" />
+                                  Início: {formatBRDate(turma.start_date)}
                               </div>
                             )}
                             <div className="text-xs text-muted-foreground space-y-1">
