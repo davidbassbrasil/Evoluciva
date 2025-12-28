@@ -23,7 +23,7 @@ const Index = () => {
     <>
       <SEOHead
         title="Edu Sampaio Cursos | Preparatório para Concursos Públicos em Maceió e Online"
-        description="Mais de 20 anos preparando aprovados em concursos públicos. Cursos presenciais em Maceió/AL e online para todo Brasil. Prof. Eduardo Sampaio e equipe especializada em Educação, Saúde e Legislação. Comece sua jornada rumo à aprovação agora!"
+        description="Mais de 20 anos ajudando candidatos a conquistar a aprovação em concursos públicos. Cursos presenciais em Maceió/AL e online para todo Brasil. Prof. Eduardo Sampaio e equipe especializada em Educação, Saúde e Legislação para concursos públicos. Comece sua jornada rumo à aprovação agora!"
         keywords="cursos preparatórios para concursos, preparação para concursos públicos, cursos para concursos Maceió, Edu Sampaio, Eduardo Sampaio, curso preparatório Alagoas, concursos públicos"
         type="website"
       />

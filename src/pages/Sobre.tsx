@@ -54,7 +54,7 @@ export default function Sobre() {
     <>
       <SEOHead
         title="Sobre o Edu Sampaio Cursos | 20 Anos de Tradição em Alagoas"
-        description="Conheça a história do Edu Sampaio Cursos. Mais de 20 anos preparando aprovados em concursos públicos em Maceió/AL e todo Brasil. Fundado pelo Prof. Eduardo Sampaio, especialista em Português. Nossa Academia de Vencedores."
+        description="Conheça a história do Edu Sampaio Cursos. Mais de 20 anos ajudando candidatos a conquistar a aprovação em concursos públicos em Maceió/AL e todo Brasil. Fundado pelo Prof. Eduardo Sampaio, especialista em Português. Nossa Academia de Vencedores."
         keywords="Edu Sampaio Cursos, Eduardo Sampaio, sobre Edu Sampaio, história Eduardo Sampaio, preparatório Maceió, cursos concursos Alagoas"
         type="website"
       />
