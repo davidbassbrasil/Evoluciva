@@ -536,6 +536,17 @@ export default function Checkout() {
         };
         console.log('📤 Dados do cartão (mascarados) sendo enviados:', sanitizePaymentDataForLog(paymentData));
 
+        // Include due date in payment sent to Asaas (use today's date)
+        paymentData.dueDate = formatDateLocal(dueDate);
+
+        // Add installment info for Asaas when using installment payment
+        if (paymentMethod === 'CREDIT_CARD_INSTALL' && installmentCount > 1) {
+          paymentData.installmentCount = installmentCount;
+          paymentData.installmentValue = Number((totalValue / installmentCount).toFixed(2));
+        } else {
+          paymentData.value = Number(totalValue.toFixed(2));
+        }
+
         const payment = await asaasService.createCreditCardPayment(paymentData);
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
@@ -562,7 +573,7 @@ export default function Checkout() {
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: paymentMethod === 'CREDIT_CARD_INSTALL' ? 'CREDIT_CARD_INSTALLMENT' : 'CREDIT_CARD',
             installment_count: installmentCount > 1 ? installmentCount : null,
-            due_date: payment?.dueDate ?? null,
+            due_date: formatDateLocal(dueDate),
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: paymentData.description,
@@ -724,6 +735,7 @@ export default function Checkout() {
           customer: customer.id,
           billingType: 'CREDIT_CARD' as any, // Asaas usa CREDIT_CARD para débito também
           value: totalValue,
+          dueDate: formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
           externalReference: `${currentUser.id}-${turma ? turma.id : 'cart'}`,
           creditCard: {
@@ -766,7 +778,7 @@ export default function Checkout() {
             value: totalValue,
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: 'DEBIT_CARD',
-            due_date: payment?.dueDate ?? null,
+            due_date: formatDateLocal(dueDate),
             payment_date: now.toISOString(),
             confirmed_date: now.toISOString(),
             description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
