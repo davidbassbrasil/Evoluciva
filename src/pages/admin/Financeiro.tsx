@@ -108,9 +108,9 @@ export default function Financeiro() {
   const [showDeleteRefundDialog, setShowDeleteRefundDialog] = useState(false);
   const [selectedRefundToDelete, setSelectedRefundToDelete] = useState<any | null>(null);
   // Filtros de data
-  const [dateFrom, setDateFrom] = useState<Date>(startOfToday());
+  const [dateFrom, setDateFrom] = useState<Date>(startOfDay(subDays(new Date(), 6)));
   const [dateTo, setDateTo] = useState<Date>(endOfToday());
-  const [datePreset, setDatePreset] = useState<string>('today');
+  const [datePreset, setDatePreset] = useState<string>('7days');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [stats, setStats] = useState({
     periodRevenue: 0,
@@ -165,6 +165,13 @@ export default function Financeiro() {
     const p = partsInTZ(date);
     const nextMonth = new Date(Date.UTC(Number(p.year), Number(p.month), 1, 0, 0, 0, 0));
     return new Date(nextMonth.getTime() - 1);
+  };
+
+  // Verifica se o intervalo selecionado é exatamente hoje (BR timezone)
+  const isRangeToday = (from: Date, to: Date) => {
+    const s = startOfToday().getTime();
+    const e = endOfToday().getTime();
+    return from.getTime() === s && to.getTime() === e;
   };
 
   const brStartOfYear = (date: Date) => {
@@ -904,16 +911,6 @@ export default function Financeiro() {
               <CardContent>
             <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
               <Button 
-                variant={datePreset === 'today' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setDatePreset('today');
-                  applyDatePreset('today');
-                }}
-              >
-                Hoje
-              </Button>
-              <Button 
                 variant={datePreset === '7days' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
@@ -1009,7 +1006,7 @@ export default function Financeiro() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                {datePreset === 'today' ? 'Receita de Hoje' : 
+                {isRangeToday(dateFrom, dateTo) ? 'Receita de Hoje' : 
                  datePreset === '7days' ? 'Receita (7 dias)' :
                  datePreset === '30days' ? 'Receita (30 dias)' :
                  datePreset === '90days' ? 'Receita (90 dias)' :
