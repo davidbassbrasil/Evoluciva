@@ -18,6 +18,18 @@ import supabase from '@/lib/supabaseClient';
 import logoPng from '@/assets/logo_.png';
 import { todayKeyBR, formatBRDateTime } from '@/lib/dates';
 
+// Retorna timestamp local formatado no horário local (ex: "2025-12-29 14:30:45")
+const getLocalTimestamp = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 export default function Checkout() {
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -550,7 +562,7 @@ export default function Checkout() {
         const payment = await asaasService.createCreditCardPayment(paymentData);
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          console.log('✅ Pagamento confirmado! Criando registros no banco...');
+          console.log('✅ Pagamento confirmado! Registrando pagamento no banco...');
           
           // Buscar usuário autenticado do Supabase
           const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -559,12 +571,11 @@ export default function Checkout() {
           console.log('👤 User ID do localStorage:', currentUser.id);
           console.log('👤 User ID do Supabase Auth:', authUser?.id);
           console.log('📝 Usando user_id:', userId);
-          
-          // Criar registro do pagamento na tabela payments
-          const now = new Date();
-          console.log('📅 [CARTÃO CRÉDITO] Data/hora atual:', now);
-          console.log('📅 ISO String:', now.toISOString());
-          
+
+          // Registrar timestamps em horário local BR (para garantir consistência nos relatórios)
+          const localTimestamp = getLocalTimestamp();
+          console.log('📅 [CARTÃO CRÉDITO] Timestamp local BR:', localTimestamp);
+
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
             user_id: userId,
@@ -574,8 +585,8 @@ export default function Checkout() {
             billing_type: paymentMethod === 'CREDIT_CARD_INSTALL' ? 'CREDIT_CARD_INSTALLMENT' : 'CREDIT_CARD',
             installment_count: installmentCount > 1 ? installmentCount : null,
             due_date: formatDateLocal(dueDate),
-            payment_date: now.toISOString(),
-            confirmed_date: now.toISOString(),
+            payment_date: localTimestamp,
+            confirmed_date: localTimestamp,
             description: paymentData.description,
             metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
           }).select().single();
@@ -630,30 +641,8 @@ export default function Checkout() {
             console.log('📋 Detalhes dos cancelados:', canceledPayments);
           }
 
-          // Criar matrículas no Supabase
-          for (const item of itemsToPurchase) {
-            const { data: enrollment, error: enrollError } = await supabase.from('enrollments').insert({
-              profile_id: userId,
-              turma_id: item.turma.id,
-              modality: item.modality,
-              payment_status: 'paid',
-              payment_method: 'credit_card',
-              payment_id: paymentRecord?.id || payment.id,
-              amount_paid: totalValue / itemsToPurchase.length,
-              paid_at: new Date().toISOString(),
-            }).select().single();
-
-            if (enrollError) {
-              console.error('❌ Erro ao criar matrícula:', enrollError);
-            } else {
-              console.log('✅ Matrícula criada:', enrollment);
-            }
-          }
-          
-          // Registrar no localStorage
-          itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
-          if (!turma) clearCart();
-          toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
+          // Observação: matrículas e liberação de acesso serão tratadas pelo webhook do Asaas (mesma lógica de PIX/Boleto)
+          toast({ title: 'Pagamento registrado', description: 'Seu pagamento foi recebido. A matrícula será liberada após confirmação.' });
           navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
@@ -756,7 +745,7 @@ export default function Checkout() {
         });
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          console.log('✅ Pagamento com débito confirmado! Criando registros no banco...');
+          console.log('✅ Pagamento com débito confirmado! Registrando pagamento no banco...');
           
           // Buscar usuário autenticado do Supabase
           const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -765,12 +754,10 @@ export default function Checkout() {
           console.log('👤 User ID do localStorage:', currentUser.id);
           console.log('👤 User ID do Supabase Auth:', authUser?.id);
           console.log('📝 Usando user_id:', userId);
-          
-          // Criar registro do pagamento na tabela payments
-          const now = new Date();
-          console.log('📅 [CARTÃO DÉBITO] Data/hora atual:', now);
-          console.log('📅 ISO String:', now.toISOString());
-          
+
+          const localTimestamp = getLocalTimestamp();
+          console.log('📅 [CARTÃO DÉBITO] Timestamp local BR:', localTimestamp);
+
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
             user_id: userId,
@@ -779,8 +766,8 @@ export default function Checkout() {
             status: payment.status === 'CONFIRMED' ? 'CONFIRMED' : 'RECEIVED',
             billing_type: 'DEBIT_CARD',
             due_date: formatDateLocal(dueDate),
-            payment_date: now.toISOString(),
-            confirmed_date: now.toISOString(),
+            payment_date: localTimestamp,
+            confirmed_date: localTimestamp,
             description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name} (${item.modality === 'online' ? 'Online' : 'Presencial'})`).join(' | '),
             metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
           }).select().single();
@@ -835,30 +822,8 @@ export default function Checkout() {
             console.log('📋 Detalhes dos cancelados:', canceledPayments);
           }
 
-          // Criar matrículas no Supabase
-          for (const item of itemsToPurchase) {
-            const { data: enrollment, error: enrollError } = await supabase.from('enrollments').insert({
-              profile_id: userId,
-              turma_id: item.turma.id,
-              modality: item.modality,
-              payment_status: 'paid',
-              payment_method: 'debit_card',
-              payment_id: paymentRecord?.id || payment.id,
-              amount_paid: totalValue / itemsToPurchase.length,
-              paid_at: new Date().toISOString(),
-            }).select().single();
-
-            if (enrollError) {
-              console.error('❌ Erro ao criar matrícula:', enrollError);
-            } else {
-              console.log('✅ Matrícula criada:', enrollment);
-            }
-          }
-          
-          // Registrar no localStorage
-          itemsToPurchase.forEach((item) => purchaseCourse(currentUser.id, item.turma.course_id || item.turma.course?.id));
-          if (!turma) clearCart();
-          toast({ title: 'Pagamento Aprovado!', description: 'Você já pode acessar seus cursos.' });
+          // Observação: matrículas e liberação de acesso serão tratadas pelo webhook do Asaas (mesma lógica de PIX/Boleto)
+          toast({ title: 'Pagamento registrado', description: 'Seu pagamento foi recebido. A matrícula será liberada após confirmação.' });
           navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
