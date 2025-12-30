@@ -354,23 +354,28 @@ export default function Checkout() {
         const { data: existingEnrollment } = await supabase
           .from('enrollments')
           .select('*')
-          .eq('user_id', userId)
+          .eq('profile_id', userId)
           .eq('turma_id', item.turma.id)
           .maybeSingle();
 
         if (!existingEnrollment) {
           const enrollmentData: any = {
-            user_id: userId,
+            profile_id: userId,
             turma_id: item.turma.id,
-            status: enrollmentStatus,
+            payment_status: enrollmentStatus === 'active' ? 'paid' : 'pending',
             enrolled_at: ts,
             modality: item.modality,
           };
           if (paymentId) enrollmentData.payment_id = paymentId;
+          if (enrollmentData.payment_status === 'paid') {
+            enrollmentData.paid_at = ts;
+          }
 
           const { error: enrollError } = await supabase.from('enrollments').insert(enrollmentData);
           if (enrollError) {
-            // falha ao criar matrícula automática para este item
+            console.error('[checkout] Error creating enrollment:', enrollError);
+          } else {
+            console.log(`[checkout] Enrollment created for profile ${userId} turma ${item.turma.id} (status=${enrollmentData.payment_status})`);
           }
         }
       }
