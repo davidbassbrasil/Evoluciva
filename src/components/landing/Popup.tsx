@@ -11,9 +11,27 @@ export default function Popup() {
     const load = async () => {
       if ((window as any).__popupShownThisLoad) return; // already closed this load
 
+      const nowIso = new Date().toISOString();
+
       if (supabase) {
         try {
-          const { data } = await supabase.from('popups').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
+          // deactivate expired popups server-side (best-effort)
+          try {
+            await supabase.from('popups').update({ active: false }).lte('expires_at', nowIso).eq('active', true);
+          } catch (err) {
+            // non-fatal
+            console.warn('Could not auto-deactivate expired popups:', err);
+          }
+
+          // Select one eligible popup: active and not expired. Use queue order (older created first).
+          const { data } = await supabase
+            .from('popups')
+            .select('*')
+            .eq('active', true)
+            .gt('expires_at', nowIso)
+            .order('created_at', { ascending: true })
+            .limit(1);
+
           const popup = data && data.length > 0 ? data[0] : null;
           if (popup) {
             setItem(popup);
@@ -26,7 +44,11 @@ export default function Popup() {
         try {
           const raw = localStorage.getItem('cursos_popups');
           const list = raw ? JSON.parse(raw) : [];
-          const popup = list.find((p: any) => p.active);
+          const now = new Date();
+          // pick first active popup whose expires_at is in the future
+          const popup = list
+            .filter((p: any) => p.active && p.expires_at && new Date(p.expires_at) > now)
+            .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
           if (popup) {
             setItem(popup);
             setVisible(true);

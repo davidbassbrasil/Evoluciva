@@ -236,6 +236,14 @@ export function AdminBanners() {
       if (!item) return;
       const newActive = !item.active;
 
+      // If activating, ensure expires_at exists and is in the future
+      if (newActive) {
+        if (!item.expires_at || new Date(item.expires_at) <= new Date()) {
+          toast({ title: 'Defina uma data de expiração futura', description: 'Antes de ativar o popup, defina uma data de expiração válida.', variant: 'destructive' });
+          return;
+        }
+      }
+
       if (supabase) {
         const { error } = await supabase.from('popups').update({ active: newActive }).eq('id', id);
         if (error) throw error;
@@ -482,7 +490,9 @@ export function AdminPopups() {
   const [items, setItems] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
-  const [form, setForm] = useState({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+  // expires_date is a date-only string (YYYY-MM-DD) shown to admin in Brazilian format
+  // expires_time is a time-only string (HH:MM) in São Paulo timezone (editable, defaults to 23:59)
+  const [form, setForm] = useState({ type: 'image', title: '', content: '', image: '', active: true, course_id: '', expires_date: '', expires_time: '23:59' });
   const [courses, setCourses] = useState<any[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -492,6 +502,36 @@ export function AdminPopups() {
   useEffect(() => {
     loadPopups();
   }, []);
+
+  // Helpers for Brazil date handling (date-only inputs)
+  const toBrazilDateInput = (iso?: string) => {
+    if (!iso) return '';
+    try {
+      // 'sv' locale outputs YYYY-MM-DD which is what the date input needs
+      return new Intl.DateTimeFormat('sv', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+    } catch (err) {
+      return '';
+    }
+  };
+
+  const formatExpiresForDisplay = (iso?: string) => {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+    } catch (err) {
+      return iso;
+    }
+  };
+
+  const toBrazilTimeInput = (iso?: string) => {
+    if (!iso) return '23:59';
+    try {
+      const dtf = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false });
+      return dtf.format(new Date(iso)); // returns 'HH:MM'
+    } catch (err) {
+      return '23:59';
+    }
+  };
 
   useEffect(() => {
     loadCourses();
@@ -515,10 +555,20 @@ export function AdminPopups() {
   const loadPopups = async () => {
     if (supabase) {
       try {
+        // First, deactivate expired popups (expires_at <= now)
+        const nowIso = new Date().toISOString();
+        const { error: expireError } = await supabase
+          .from('popups')
+          .update({ active: false })
+          .lte('expires_at', nowIso)
+          .eq('active', true);
+        if (expireError) console.warn('Could not auto-deactivate expired popups:', expireError);
+
+        // Then fetch eligible popups
         const { data, error } = await supabase
           .from('popups')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: true }); // queue: older first
 
         if (!error && data) {
           setItems(data);
@@ -530,7 +580,12 @@ export function AdminPopups() {
       }
     }
 
-    setItems(getPopups());
+    // Local storage fallback: remove expired popups from active
+    const local = getPopups();
+    const now = new Date();
+    const updatedLocal = local.map((p: any) => ({ ...p, active: p.active && p.expires_at ? new Date(p.expires_at) > now : p.active }));
+    setPopups(updatedLocal);
+    setItems(updatedLocal);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -573,6 +628,16 @@ export function AdminPopups() {
       imageUrl = uploaded;
     }
 
+    // Validation: expires_date is required
+    if (!form.expires_date) {
+      toast({ title: 'Data de expiração obrigatória', description: 'Defina uma data de expiração para o popup.', variant: 'destructive' });
+      return;
+    }
+
+    // Use provided time (defaults to 23:59) and interpret in São Paulo timezone, then convert to ISO UTC for DB
+    const time = form.expires_time && form.expires_time !== '' ? form.expires_time : '23:59';
+    const expiresAtIso = new Date(`${form.expires_date}T${time}:00-03:00`).toISOString();
+
     const popupData: any = {
       type: form.type,
       title: form.title || null,
@@ -580,6 +645,7 @@ export function AdminPopups() {
       image: form.type === 'image' ? imageUrl : null,
       active: typeof form.active === 'boolean' ? form.active : true,
       course_id: form.course_id || null,
+      expires_at: expiresAtIso,
     };
 
     try {
@@ -628,11 +694,22 @@ export function AdminPopups() {
   const openDialog = (item?: any) => {
     if (item) {
       setSelected(item);
-      setForm({ type: item.type || 'image', title: item.title || '', content: item.content || '', image: item.image || '', active: item.active ?? true, course_id: item.course_id || '' });
+      setForm({
+        type: item.type || 'image',
+        title: item.title || '',
+        content: item.content || '',
+        image: item.image || '',
+        active: item.active ?? true,
+        course_id: item.course_id || '',
+        // convert stored ISO to date input value in Brazil timezone YYYY-MM-DD
+        expires_date: item.expires_at ? toBrazilDateInput(item.expires_at) : '',
+        // convert stored ISO to time input value in Brazil timezone HH:MM
+        expires_time: item.expires_at ? toBrazilTimeInput(item.expires_at) : '23:59'
+      });
       setImagePreview(item.image || '');
     } else {
       setSelected(null);
-      setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+      setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '', expires_date: '', expires_time: '23:59' });
       setImagePreview('');
     }
     setImageFile(null);
@@ -669,7 +746,7 @@ export function AdminPopups() {
             <div key={item.id} className="bg-card p-4 rounded-xl border border-border/50 flex items-center justify-between">
               <div>
                 <h3 className="font-bold">{item.title || (item.type === 'image' ? 'Imagem' : 'Texto')}</h3>
-                <p className="text-sm text-muted-foreground">Tipo: {item.type} • {item.active ? 'Ativo' : 'Inativo'}</p>
+                <p className="text-sm text-muted-foreground">Tipo: {item.type} • {item.active ? 'Ativo' : 'Inativo'} • Expira: {formatExpiresForDisplay(item.expires_at)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="icon" onClick={() => toggleActive(item.id)} title={item.active ? 'Desativar' : 'Ativar'}>
@@ -739,6 +816,25 @@ export function AdminPopups() {
                   <input type="checkbox" checked={!!form.active} onChange={e => setForm({ ...form, active: e.target.checked })} />
                   <span>Ativo</span>
                 </label>
+              </div>
+
+              <div>
+                <Label>Data de expiração (obrigatório)</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="date"
+                    value={form.expires_date}
+                    onChange={e => setForm({ ...form, expires_date: e.target.value })}
+                    className="w-auto"
+                  />
+                  <Input
+                    type="time"
+                    value={form.expires_time}
+                    onChange={e => setForm({ ...form, expires_time: e.target.value })}
+                    className="w-28"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">A data e hora devem ser em horário de Brasília; por padrão o horário é 23:59 (meio-dia final do dia).</p>
               </div>
 
               <div className="flex justify-end gap-2">
