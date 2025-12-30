@@ -828,6 +828,7 @@ const handleDeletePreco = async (id: string) => {
                     </div>
                   )}
 
+                  {/*
                   <div className="flex items-center justify-between">
                     <Label>Cartão de Débito</Label>
                     <Switch
@@ -835,6 +836,7 @@ const handleDeletePreco = async (id: string) => {
                       onCheckedChange={(checked) => setForm({ ...form, allow_debit_card: checked })}
                     />
                   </div>
+                  */}
 
                   <div className="flex items-center justify-between">
                     <Label>PIX</Label>
@@ -883,6 +885,7 @@ const handleDeletePreco = async (id: string) => {
                       onChange={(e) => setForm({ ...form, discount_pix: e.target.value })}
                     />
                   </div>
+                  {/*
                   <div>
                     <Label>Débito</Label>
                     <Input
@@ -894,6 +897,7 @@ const handleDeletePreco = async (id: string) => {
                       onChange={(e) => setForm({ ...form, discount_debit: e.target.value })}
                     />
                   </div>
+                  */}
                 </div>
               </div>
 

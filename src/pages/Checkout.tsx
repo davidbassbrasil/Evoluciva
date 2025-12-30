@@ -53,6 +53,24 @@ export default function Checkout() {
     expiry: '',
     cvv: '',
   });
+
+  // Helper: human-friendly label for the selected payment method
+  const getPaymentMethodLabel = (method: typeof paymentMethod) => {
+    switch (method) {
+      case 'CREDIT_CARD_ONE':
+        return 'Cartão à vista';
+      case 'CREDIT_CARD_INSTALL':
+        return installmentCount > 1 ? `Cartão parcelado (${installmentCount}x)` : 'Cartão parcelado';
+      case 'DEBIT_CARD':
+        return 'Débito';
+      case 'PIX':
+        return 'PIX';
+      case 'BOLETO':
+        return 'Boleto';
+      default:
+        return String(method);
+    }
+  };
   // Coupon state
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<{
@@ -1278,6 +1296,11 @@ export default function Checkout() {
                           )}
                         </TabsList>
                       )}
+                    </div>
+
+                    <div className="mt-4 p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Você escolheu a forma de pagamento:</strong>
+                      <span className="ml-2 font-medium">{getPaymentMethodLabel(paymentMethod)}</span>
                     </div>
 
                     {/* Cartão à vista */}
