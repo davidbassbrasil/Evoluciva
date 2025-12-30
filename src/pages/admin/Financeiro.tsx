@@ -7,14 +7,26 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { format, startOfMonth, endOfMonth, startOfYear, startOfDay, endOfDay, subDays, startOfToday, endOfToday } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatBRDateTime as libFormatBRDateTime, formatBRDate as libFormatBRDate, dateKeyBR as formatBRDateKey } from '@/lib/dates';
+import { 
+  formatBRDateTime, 
+  formatBRDate, 
+  formatBRWithAt,
+  dateKeyBR,
+  brStartOfDay,
+  brEndOfDay,
+  brStartOfMonth,
+  brEndOfMonth,
+  brStartOfYear,
+  nowInBrazil,
+  todayKeyBR
+} from '@/lib/dates';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -110,8 +122,8 @@ export default function Financeiro() {
   const [showDeleteRefundDialog, setShowDeleteRefundDialog] = useState(false);
   const [selectedRefundToDelete, setSelectedRefundToDelete] = useState<any | null>(null);
   // Filtros de data
-  const [dateFrom, setDateFrom] = useState<Date>(startOfDay(subDays(new Date(), 6)));
-  const [dateTo, setDateTo] = useState<Date>(endOfToday());
+  const [dateFrom, setDateFrom] = useState<Date>(brStartOfDay(subDays(new Date(), 6)));
+  const [dateTo, setDateTo] = useState<Date>(brEndOfDay(new Date()));
   const [datePreset, setDatePreset] = useState<string>('7days');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [stats, setStats] = useState({
@@ -128,57 +140,14 @@ export default function Financeiro() {
     uniqueCustomers: 0,
   });
 
-  // Use shared helpers from lib/dates (handles date-only 'YYYY-MM-DD' as Brasil timezone)
-  const formatBRDateTime = libFormatBRDateTime;
-  const formatBRDate = libFormatBRDate;
-  const formatBRWithAt = (iso?: string | null) => {
-    const dt = formatBRDateTime(iso);
-    if (dt === '-') return '-';
-    const parts = dt.split(' ');
-    if (parts.length >= 2) return `${parts[0]} às ${parts[1]}`;
-    return dt;
-  };
-
-  // Helpers para limites em fuso America/Sao_Paulo
-  const partsInTZ = (date: Date, tz = 'America/Sao_Paulo') => {
-    const df = new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const parts = df.formatToParts(date);
-    const map: any = {};
-    parts.forEach(p => { if (p.type !== 'literal') map[p.type] = p.value; });
-    return map; // { year, month, day, hour, minute, second }
-  };
-
-  const brStartOfDay = (date: Date) => {
-    const p = partsInTZ(date);
-    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), 0, 0, 0, 0));
-  };
-
-  const brEndOfDay = (date: Date) => {
-    const p = partsInTZ(date);
-    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), 23, 59, 59, 999));
-  };
-
-  const brStartOfMonth = (date: Date) => {
-    const p = partsInTZ(date);
-    return new Date(Date.UTC(Number(p.year), Number(p.month) - 1, 1, 0, 0, 0, 0));
-  };
-
-  const brEndOfMonth = (date: Date) => {
-    const p = partsInTZ(date);
-    const nextMonth = new Date(Date.UTC(Number(p.year), Number(p.month), 1, 0, 0, 0, 0));
-    return new Date(nextMonth.getTime() - 1);
-  };
+  // helpers imported from lib/dates (formatBRDateTime, formatBRDate, formatBRWithAt, brStartOfDay, brEndOfDay, brStartOfMonth, brEndOfMonth, brStartOfYear, nowInBrazil, dateKeyBR, todayKeyBR)
 
   // Verifica se o intervalo selecionado é exatamente hoje (BR timezone)
   const isRangeToday = (from: Date, to: Date) => {
-    const s = startOfToday().getTime();
-    const e = endOfToday().getTime();
-    return from.getTime() === s && to.getTime() === e;
-  };
-
-  const brStartOfYear = (date: Date) => {
-    const p = partsInTZ(date);
-    return new Date(Date.UTC(Number(p.year), 0, 1, 0, 0, 0, 0));
+    const fromKey = dateKeyBR(from);
+    const toKey = dateKeyBR(to);
+    const todayKey = todayKeyBR();
+    return fromKey === todayKey && toKey === todayKey;
   };
 
   // Extrai modalidade(s) de um pagamento (procura em metadata.items)
@@ -240,8 +209,9 @@ export default function Financeiro() {
       })) || [];
 
       setTurmasList(formattedTurmas);
-    } catch (error) {
-      console.error('Erro ao carregar turmas:', error);
+    } catch (error: any) {
+      console.error('Erro ao carregar turmas:', JSON.stringify(error, null, 2));
+      toast({ title: 'Erro ao carregar turmas', description: error?.message || 'Verifique sua conexão ou a configuração do Supabase.', variant: 'destructive' });
     }
   };
 
@@ -308,28 +278,28 @@ export default function Financeiro() {
     
     switch (preset) {
       case 'today':
-        setDateFrom(startOfToday());
-        setDateTo(endOfToday());
+        setDateFrom(brStartOfDay(today));
+        setDateTo(brEndOfDay(today));
         break;
       case '7days':
-        setDateFrom(startOfDay(subDays(today, 6)));
-        setDateTo(endOfToday());
+        setDateFrom(brStartOfDay(subDays(today, 6)));
+        setDateTo(brEndOfDay(today));
         break;
       case '30days':
-        setDateFrom(startOfDay(subDays(today, 29)));
-        setDateTo(endOfToday());
+        setDateFrom(brStartOfDay(subDays(today, 29)));
+        setDateTo(brEndOfDay(today));
         break;
       case '90days':
-        setDateFrom(startOfDay(subDays(today, 89)));
-        setDateTo(endOfToday());
+        setDateFrom(brStartOfDay(subDays(today, 89)));
+        setDateTo(brEndOfDay(today));
         break;
       case 'month':
-        setDateFrom(startOfMonth(today));
-        setDateTo(endOfMonth(today));
+        setDateFrom(brStartOfMonth(today));
+        setDateTo(brEndOfMonth(today));
         break;
       case 'year':
-        setDateFrom(startOfYear(today));
-        setDateTo(endOfToday());
+        setDateFrom(brStartOfYear(today));
+        setDateTo(brEndOfDay(today));
         break;
       default:
         break;
@@ -471,14 +441,14 @@ export default function Financeiro() {
             calculateStats(all);
           }
         }
-      } catch (err) {
-        console.error('Erro ao carregar enrollments para caixa local:', err);
+      } catch (err: any) {
+        console.error('Erro ao carregar enrollments para caixa local:', JSON.stringify(err, null, 2));
       }
     } catch (error) {
-      console.error('Erro ao carregar pagamentos:', error);
+      console.error('Erro ao carregar pagamentos:', JSON.stringify(error, null, 2));
       toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar os pagamentos',
+        title: 'Erro ao carregar pagamentos',
+        description: error?.message || 'Verifique sua conexão ou a configuração do Supabase.',
         variant: 'destructive',
       });
     } finally {
@@ -494,25 +464,25 @@ export default function Financeiro() {
     const now = new Date();
 
     // Filtrar por período selecionado (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
-    const startKey = formatBRDateKey(dateFrom) || '';
-    const endKey = formatBRDateKey(dateTo) || '';
+    const startKey = dateKeyBR(dateFrom) || '';
+    const endKey = dateKeyBR(dateTo) || '';
     const periodPayments = confirmed.filter(p => {
-      const key = formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '';
+      const key = dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '';
       return key >= startKey && key <= endKey;
     });
 
     // Para mês/ano, calcular diretamente a chave BR do 'now' e comparar prefixos
-    const brNowKey = formatBRDateKey(now) || '';
+    const brNowKey = dateKeyBR(now) || '';
     const monthPrefix = brNowKey.slice(0, 7); // YYYY-MM
     const yearPrefix = brNowKey.slice(0, 4); // YYYY
 
     const monthPayments = confirmed.filter(p => {
-      const key = (formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 7);
+      const key = (dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 7);
       return key === monthPrefix;
     });
 
     const yearPayments = confirmed.filter(p => {
-      const key = (formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 4);
+      const key = (dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 4);
       return key === yearPrefix;
     });
     
@@ -558,7 +528,7 @@ export default function Financeiro() {
 
     if (parts.length === 0) return;
 
-    const now = new Date();
+    const now = nowInBrazil();
     const inserts: any[] = [];
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
@@ -572,7 +542,7 @@ export default function Financeiro() {
         billing_type: billingType,
         asaas_payment_id: `admin_local_${e.id}_${i + 1}`,
         asaas_customer_id: e.profile_id,
-        due_date: now.toISOString().split('T')[0],
+        due_date: dateKeyBR(now) || now.toISOString().split('T')[0],
         payment_date: now.toISOString(),
         confirmed_date: now.toISOString(),
         description: `Pagamento Caixa Local (${part.method}) - matrícula ${e.id}`,
@@ -606,10 +576,10 @@ export default function Financeiro() {
     }
     
     // Filtro por data (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
-    const startKey = formatBRDateKey(dateFrom) || '';
-    const endKey = formatBRDateKey(dateTo) || '';
+    const startKey = dateKeyBR(dateFrom) || '';
+    const endKey = dateKeyBR(dateTo) || '';
     filtered = filtered.filter(p => {
-      const key = formatBRDateKey(p.confirmed_date || p.payment_date || p.created_at) || '';
+      const key = dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '';
       return key >= startKey && key <= endKey;
     });
     
@@ -708,9 +678,10 @@ export default function Financeiro() {
           loadPayments();
           setProcessingRefund(false);
           return;
-        } catch (err: any) {
-          console.error('Erro no fluxo de estorno Caixa Local:', err);
-          toast({ title: 'Erro', description: err.message || 'Erro ao processar estorno do Caixa Local', variant: 'destructive' });
+        } catch (error: any) {
+          console.error('Erro ao carregar webhook logs:', JSON.stringify(error, null, 2));
+          toast({ title: 'Erro ao carregar webhook logs', description: error?.message || 'Verifique sua conexão ou a configuração do Supabase.', variant: 'destructive' });
+        } finally {
           setProcessingRefund(false);
           return;
         }
@@ -1408,6 +1379,7 @@ export default function Financeiro() {
           <DialogContent className="w-full max-w-full sm:max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes do Pagamento</DialogTitle>
+              <DialogDescription>Detalhes completos do pagamento selecionado.</DialogDescription>
             </DialogHeader>
             {selectedPayment && (
               <div className="space-y-4">
@@ -1554,6 +1526,7 @@ export default function Financeiro() {
           <DialogContent className="w-full max-w-md">
             <DialogHeader>
               <DialogTitle>Cancelar Pagamento</DialogTitle>
+              <DialogDescription>Confirme o cancelamento deste pagamento selecionado.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <p>Tem certeza que deseja cancelar este pagamento? Esta ação não pode ser desfeita.</p>
@@ -1579,8 +1552,9 @@ export default function Financeiro() {
         <Dialog open={showDeleteRefundDialog} onOpenChange={setShowDeleteRefundDialog}>
           <DialogContent className="w-full max-w-md">
             <DialogHeader>
-              <DialogTitle>Confirmar exclusão de estorno</DialogTitle>
-            </DialogHeader>
+                <DialogTitle>Confirmar exclusão de estorno</DialogTitle>
+                <DialogDescription>Confirme a exclusão do estorno selecionado.</DialogDescription>
+              </DialogHeader>
             <div className="space-y-4">
               <p>Tem certeza que deseja excluir este estorno? Esta ação não pode ser desfeita.</p>
               {selectedRefundToDelete && (
@@ -1608,6 +1582,7 @@ export default function Financeiro() {
           <DialogContent className="w-full max-w-full sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Solicitar Estorno</DialogTitle>
+              <DialogDescription>Solicite um estorno para o pagamento selecionado.</DialogDescription>
             </DialogHeader>
             {selectedPayment && (
               <div className="space-y-4">
@@ -1867,6 +1842,7 @@ export default function Financeiro() {
           <DialogContent className="w-full max-w-full sm:max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes do Webhook</DialogTitle>
+              <DialogDescription>Detalhes completos do webhook recebido.</DialogDescription>
             </DialogHeader>
             {selectedWebhookLog && (
               <div className="space-y-4">

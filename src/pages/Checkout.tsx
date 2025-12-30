@@ -18,16 +18,9 @@ import supabase from '@/lib/supabaseClient';
 import logoPng from '@/assets/logo_.png';
 import { todayKeyBR, formatBRDateTime } from '@/lib/dates';
 
-// Retorna timestamp local formatado no horário local (ex: "2025-12-29 14:30:45")
+// Retorna timestamp ISO em UTC (ex: "2025-12-29T17:30:45.000Z") - consistente para armazenamento no DB
 const getLocalTimestamp = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return new Date().toISOString();
 };
 
 export default function Checkout() {
@@ -215,7 +208,7 @@ export default function Checkout() {
               if (p.channel === 'both' || p.channel === 'online') data._effective_price_online = Number(p.price);
             }
           } catch (err) {
-            console.error('Erro ao carregar preço opcional (single):', err);
+            // falha ao carregar preço opcional — continuar sem preço opcional
           }
 
           // Não setar installmentCount automaticamente, deixar o padrão (1)
@@ -326,7 +319,7 @@ export default function Checkout() {
 
               setCartItems(orderedTurmas);
             } catch (err) {
-              console.error('Erro ao carregar preços opcionais (cart):', err);
+              // falha ao carregar preços opcionais do carrinho — usar preços originais
               // Mesmo se falhar, continuar com preços originais
               const orderedTurmasFallback = parsedItems
                 .map(({ turmaId, modality }) => {
@@ -339,7 +332,6 @@ export default function Checkout() {
           }
         }
       } catch (err) {
-        console.error('Error loading turma data:', err);
         toast({ title: 'Erro', description: 'Erro ao carregar dados', variant: 'destructive' });
         navigate('/');
       }
@@ -347,6 +339,47 @@ export default function Checkout() {
 
     loadCourseData();
   }, [courseId, navigate, toast]);
+
+  const createEnrollmentsForPayment = async (
+    userId: string,
+    items: Array<{ turma: Turma; modality: 'presential' | 'online' }>,
+    paymentId?: string,
+    enrolledAt?: string,
+    enrollmentStatus: 'active' | 'pending' | 'waiting_payment' = 'active'
+  ) => {
+    const ts = enrolledAt || getLocalTimestamp();
+    try {
+      for (const item of items) {
+        // verificar se já existe matrícula ativa ou pendente
+        const { data: existingEnrollment } = await supabase
+          .from('enrollments')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('turma_id', item.turma.id)
+          .maybeSingle();
+
+        if (!existingEnrollment) {
+          const enrollmentData: any = {
+            user_id: userId,
+            turma_id: item.turma.id,
+            status: enrollmentStatus,
+            enrolled_at: ts,
+            modality: item.modality,
+          };
+          if (paymentId) enrollmentData.payment_id = paymentId;
+
+          const { error: enrollError } = await supabase.from('enrollments').insert(enrollmentData);
+          if (enrollError) {
+            // falha ao criar matrícula automática para este item
+          }
+        }
+      }
+      // se era checkout por carrinho, limpar
+      if (!turma) clearCart();
+    } catch (e) {
+      // erro no fluxo de criação de matrículas
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -546,7 +579,7 @@ export default function Checkout() {
             return { sanitized: true };
           }
         };
-        console.log('📤 Dados do cartão (mascarados) sendo enviados:', sanitizePaymentDataForLog(paymentData));
+        // Dados do cartão preparados para envio (mascarados)
 
         // Include due date in payment sent to Asaas (use today's date)
         paymentData.dueDate = formatDateLocal(dueDate);
@@ -562,19 +595,12 @@ export default function Checkout() {
         const payment = await asaasService.createCreditCardPayment(paymentData);
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          console.log('✅ Pagamento confirmado! Registrando pagamento no banco...');
-          
           // Buscar usuário autenticado do Supabase
           const { data: { user: authUser } } = await supabase.auth.getUser();
           const userId = authUser?.id || currentUser.id;
-          
-          console.log('👤 User ID do localStorage:', currentUser.id);
-          console.log('👤 User ID do Supabase Auth:', authUser?.id);
-          console.log('📝 Usando user_id:', userId);
 
           // Registrar timestamps em horário local BR (para garantir consistência nos relatórios)
           const localTimestamp = getLocalTimestamp();
-          console.log('📅 [CARTÃO CRÉDITO] Timestamp local BR:', localTimestamp);
 
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
@@ -592,18 +618,12 @@ export default function Checkout() {
           }).select().single();
 
           if (paymentError) {
-            console.error('❌ Erro ao criar pagamento:', paymentError);
-            console.error('Detalhes completos do erro:', JSON.stringify(paymentError, null, 2));
-          } else {
-            console.log('✅ Pagamento registrado:', paymentRecord);
+            toast({ title: 'Erro ao registrar pagamento', description: 'Ocorreu um erro ao salvar o pagamento. Contate o suporte.', variant: 'destructive' });
           }
 
           // Cancelar pagamentos pendentes anteriores para as mesmas turmas
           const turmaIds = itemsToPurchase.map(item => item.turma.id);
-          console.log('🔍 [CARTÃO CRÉDITO] Tentando cancelar pagamentos pendentes...');
-          console.log('👤 userId:', userId);
-          console.log('📚 turmaIds:', turmaIds);
-          console.log('🆔 paymentRecord.id (não cancelar este):', paymentRecord?.id);
+          // Cancelar pagamentos pendentes anteriores para as mesmas turmas
 
           // Primeiro, verificar se existem pagamentos pendentes
           const { data: pendingPayments, error: checkError } = await supabase
@@ -614,11 +634,8 @@ export default function Checkout() {
             .eq('status', 'PENDING')
             .neq('id', paymentRecord?.id);
 
-          console.log('📊 Pagamentos pendentes encontrados:', pendingPayments?.length || 0);
-          console.log('📋 Detalhes dos pendentes:', pendingPayments);
-
           if (checkError) {
-            console.error('⚠️ Erro ao buscar pagamentos pendentes:', checkError);
+            toast({ title: 'Erro', description: 'Não foi possível verificar pagamentos pendentes.', variant: 'destructive' });
           }
 
           const { data: canceledPayments, error: cancelError } = await supabase
@@ -631,18 +648,13 @@ export default function Checkout() {
             .select();
 
           if (cancelError) {
-            console.error('❌ Erro ao cancelar pagamentos pendentes:', cancelError);
-            console.error('📝 Código do erro:', cancelError.code);
-            console.error('📝 Mensagem:', cancelError.message);
-            console.error('📝 Detalhes:', cancelError.details);
-            console.error('📝 Erro completo:', JSON.stringify(cancelError, null, 2));
-          } else {
-            console.log('✅ Pagamentos cancelados:', canceledPayments?.length || 0);
-            console.log('📋 Detalhes dos cancelados:', canceledPayments);
+            toast({ title: 'Erro', description: 'Não foi possível cancelar pagamentos pendentes.', variant: 'destructive' });
           }
 
-          // Observação: matrículas e liberação de acesso serão tratadas pelo webhook do Asaas (mesma lógica de PIX/Boleto)
-          toast({ title: 'Pagamento registrado', description: 'Seu pagamento foi recebido. A matrícula será liberada após confirmação.' });
+          // Criar matrículas imediatamente para pagamentos confirmados
+          await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+
+          toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
@@ -671,19 +683,32 @@ export default function Checkout() {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id || currentUser.id;
 
-        await supabase.from('payments').insert({
+        const pixStatus = payment?.status === 'CONFIRMED' ? 'CONFIRMED' : payment?.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING';
+
+        const { data: pixPaymentRecord, error: pixPaymentError } = await supabase.from('payments').insert({
           asaas_payment_id: payment.id,
           user_id: userId,
           turma_id: itemsToPurchase[0].turma.id,
           value: totalValue,
-          status: 'PENDING',
+          status: pixStatus,
           billing_type: 'PIX',
           due_date: payment?.dueDate || formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
           metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
-        });
+        }).select().single();
 
-        toast({ title: 'PIX Gerado!', description: 'Escaneie o QR Code ou copie o código PIX para pagar.' });
+        const localTimestamp = getLocalTimestamp();
+        const enrollStatus = (pixStatus === 'CONFIRMED' || pixStatus === 'RECEIVED') ? 'active' : 'pending';
+
+        // Criar matrícula imediatamente (pending ou active)
+        await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
+
+        if (enrollStatus === 'active') {
+          toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
+          navigate('/aluno/dashboard');
+        } else {
+          toast({ title: 'PIX Gerado!', description: 'Escaneie o QR Code ou copie o código PIX para pagar.' });
+        }
       } else if (paymentMethod === 'BOLETO') {
         const payment = await asaasService.createPayment({
           customer: customer.id,
@@ -702,19 +727,32 @@ export default function Checkout() {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const userId = authUser?.id || currentUser.id;
 
-        await supabase.from('payments').insert({
+        const boletoStatus = payment?.status === 'CONFIRMED' ? 'CONFIRMED' : payment?.status === 'RECEIVED' ? 'RECEIVED' : 'PENDING';
+
+        const { data: boletoPaymentRecord, error: boletoPaymentError } = await supabase.from('payments').insert({
           asaas_payment_id: payment.id,
           user_id: userId,
           turma_id: itemsToPurchase[0].turma.id,
           value: totalValue,
-          status: 'PENDING',
+          status: boletoStatus,
           billing_type: 'BOLETO',
           due_date: payment?.dueDate || formatDateLocal(dueDate),
           description: itemsToPurchase.map((item) => `${item.turma.course?.title} - ${item.turma.name}`).join(' | '),
           metadata: { ...payment, items: itemsToPurchase.map(i => ({ turma_id: i.turma.id, modality: i.modality })) },
-        });
+        }).select().single();
 
-        toast({ title: 'Boleto Gerado!', description: 'Você pode visualizar e pagar o boleto.' });
+        const localTimestamp = getLocalTimestamp();
+        const enrollStatus = (boletoStatus === 'CONFIRMED' || boletoStatus === 'RECEIVED') ? 'active' : 'pending';
+
+        // Criar matrícula imediatamente (pending ou active)
+        await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
+
+        if (enrollStatus === 'active') {
+          toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
+          navigate('/aluno/dashboard');
+        } else {
+          toast({ title: 'Boleto Gerado!', description: 'Você pode visualizar e pagar o boleto.' });
+        }
       }
 
       else if (paymentMethod === 'DEBIT_CARD') {
@@ -745,18 +783,11 @@ export default function Checkout() {
         });
 
         if (payment.status === 'CONFIRMED' || payment.status === 'RECEIVED') {
-          console.log('✅ Pagamento com débito confirmado! Registrando pagamento no banco...');
-          
-          // Buscar usuário autenticado do Supabase
+          // Registrar pagamento no banco
           const { data: { user: authUser } } = await supabase.auth.getUser();
           const userId = authUser?.id || currentUser.id;
-          
-          console.log('👤 User ID do localStorage:', currentUser.id);
-          console.log('👤 User ID do Supabase Auth:', authUser?.id);
-          console.log('📝 Usando user_id:', userId);
 
           const localTimestamp = getLocalTimestamp();
-          console.log('📅 [CARTÃO DÉBITO] Timestamp local BR:', localTimestamp);
 
           const { data: paymentRecord, error: paymentError } = await supabase.from('payments').insert({
             asaas_payment_id: payment.id,
@@ -773,68 +804,38 @@ export default function Checkout() {
           }).select().single();
 
           if (paymentError) {
-            console.error('❌ Erro ao criar pagamento:', paymentError);
-            console.error('Detalhes completos do erro:', JSON.stringify(paymentError, null, 2));
+            toast({ title: 'Erro ao registrar pagamento', description: 'Não foi possível salvar o pagamento. Contate o suporte.', variant: 'destructive' });
           } else {
-            console.log('✅ Pagamento registrado:', paymentRecord);
+            // Cancelar pagamentos pendentes anteriores para as mesmas turmas
+            const turmaIds = itemsToPurchase.map(item => item.turma.id);
+
+            const { error: cancelError } = await supabase
+              .from('payments')
+              .update({ status: 'CANCELLED' })
+              .eq('user_id', userId)
+              .in('turma_id', turmaIds)
+              .eq('status', 'PENDING')
+              .neq('id', paymentRecord?.id);
+
+            if (cancelError) {
+              toast({ title: 'Erro', description: 'Não foi possível cancelar pagamentos pendentes.', variant: 'destructive' });
+            }
+
+            // Criar matrículas imediatamente para pagamento confirmado
+            await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+
+            toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
+            navigate('/aluno/dashboard');
           }
-
-          // Cancelar pagamentos pendentes anteriores para as mesmas turmas
-          const turmaIds = itemsToPurchase.map(item => item.turma.id);
-          console.log('🔍 [CARTÃO DÉBITO] Tentando cancelar pagamentos pendentes...');
-          console.log('👤 userId:', userId);
-          console.log('📚 turmaIds:', turmaIds);
-          console.log('🆔 paymentRecord.id (não cancelar este):', paymentRecord?.id);
-
-          // Primeiro, verificar se existem pagamentos pendentes
-          const { data: pendingPayments, error: checkError } = await supabase
-            .from('payments')
-            .select('*')
-            .eq('user_id', userId)
-            .in('turma_id', turmaIds)
-            .eq('status', 'PENDING')
-            .neq('id', paymentRecord?.id);
-
-          console.log('📊 Pagamentos pendentes encontrados:', pendingPayments?.length || 0);
-          console.log('📋 Detalhes dos pendentes:', pendingPayments);
-
-          if (checkError) {
-            console.error('⚠️ Erro ao buscar pagamentos pendentes:', checkError);
-          }
-          
-          const { data: canceledPayments, error: cancelError } = await supabase
-            .from('payments')
-            .update({ status: 'CANCELLED' })
-            .eq('user_id', userId)
-            .in('turma_id', turmaIds)
-            .eq('status', 'PENDING')
-            .neq('id', paymentRecord?.id)
-            .select();
-
-          if (cancelError) {
-            console.error('❌ Erro ao cancelar pagamentos pendentes:', cancelError);
-            console.error('📝 Código do erro:', cancelError.code);
-            console.error('📝 Mensagem:', cancelError.message);
-            console.error('📝 Detalhes:', cancelError.details);
-            console.error('📝 Erro completo:', JSON.stringify(cancelError, null, 2));
-          } else {
-            console.log('✅ Pagamentos cancelados:', canceledPayments?.length || 0);
-            console.log('📋 Detalhes dos cancelados:', canceledPayments);
-          }
-
-          // Observação: matrículas e liberação de acesso serão tratadas pelo webhook do Asaas (mesma lógica de PIX/Boleto)
-          toast({ title: 'Pagamento registrado', description: 'Seu pagamento foi recebido. A matrícula será liberada após confirmação.' });
-          navigate('/aluno/dashboard');
         } else {
           toast({ title: 'Pagamento Processando', description: 'Pagamento em processamento. Você será notificado.' });
           navigate('/aluno/dashboard');
         }
       }
     } catch (error: any) {
-      console.error('Erro no pagamento:', error);
       toast({
         title: 'Erro no Pagamento',
-        description: error.message || 'Não foi possível processar o pagamento. Tente novamente.',
+        description: error?.message || 'Não foi possível processar o pagamento. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
