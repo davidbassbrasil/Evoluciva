@@ -268,19 +268,24 @@ async function processWebhookEvent(
               const modality = it.modality || 'presential';
 
               // Verificar se já existe matrícula para este usuário/turma
-              const { data: existingEnroll } = await supabase
+              const { data: existingEnroll, error: existingErr } = await supabase
                 .from('enrollments')
-                .select('id')
+                .select('id, payment_status')
                 .eq('profile_id', userId)
                 .eq('turma_id', turmaId)
                 .limit(1)
-                .single();
+                .maybeSingle();
+
+              if (existingErr) {
+                console.error('[webhook] Error querying existing enrollment:', existingErr);
+              }
+
+              const amount = paymentNet && typeof paymentNet === 'number' ? (paymentNet / items.length) : null;
 
               if (!existingEnroll) {
                 console.log(`[webhook] Creating enrollment for user ${userId} turma ${turmaId}`);
-                const amount = paymentNet && typeof paymentNet === 'number' ? (paymentNet / items.length) : null;
 
-                const { error: insertErr } = await supabase
+                const { data: insData, error: insertErr } = await supabase
                   .from('enrollments')
                   .insert({
                     profile_id: userId,
@@ -292,15 +297,33 @@ async function processWebhookEvent(
                     amount_paid: amount,
                     paid_at: paymentDate,
                     enrolled_at: new Date().toISOString(),
-                  });
+                  }).select().single();
 
                 if (insertErr) {
                   console.error('[webhook] Error creating enrollment:', insertErr);
                 } else {
-                  console.log(`[webhook] Enrollment created for turma ${turmaId}`);
+                  console.log(`[webhook] Enrollment created for turma ${turmaId} id=${insData?.id}`);
                 }
               } else {
-                console.log(`[webhook] Enrollment already exists for user ${userId} turma ${turmaId}`);
+                // If enrollment exists but is not marked as paid, update it to avoid duplicates and make it active
+                try {
+                  if (existingEnroll.payment_status !== 'paid') {
+                    const { error: updErr } = await supabase
+                      .from('enrollments')
+                      .update({ payment_status: 'paid', paid_at: paymentDate, payment_id: paymentId, amount_paid: amount })
+                      .eq('id', existingEnroll.id);
+
+                    if (updErr) {
+                      console.error('[webhook] Error updating existing enrollment to paid:', updErr);
+                    } else {
+                      console.log(`[webhook] Updated enrollment ${existingEnroll.id} to paid for turma ${turmaId}`);
+                    }
+                  } else {
+                    console.log(`[webhook] Enrollment already paid for user ${userId} turma ${turmaId} id=${existingEnroll.id}`);
+                  }
+                } catch (e) {
+                  console.error('[webhook] Error handling existing enrollment:', e);
+                }
               }
             }
           } else {
@@ -308,24 +331,54 @@ async function processWebhookEvent(
             const turmaId = updatedPayment.turma_id;
             if (turmaId && (!updatedPayment.enrollments || updatedPayment.enrollments.length === 0)) {
               console.log('[webhook] No items metadata - creating single enrollment based on payment.turma_id');
-              const { error: insertErr } = await supabase
-                .from('enrollments')
-                .insert({
-                  profile_id: updatedPayment.user_id,
-                  turma_id: turmaId,
-                  modality: 'presential',
-                  payment_status: 'paid',
-                  payment_method: updatedPayment.billing_type || 'unknown',
-                  payment_id: updatedPayment.id,
-                  amount_paid: updatedPayment.net_value ?? updatedPayment.value ?? null,
-                  paid_at: payment.paymentDate || payment.confirmedDate || new Date().toISOString(),
-                  enrolled_at: new Date().toISOString(),
-                });
 
-              if (insertErr) {
-                console.error('[webhook] Error creating fallback enrollment:', insertErr);
+              const { data: existingEnroll, error: existingErr } = await supabase
+                .from('enrollments')
+                .select('id, payment_status')
+                .eq('profile_id', updatedPayment.user_id)
+                .eq('turma_id', turmaId)
+                .limit(1)
+                .maybeSingle();
+
+              if (existingErr) {
+                console.error('[webhook] Error querying existing fallback enrollment:', existingErr);
+              }
+
+              if (!existingEnroll) {
+                const { data: insData, error: insertErr } = await supabase
+                  .from('enrollments')
+                  .insert({
+                    profile_id: updatedPayment.user_id,
+                    turma_id: turmaId,
+                    modality: 'presential',
+                    payment_status: 'paid',
+                    payment_method: updatedPayment.billing_type || 'unknown',
+                    payment_id: updatedPayment.id,
+                    amount_paid: updatedPayment.net_value ?? updatedPayment.value ?? null,
+                    paid_at: payment.paymentDate || payment.confirmedDate || new Date().toISOString(),
+                    enrolled_at: new Date().toISOString(),
+                  }).select().single();
+
+                if (insertErr) {
+                  console.error('[webhook] Error creating fallback enrollment:', insertErr);
+                } else {
+                  console.log(`[webhook] Fallback enrollment created id=${insData?.id}`);
+                }
               } else {
-                console.log('[webhook] Fallback enrollment created');
+                if (existingEnroll.payment_status !== 'paid') {
+                  const { error: updErr } = await supabase
+                    .from('enrollments')
+                    .update({ payment_status: 'paid', paid_at: payment.paymentDate || payment.confirmedDate || new Date().toISOString(), payment_id: updatedPayment.id, amount_paid: updatedPayment.net_value ?? updatedPayment.value ?? null })
+                    .eq('id', existingEnroll.id);
+
+                  if (updErr) {
+                    console.error('[webhook] Error updating fallback enrollment to paid:', updErr);
+                  } else {
+                    console.log(`[webhook] Updated fallback enrollment ${existingEnroll.id} to paid`);
+                  }
+                } else {
+                  console.log(`[webhook] Fallback enrollment already paid id=${existingEnroll.id}`);
+                }
               }
             }
           }
