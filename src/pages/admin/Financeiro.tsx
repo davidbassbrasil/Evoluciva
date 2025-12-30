@@ -88,6 +88,8 @@ export default function Financeiro() {
   const [turmasList, setTurmasList] = useState<Array<{ id: string; name: string; course_title?: string }>>([]);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [paymentToCancel, setPaymentToCancel] = useState<string | null>(null);
+  const [showCancelPaymentDialog, setShowCancelPaymentDialog] = useState(false);
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [refundValue, setRefundValue] = useState('');
   const [refundReason, setRefundReason] = useState('');
@@ -796,6 +798,70 @@ export default function Financeiro() {
     }
   };
 
+  const handleCancelPayment = async (paymentId: string) => {
+    try {
+      // Buscar o pagamento atual (sem logs)
+      const { data: currentPayment, error: fetchError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('id', paymentId)
+        .single();
+
+      // confirmation is handled by the app modal; proceed directly
+
+      // Atualizar status e solicitar retorno
+      const res = await supabase
+        .from('payments')
+        .update({ status: 'CANCELLED' })
+        .eq('id', paymentId)
+        .select();
+
+      // @ts-ignore
+      if (res.error) {
+        // @ts-ignore
+        if (res.error.code === '42501' || res.error.message?.includes('permission')) {
+          toast({ 
+            title: 'Permissão negada', 
+            description: 'Você não tem permissão para cancelar pagamentos. Verifique as políticas RLS no Supabase.',
+            variant: 'destructive' 
+          });
+          return;
+        }
+        // @ts-ignore
+        throw res.error;
+      }
+
+      const returned = (res as any).data;
+      if (!returned || (Array.isArray(returned) && returned.length === 0)) {
+        toast({ 
+          title: 'Aviso', 
+          description: 'Nenhum registro foi atualizado. Verifique as permissões RLS.',
+          variant: 'destructive' 
+        });
+        return;
+      }
+
+      // Optimistic UI update
+      setPayments((prev) => prev.map((p) => (p.id === paymentId ? { ...p, status: 'CANCELLED' } : p)));
+
+      toast({ 
+        title: 'Pagamento cancelado', 
+        description: 'Status atualizado para CANCELLED. O pagamento não aparecerá mais na lista de pendentes.', 
+      });
+
+      // Refresh
+      setTimeout(() => {
+        loadPayments().catch(() => {});
+      }, 500);
+    } catch (err: any) {
+      toast({ 
+        title: 'Erro ao cancelar', 
+        description: err?.message || 'Falha ao cancelar o pagamento',
+        variant: 'destructive' 
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
       CONFIRMED: { label: 'Confirmado', variant: 'default', className: 'bg-green-500' },
@@ -1304,21 +1370,7 @@ export default function Financeiro() {
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={async () => {
-                                  if (!confirm('Deseja cancelar este pagamento pendente?')) return;
-                                  try {
-                                    const { error } = await supabase
-                                      .from('payments')
-                                      .update({ status: 'CANCELLED' })
-                                      .eq('id', payment.id);
-                                    if (error) throw error;
-                                    toast({ title: 'Pagamento cancelado', variant: 'default' });
-                                    await loadPayments();
-                                  } catch (err: any) {
-                                    console.error('Erro ao cancelar pagamento:', err);
-                                    toast({ title: 'Erro', description: err.message || 'Falha ao cancelar', variant: 'destructive' });
-                                  }
-                                }}
+                                onClick={() => { setPaymentToCancel(payment.id); setShowCancelPaymentDialog(true); }}
                                 className="text-white"
                                 title="Cancelar pagamento pendente"
                               >
@@ -1494,6 +1546,33 @@ export default function Financeiro() {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Cancel Payment Confirmation Modal */}
+        <Dialog open={showCancelPaymentDialog} onOpenChange={setShowCancelPaymentDialog}>
+          <DialogContent className="w-full max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cancelar Pagamento</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p>Tem certeza que deseja cancelar este pagamento? Esta ação não pode ser desfeita.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setShowCancelPaymentDialog(false); setPaymentToCancel(null); }}>Cancelar</Button>
+                <Button
+                  onClick={async () => {
+                    if (!paymentToCancel) return;
+                    setShowCancelPaymentDialog(false);
+                    const id = paymentToCancel;
+                    setPaymentToCancel(null);
+                    await handleCancelPayment(id);
+                  }}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  Cancelar pagamento
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
         {/* Delete Refund Confirmation Modal */}
