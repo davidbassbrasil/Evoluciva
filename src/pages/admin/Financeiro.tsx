@@ -126,6 +126,17 @@ export default function Financeiro() {
   const [dateFrom, setDateFrom] = useState<Date>(brStartOfDay(subDays(new Date(), 6)));
   const [dateTo, setDateTo] = useState<Date>(brEndOfDay(new Date()));
   const [datePreset, setDatePreset] = useState<string>('7days');
+
+  // Reset all filters to their defaults
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setTypeFilter('all');
+    setTurmaFilter('all');
+    setDatePreset('7days');
+    setDateFrom(brStartOfDay(subDays(new Date(), 6)));
+    setDateTo(brEndOfDay(new Date()));
+  };
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [stats, setStats] = useState({
     periodRevenue: 0,
@@ -1204,9 +1215,8 @@ export default function Financeiro() {
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
                   <SelectItem value="CONFIRMED">Confirmado</SelectItem>
-             {/*     <SelectItem value="RECEIVED">Recebido</SelectItem> */}
+                  <SelectItem value="RECEIVED">Recebido</SelectItem>
                   <SelectItem value="PENDING">Pendente</SelectItem>
-             {/*     <SelectItem value="OVERDUE">Vencido</SelectItem>   */}
                   <SelectItem value="REFUNDED">Reembolsado</SelectItem>
                   <SelectItem value="CANCELLED">Cancelado</SelectItem>
                 </SelectContent>
@@ -1245,7 +1255,7 @@ export default function Financeiro() {
                 <Button variant="outline" onClick={() => setStatusFilter('PENDING')}>
                   Pendentes
                 </Button>
-                <Button variant="ghost" onClick={() => setStatusFilter('all')}>
+                <Button variant="ghost" onClick={resetFilters}>
                   Limpar
                 </Button>
               </div>
