@@ -362,11 +362,13 @@ export default function Checkout() {
     userId: string,
     items: Array<{ turma: Turma; modality: 'presential' | 'online' }>,
     paymentId?: string,
-    enrolledAt?: string
+    enrolledAt?: string,
+    enrollmentStatus: 'active' | 'pending' | 'waiting_payment' = 'active'
   ) => {
     const ts = enrolledAt || getLocalTimestamp();
     try {
       for (const item of items) {
+        // verificar se já existe matrícula ativa ou pendente
         const { data: existingEnrollment } = await supabase
           .from('enrollments')
           .select('*')
@@ -374,30 +376,33 @@ export default function Checkout() {
           .eq('turma_id', item.turma.id)
           .maybeSingle();
 
+        const desiredStatus = enrollmentStatus === 'active' ? 'paid' : 'pending';
+
         if (!existingEnrollment) {
-          // Sempre criar com status 'paid' pois só chamamos esta função quando o pagamento foi confirmado
           const enrollmentData: any = {
             profile_id: userId,
             turma_id: item.turma.id,
-            payment_status: 'paid',
+            payment_status: desiredStatus,
             modality: item.modality,
-            paid_at: ts,
-            enrolled_at: ts,
           };
+
+          // Somente definir datas quando pagamento efetivamente confirmado
+          if (desiredStatus === 'paid') {
+            enrollmentData.paid_at = ts;
+            enrollmentData.enrolled_at = ts;
+          }
+
           if (paymentId) enrollmentData.payment_id = paymentId;
 
-          const { error: enrollError } = await supabase
-            .from('enrollments')
-            .insert(enrollmentData);
-
+          const { error: enrollError } = await supabase.from('enrollments').insert(enrollmentData);
           if (enrollError) {
             console.error('[checkout] Error creating enrollment:', enrollError);
           } else {
-            console.log(`[checkout] Enrollment created for profile ${userId} turma ${item.turma.id} (status=paid)`);
+            console.log(`[checkout] Enrollment created for profile ${userId} turma ${item.turma.id} (status=${enrollmentData.payment_status})`);
           }
-        } else if (existingEnrollment.payment_status !== 'paid') {
-          // Atualizar para paid se existir mas não estiver paga
-          try {
+        } else {
+          // Se já existe e precisamos ativar (por pagamento confirmado), atualizamos para paid e definimos enrolled_at se necessário
+          if (existingEnrollment && desiredStatus === 'paid' && existingEnrollment.payment_status !== 'paid') {
             const updateData: any = { payment_status: 'paid', paid_at: ts, payment_id: paymentId || existingEnrollment.payment_id };
             if (!existingEnrollment.enrolled_at) updateData.enrolled_at = ts;
 
@@ -409,13 +414,12 @@ export default function Checkout() {
             if (updErr) {
               console.error('[checkout] Error updating existing enrollment to paid:', updErr);
             } else {
-              console.log(`[checkout] Updated enrollment ${existingEnrollment.id} to paid`);
+              console.log(`[checkout] Updated existing enrollment ${existingEnrollment.id} to paid for turma ${item.turma.id}`);
             }
-          } catch (e) {
-            console.error('[checkout] Error handling existing enrollment:', e);
           }
         }
       }
+      // Nota: não limpar o carrinho aqui — quem chamar deve decidir quando limpar (apenas quando matrícula ativa)
     } catch (e) {
       console.error('[checkout] Error in createEnrollmentsForPayment:', e);
     }
@@ -739,15 +743,16 @@ export default function Checkout() {
         }).select().single();
 
         const localTimestamp = getLocalTimestamp();
+        const enrollStatus = (pixStatus === 'CONFIRMED' || pixStatus === 'RECEIVED') ? 'active' : 'pending';
 
-        // Só criar matrícula se pagamento já confirmado
-        if (pixStatus === 'CONFIRMED' || pixStatus === 'RECEIVED') {
-          await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp);
+        // Criar matrícula imediatamente (pending ou active)
+        await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
+
+        if (enrollStatus === 'active') {
           if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
         } else {
-          // Não criar matrícula - apenas mostrar QR Code
           toast({ title: 'PIX Gerado!', description: 'Escaneie o QR Code ou copie o código PIX para pagar.' });
         }
       } else if (paymentMethod === 'BOLETO') {
