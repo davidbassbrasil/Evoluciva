@@ -6,17 +6,17 @@ import { GraduationCap, Globe, Phone, Instagram, Facebook, Youtube, MapPin, Exte
 export default function Links() {
   const socialLinks = [
     {
-      name: 'Site',
-      description: 'Conheça nossos cursos',
+      name: 'Matrículas Abertas',
+      description: 'Ver cursos com matrículas abertas!',
       icon: Globe,
-      url: '/',
+      url: '/cursos',
       internal: true,
       color: 'from-slate-600 to-slate-700 dark:from-slate-500 dark:to-slate-600',
       bgColor: 'bg-slate-100 dark:bg-slate-800'
     },
     {
       name: 'WhatsApp',
-      description: 'Atendimento',
+      description: 'Fale comigo agora mesmo!',
       icon: Phone,
       url: 'https://api.whatsapp.com/send?phone=5582988163133',
       color: 'from-emerald-600 to-emerald-700',
@@ -24,27 +24,11 @@ export default function Links() {
     },
     {
       name: 'Instagram',
-      description: 'Conteúdos e atualizações',
+      description: 'Conteúdos e atualizações sobre a Academia de Vencedores',
       icon: Instagram,
       url: 'https://www.instagram.com/edu_sampaio_cursos/',
       color: 'from-rose-600 to-rose-700',
       bgColor: 'bg-rose-50 dark:bg-rose-900/20'
-    },
-    {
-      name: 'Facebook',
-      description: 'Comunidade e eventos',
-      icon: Facebook,
-      url: 'https://www.facebook.com/edusampaio.portugues',
-      color: 'from-blue-600 to-blue-700',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
-    },
-    {
-      name: 'YouTube',
-      description: 'Aulas e materiais',
-      icon: Youtube,
-      url: 'https://www.youtube.com/user/eduardoredacao',
-      color: 'from-red-600 to-red-700',
-      bgColor: 'bg-red-50 dark:bg-red-900/20'
     },
   ];
 
@@ -106,12 +90,12 @@ export default function Links() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-base text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors truncate">
+                              <h4 className="font-semibold text-base text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors whitespace-normal break-words">
                                 {link.name}
                               </h4>
                               <ExternalLink className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors flex-shrink-0 ml-2" />
                             </div>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate">{link.description}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 whitespace-normal break-words">{link.description}</p>
                           </div>
                         </div>
                       </div>
@@ -125,12 +109,12 @@ export default function Links() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-base text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors truncate">
+                              <h4 className="font-semibold text-base text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors whitespace-normal break-words">
                                 {link.name}
                               </h4>
                               <ExternalLink className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors flex-shrink-0 ml-2" />
                             </div>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate">{link.description}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 whitespace-normal break-words">{link.description}</p>
                           </div>
                         </div>
                       </div>
@@ -272,12 +256,12 @@ export default function Links() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">
+                              <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors whitespace-normal break-words">
                                 {link.name}
                               </h4>
                               <ExternalLink className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors flex-shrink-0" />
                             </div>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{link.description}</p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 whitespace-normal break-words">{link.description}</p>
                           </div>
                         </div>
                         <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700 transition-colors duration-300 pointer-events-none"></div>
@@ -292,12 +276,12 @@ export default function Links() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors">
+                              <h4 className="font-semibold text-lg text-slate-900 dark:text-white group-hover:text-slate-800 dark:group-hover:text-slate-200 transition-colors whitespace-normal break-words">
                                 {link.name}
                               </h4>
                               <ExternalLink className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors flex-shrink-0" />
                             </div>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{link.description}</p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 whitespace-normal break-words">{link.description}</p>
                           </div>
                         </div>
                         <div className="absolute inset-0 rounded-xl border-2 border-transparent group-hover:border-slate-100 dark:group-hover:border-slate-700 transition-colors duration-300 pointer-events-none"></div>
