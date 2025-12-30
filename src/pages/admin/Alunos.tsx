@@ -107,6 +107,7 @@ export default function AdminAlunos() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTurma, setFilterTurma] = useState<string>('all');
+  const [filterModality, setFilterModality] = useState<string>('select');
   
   // Dialogs
   const [openAddStudent, setOpenAddStudent] = useState(false);
@@ -260,9 +261,25 @@ export default function AdminAlunos() {
         .map(e => e.profile_id);
       result = result.filter(p => enrolledProfileIds.includes(p.id));
     }
-    
+
+    // Modality filter behavior:
+    // 'select' => no modality filter (normal)
+    // 'matriculados' => only profiles that have at least one enrollment (any modality)
+    // 'presential'|'online' => only profiles that have at least one enrollment with that modality
+    if (filterModality && filterModality !== 'select') {
+      if (filterModality === 'matriculados') {
+        const enrolledProfileIds = enrollments.map(e => e.profile_id);
+        result = result.filter(p => enrolledProfileIds.includes(p.id));
+      } else {
+        const enrolledProfileIdsByModality = enrollments
+          .filter(e => e.modality === filterModality)
+          .map(e => e.profile_id);
+        result = result.filter(p => enrolledProfileIdsByModality.includes(p.id));
+      }
+    }
+
     return result;
-  }, [profiles, searchTerm, filterTurma, enrollments]);
+  }, [profiles, searchTerm, filterTurma, enrollments, filterModality]);
 
   const studentsCountByTurma = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1364,14 +1381,28 @@ export default function AdminAlunos() {
 
         {/* Filters and Search */}
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, email, telefone ou CPF..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex-1 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, email, telefone ou CPF..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={filterModality} onValueChange={setFilterModality}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Selecionar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="select">Selecionar</SelectItem>
+                <SelectItem value="matriculados">Todos os matriculados</SelectItem>
+                <SelectItem value="presential">Presencial</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Select value={filterTurma} onValueChange={setFilterTurma}>
@@ -1400,11 +1431,18 @@ export default function AdminAlunos() {
         </div>
 
         {/* Filter info */}
-        {filterTurma && filterTurma !== 'all' && (
+        {((filterTurma && filterTurma !== 'all') || (filterModality && filterModality !== 'select')) && (
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Badge variant="secondary">
-              {turmas.find(t => t.id === filterTurma)?.name}
-            </Badge>
+            {filterTurma && filterTurma !== 'all' && (
+              <Badge variant="secondary">
+                {turmas.find(t => t.id === filterTurma)?.name}
+              </Badge>
+            )}
+            {filterModality && filterModality !== 'select' && (
+              <Badge variant="secondary">
+                {filterModality === 'matriculados' ? 'Todos os matriculados' : filterModality === 'presential' ? 'Presencial' : 'Online'}
+              </Badge>
+            )}
             <div>
               <div>{filteredProfiles.length} aluno(s) encontrado(s)</div>
               {selectedTurmaCounts && (
@@ -1413,10 +1451,18 @@ export default function AdminAlunos() {
                 </div>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setFilterTurma('all')}>
-              <X className="w-3 h-3 mr-1" />
-              Limpar filtro
-            </Button>
+            {filterTurma && filterTurma !== 'all' && (
+              <Button variant="ghost" size="sm" onClick={() => setFilterTurma('all')}>
+                <X className="w-3 h-3 mr-1" />
+                Limpar turma
+              </Button>
+            )}
+            {filterModality && filterModality !== 'select' && (
+              <Button variant="ghost" size="sm" onClick={() => setFilterModality('select')}>
+                <X className="w-3 h-3 mr-1" />
+                Limpar modalidade
+              </Button>
+            )}
           </div>
         )}
 
