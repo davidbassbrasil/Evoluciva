@@ -28,6 +28,7 @@ interface Permission {
 const AVAILABLE_PERMISSIONS: Permission[] = [
   { key: 'dashboard', label: 'Dashboard', description: 'Estatísticas gerais - O botão não pode ser desabilitado!' },
   { key: 'banners', label: 'Banners', description: 'Gerenciar banners da home' },
+  { key: 'popups', label: 'Popups', description: 'Gerenciar popup da homepage' },
   { key: 'cursos', label: 'Cursos', description: 'Criar e editar cursos' },
   { key: 'turmas', label: 'Turmas', description: 'Gerenciar turmas e matrículas' },
   { key: 'aulas', label: 'Aulas', description: 'Adicionar e editar aulas' },

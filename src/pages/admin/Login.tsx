@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Lock, Mail } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { GraduationCap, Lock, Mail, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -76,6 +76,13 @@ export default function AdminLogin() {
         <div className="flex items-center justify-center gap-2 mb-8">
           <img src={logoPng} alt="Logo" className="h-12" />
         </div>
+
+        {/* Title */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold mb-2">Área Administrativa</h1>
+          <p className="text-muted-foreground">Acesse sua Área Administrativa</p>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -87,6 +94,13 @@ export default function AdminLogin() {
           </div>
           <Button type="submit" className="w-full h-12 gradient-bg text-primary-foreground">Entrar</Button>
         </form>
+
+        {/* Back to home */}
+        <div className="text-center mt-5">
+          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+            ← Voltar para o site
+          </Link>
+        </div>
       </div>
     </div>
   );
