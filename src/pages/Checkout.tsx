@@ -783,16 +783,15 @@ export default function Checkout() {
         }).select().single();
 
         const localTimestamp = getLocalTimestamp();
-        const enrollStatus = (boletoStatus === 'CONFIRMED' || boletoStatus === 'RECEIVED') ? 'active' : 'pending';
 
-        // Criar matrícula imediatamente (pending ou active)
-        await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
-
-        if (enrollStatus === 'active') {
+        // Só criar matrícula se pagamento já confirmado
+        if (boletoStatus === 'CONFIRMED' || boletoStatus === 'RECEIVED') {
+          await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp);
           if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
         } else {
+          // Não criar matrícula - apenas mostrar boleto
           toast({ title: 'Boleto Gerado!', description: 'Você pode visualizar e pagar o boleto.' });
         }
       }
