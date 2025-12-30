@@ -374,8 +374,7 @@ export default function Checkout() {
           }
         }
       }
-      // se era checkout por carrinho, limpar
-      if (!turma) clearCart();
+      // Nota: não limpar o carrinho aqui — quem chamar deve decidir quando limpar (apenas quando matrícula ativa)
     } catch (e) {
       // erro no fluxo de criação de matrículas
     }
@@ -653,6 +652,7 @@ export default function Checkout() {
 
           // Criar matrículas imediatamente para pagamentos confirmados
           await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+          if (!turma) clearCart();
 
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
@@ -704,6 +704,7 @@ export default function Checkout() {
         await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
 
         if (enrollStatus === 'active') {
+          if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
         } else {
@@ -748,6 +749,7 @@ export default function Checkout() {
         await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp, enrollStatus);
 
         if (enrollStatus === 'active') {
+          if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
         } else {
@@ -823,6 +825,7 @@ export default function Checkout() {
 
             // Criar matrículas imediatamente para pagamento confirmado
             await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+            if (!turma) clearCart();
 
             toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
             navigate('/aluno/dashboard');
