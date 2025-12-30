@@ -51,6 +51,7 @@ interface Payment {
   net_value?: number;
   status: string;
   billing_type: string;
+  modality?: string;
   installment_count?: number;
   installment_number?: number;
   due_date: string;
@@ -154,7 +155,18 @@ export default function Financeiro() {
   const getPaymentModalities = (p?: any) => {
     if (!p) return '-';
     try {
-      const items = p?.metadata?.items;
+      // metadata pode ser objeto ou string JSON - tentar suportar ambos
+      let metadata: any = p?.metadata;
+      if (typeof metadata === 'string' && metadata) {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          // parsing falhou - ignorar
+          metadata = null;
+        }
+      }
+
+      const items = metadata?.items || p?.metadata?.items;
       if (Array.isArray(items) && items.length > 0) {
         const modalities = Array.from(new Set(items.map((it: any) => (it?.modality || '').toString())));
         const human = modalities.map((m: string) => (m === 'online' ? 'Online' : m === 'presential' ? 'Presencial' : m || '-'));
@@ -345,16 +357,60 @@ export default function Financeiro() {
           const total_refunded = refunds?.filter(r => ['COMPLETED', 'PROCESSING', 'APPROVED'].includes(r.status))
             .reduce((sum, r) => sum + Number(r.refund_value), 0) || 0;
 
+          // Tentar extrair modalidade dos metadata.items (pagamentos do checkout) ou, se não disponível, buscar pela enrollment_id
+          let modality: string | undefined = getPaymentModalities(payment);
+          if (modality === '-' || !modality) {
+            modality = undefined;
+          }
+
+          // Se não encontrou via metadata, tentar buscar pela matrícula referenciada (enrollment_id)
+          if (!modality && payment.enrollment_id) {
+            try {
+              const { data: enroll } = await supabase
+                .from('enrollments')
+                .select('modality')
+                .eq('id', payment.enrollment_id)
+                .single();
+              if (enroll?.modality) {
+                modality = enroll.modality === 'online' ? 'Online' : enroll.modality === 'presential' ? 'Presencial' : enroll.modality;
+              }
+            } catch (e) {
+              // ignore errors, modality remains undefined
+            }
+          }
+
+          // Se ainda não encontrou, tentar buscar a matrícula mais recente do usuário para a turma (caso exista user_id + turma_id)
+          if (!modality && payment.user_id && payment.turma_id) {
+            try {
+              const { data: enrolls } = await supabase
+                .from('enrollments')
+                .select('modality')
+                .eq('profile_id', payment.user_id)
+                .eq('turma_id', payment.turma_id)
+                .order('enrolled_at', { ascending: false })
+                .limit(1);
+              const e = Array.isArray(enrolls) && enrolls[0];
+              if (e?.modality) {
+                modality = e.modality === 'online' ? 'Online' : e.modality === 'presential' ? 'Presencial' : e.modality;
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+
           return {
             ...payment,
             profiles: profile,
             turmas: turma,
             refunds: refunds || [],
             total_refunded,
+            modality,
           };
         })
       );
 
+      // DEBUG: contar quantos pagamentos têm modalidade definida
+      console.log('Financeiro: pagamentos com modality', paymentsWithProfiles.filter(p => !!p.modality).length, 'de', paymentsWithProfiles.length);
       setPayments(paymentsWithProfiles);
       calculateStats(paymentsWithProfiles);
       
@@ -362,7 +418,7 @@ export default function Financeiro() {
       try {
         const { data: enrollmentsData, error: enrollErr } = await supabase
           .from('enrollments')
-          .select('id, profile_id, turma_id, enrolled_at, paid_at, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit, payment_method_local_pix, payment_method_local_cash, payment_method_local_credit_card, payment_method_local_debit, profile:profiles(full_name,email), turma:turmas(name, course:courses(title))')
+          .select('id, profile_id, turma_id, enrolled_at, paid_at, modality, amount_paid_local_pix, amount_paid_local_cash, amount_paid_local_credit_card, amount_paid_local_debit, payment_method_local_pix, payment_method_local_cash, payment_method_local_credit_card, payment_method_local_debit, profile:profiles(full_name,email), turma:turmas(name, course:courses(title))')
           .order('created_at', { ascending: false });
 
         if (!enrollErr && Array.isArray(enrollmentsData)) {
@@ -412,6 +468,8 @@ export default function Financeiro() {
               enrollment_id: r.enrollment_id,
             }));
 
+            // Datas: preferir enrolled_at, depois created_at, igual ao modal do cifrão do Admin Alunos
+            const mainDate = e.enrolled_at || e.created_at || new Date().toISOString();
             return {
               id: `local_${e.id}`,
               asaas_payment_id: `local_${e.id}`,
@@ -419,13 +477,14 @@ export default function Financeiro() {
               net_value: total,
               status: 'CONFIRMED',
               billing_type: 'LOCAL',
-              due_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
-              payment_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
-              confirmed_date: (e.paid_at || e.enrolled_at || new Date()).toString(),
+              due_date: mainDate,
+              payment_date: mainDate,
+              confirmed_date: mainDate,
               description: `Caixa Local - ${e.turma?.name || ''}`,
               user_id: e.profile_id,
               turma_id: e.turma_id,
-              created_at: e.enrolled_at || new Date().toISOString(),
+              modality: e.modality ? (e.modality === 'online' ? 'Online' : e.modality === 'presential' ? 'Presencial' : e.modality) : undefined,
+              created_at: mainDate,
               profiles: e.profile || null,
               turmas: e.turma || null,
               refunds: normalizedRefunds,
@@ -1260,6 +1319,7 @@ export default function Financeiro() {
                       <TableHead>Data</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Curso/Turma</TableHead>
+                      <TableHead>Modalidade</TableHead>
                       <TableHead>Método</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
@@ -1270,9 +1330,16 @@ export default function Financeiro() {
                     {filteredPayments.map((payment) => (
                       <TableRow key={payment.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium whitespace-nowrap">
-                          {payment.confirmed_date ? formatBRDateTime(payment.confirmed_date)
-                            : payment.payment_date ? formatBRDateTime(payment.payment_date)
-                            : formatBRDateTime(payment.created_at)}
+                          {/* Prioriza enrolled_at, depois created_at, para todos os pagamentos */}
+                          {payment.enrolled_at
+                            ? formatBRDateTime(payment.enrolled_at)
+                            : payment.created_at
+                              ? formatBRDateTime(payment.created_at)
+                              : payment.confirmed_date
+                                ? formatBRDateTime(payment.confirmed_date)
+                                : payment.payment_date
+                                  ? formatBRDateTime(payment.payment_date)
+                                  : '-'}
                         </TableCell>
                         <TableCell>
                           <div className="min-w-[150px]">
@@ -1291,6 +1358,10 @@ export default function Financeiro() {
                               {payment.turmas?.name || payment.description || '-'}
                             </div>
                           </div>
+                        </TableCell>
+
+                        <TableCell className="whitespace-nowrap text-sm">
+                          {payment.modality || (getPaymentModalities(payment) !== '-' ? getPaymentModalities(payment) : '-')}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 whitespace-nowrap">
@@ -1408,10 +1479,17 @@ export default function Financeiro() {
                   <div>
                     <p className="text-sm text-muted-foreground">Data de Pagamento</p>
                       <p className="font-medium">
-                      {selectedPayment.confirmed_date || selectedPayment.payment_date
-                        ? formatBRWithAt(selectedPayment.confirmed_date || selectedPayment.payment_date)
-                        : formatBRWithAt(selectedPayment.created_at)}
-                    </p>
+                        {/* Prioriza enrolled_at, depois created_at, igual à tabela */}
+                        {selectedPayment.enrolled_at
+                          ? formatBRWithAt(selectedPayment.enrolled_at)
+                          : selectedPayment.created_at
+                            ? formatBRWithAt(selectedPayment.created_at)
+                            : selectedPayment.confirmed_date
+                              ? formatBRWithAt(selectedPayment.confirmed_date)
+                              : selectedPayment.payment_date
+                                ? formatBRWithAt(selectedPayment.payment_date)
+                                : '-'}
+                      </p>
                   </div>
                   {selectedPayment.total_refunded && selectedPayment.total_refunded > 0 && (
                     <div>
@@ -1439,21 +1517,25 @@ export default function Financeiro() {
                 {selectedPayment.description && (
                   <div>
                     <p className="text-sm text-muted-foreground">Descrição</p>
-                    <p className="text-sm">{selectedPayment.description}</p>
+                    <p className="text-sm">{selectedPayment.description}{selectedPayment.modality ? ` — ${selectedPayment.modality}` : (getPaymentModalities(selectedPayment) !== '-' ? ` — ${getPaymentModalities(selectedPayment)}` : '')}</p>
                   </div>
                 )}
                 {selectedPayment.turmas && (
                   <div>
                     <p className="text-sm text-muted-foreground">Curso/Turma</p>
-                    <p className="font-medium">{selectedPayment.turmas.course?.title}</p>
-                    <p className="text-sm text-muted-foreground">{selectedPayment.turmas.name}</p>
+                    <p className="font-medium">{selectedPayment.turmas.course?.title}{selectedPayment.modality && (
+                      <Badge variant="outline" className="text-xs ml-2">{selectedPayment.modality}</Badge>
+                    )}</p>
+                    <p className="text-sm text-muted-foreground">{selectedPayment.turmas.name}{selectedPayment.modality && (
+                      <div className="text-xs text-muted-foreground mt-1">{selectedPayment.modality}</div>
+                    )}</p>
                   </div>
                 )}
 
                 {/* Mostrar modalidade (Online / Presencial) extraída do metadata.items ou fallback */}
                 <div>
                   <p className="text-sm text-muted-foreground">Modalidade</p>
-                  <p className="font-medium">{getPaymentModalities(selectedPayment)}</p>
+                  <p className="font-medium">{selectedPayment.modality || (getPaymentModalities(selectedPayment) !== '-' ? getPaymentModalities(selectedPayment) : '-')}</p>
                 </div>
                 
                 {selectedPayment.refunds && selectedPayment.refunds.length > 0 && (
