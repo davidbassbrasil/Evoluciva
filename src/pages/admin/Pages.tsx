@@ -729,7 +729,7 @@ export function AdminPopups() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold">Popup (texto ou imagem)</h1>
-          <p className="text-muted-foreground">Gerencie o popup que aparece na página principal <span className="text-red-500">(ativar um popup por vez)</span></p>
+          <p className="text-muted-foreground">Gerencie o popup que aparece na página principal <span className="text-red-500">(O popup expira automaticamente na data configurada)</span>.</p>
         </div>
         <div>
           <button onClick={() => openDialog()} className="gradient-bg text-primary-foreground px-4 py-2 rounded">Novo Popup</button>
@@ -746,7 +746,7 @@ export function AdminPopups() {
             <div key={item.id} className="bg-card p-4 rounded-xl border border-border/50 flex items-center justify-between">
               <div>
                 <h3 className="font-bold">{item.title || (item.type === 'image' ? 'Imagem' : 'Texto')}</h3>
-                <p className="text-sm text-muted-foreground">Tipo: {item.type} • {item.active ? 'Ativo' : 'Inativo'} • Expira: {formatExpiresForDisplay(item.expires_at)}</p>
+                <p className="text-sm text-muted-foreground">Tipo: {item.type === 'image' ? 'Imagem' : item.type === 'text' ? 'Texto' : item.type} • {item.active ? 'Ativo' : 'Inativo'} • Expira: {formatExpiresForDisplay(item.expires_at)}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="icon" onClick={() => toggleActive(item.id)} title={item.active ? 'Desativar' : 'Ativar'}>
