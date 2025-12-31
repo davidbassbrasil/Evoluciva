@@ -858,7 +858,7 @@ export default function AdminAlunos() {
           </tbody>
         </table>
         <div class="total">Total de Alunos: ${dataToExport.length}</div>
-        <div class="footer">Evoluciva - Sistema de Gestão de Cursos</div>
+        <div class="footer">Sistema de Gestão de Cursos</div>
       </body>
       </html>
     `;

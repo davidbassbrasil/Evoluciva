@@ -12,7 +12,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import { format, subDays } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   formatBRDateTime, 
@@ -536,10 +536,17 @@ export default function Financeiro() {
     // Filtrar por período selecionado (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
     const startKey = dateKeyBR(dateFrom) || '';
     const endKey = dateKeyBR(dateTo) || '';
+    console.log('[financeiro][debug] dateFrom', dateFrom, 'dateTo', dateTo, 'startKey', startKey, 'endKey', endKey);
     const periodPayments = confirmed.filter(p => {
-      const key = dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '';
-      return key >= startKey && key <= endKey;
+      // Use the same date precedence as the table: enrolled_at > created_at > confirmed_date > payment_date
+      const key = dateKeyBR(p.enrolled_at || p.created_at || p.confirmed_date || p.payment_date) || '';
+      const match = key >= startKey && key <= endKey;
+      if (key === todayKeyBR()) {
+        console.log('[financeiro][debug] payment with todayKey', { id: p.id, key, status: p.status, enrolled_at: p.enrolled_at, created_at: p.created_at, confirmed_date: p.confirmed_date, payment_date: p.payment_date });
+      }
+      return match;
     });
+    console.log('[financeiro][debug] periodPayments count', periodPayments.length);
 
     // Para mês/ano, calcular diretamente a chave BR do 'now' e comparar prefixos
     const brNowKey = dateKeyBR(now) || '';
@@ -649,7 +656,8 @@ export default function Financeiro() {
     const startKey = dateKeyBR(dateFrom) || '';
     const endKey = dateKeyBR(dateTo) || '';
     filtered = filtered.filter(p => {
-      const key = dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '';
+      // Use the same date precedence as the table: enrolled_at > created_at > confirmed_date > payment_date
+      const key = dateKeyBR(p.enrolled_at || p.created_at || p.confirmed_date || p.payment_date) || '';
       return key >= startKey && key <= endKey;
     });
     
@@ -943,7 +951,7 @@ export default function Financeiro() {
   const exportToCSV = () => {
     const headers = ['Data', 'Cliente', 'Email', 'Curso', 'Método', 'Status', 'Valor'];
     const rows = filteredPayments.map(p => [
-      p.confirmed_date ? formatBRDateTime(p.confirmed_date) : p.payment_date ? formatBRDateTime(p.payment_date) : '-',
+      p.enrolled_at ? formatBRDateTime(p.enrolled_at) : p.created_at ? formatBRDateTime(p.created_at) : p.confirmed_date ? formatBRDateTime(p.confirmed_date) : p.payment_date ? formatBRDateTime(p.payment_date) : '-',
       p.profiles?.full_name || 'N/A',
       p.profiles?.email || 'N/A',
       p.turmas?.course?.title || p.description || '-',
@@ -1077,6 +1085,7 @@ export default function Financeiro() {
                         onSelect={(date) => {
                           if (date) {
                             setDateFrom(startOfDay(date));
+                            setDateTo(endOfDay(date));
                             setDatePreset('custom');
                             setShowDatePicker(false);
                           }

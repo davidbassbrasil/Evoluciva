@@ -143,7 +143,7 @@ function ModuleDeliveriesRow({ module, onRefresh }: { module: Module; onRefresh:
             `).join('')}
           </tbody>
         </table>
-        <div class="footer">Evoluciva - Sistema de Gestão de Cursos</div>
+        <div class="footer">Sistema de Gestão de Cursos</div>
       </body>
       </html>
     `;

@@ -57,7 +57,20 @@ export function formatBRDate(value?: string | Date | null): string {
 export function dateKeyBR(value?: string | Date | null): string | null {
   if (!value) return null;
   try {
-    const d = typeof value === 'string' ? new Date(value) : value as Date;
+    let d: Date;
+    if (typeof value === 'string') {
+      // If value is a date-only string (YYYY-MM-DD), treat it as local BR midnight
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        d = new Date(`${value}T00:00:00-03:00`);
+      } else if (!/[zZ]|[+\-]\d{2}:?\d{2}$/.test(value)) {
+        // naive datetime without timezone -> assume it's BR local
+        d = new Date(`${value}-03:00`);
+      } else {
+        d = new Date(value);
+      }
+    } else {
+      d = value as Date;
+    }
     return new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   } catch (e) {
     return null;
