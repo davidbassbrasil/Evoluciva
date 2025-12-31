@@ -34,6 +34,8 @@ export default function Cart() {
 
     const loadCartItems = async () => {
       const cartItems = getCart();
+      // orderedItems declared here so it is available after try/catch (used for upsell logic)
+      let orderedItems: Array<{ item: Turma; itemId: string; modality: 'presential' | 'online' }> = [];
       
       if (cartItems.length === 0) {
         setLoading(false);
@@ -107,7 +109,7 @@ export default function Cart() {
             });
 
             // Manter ordem do carrinho e associar itemId + modality
-            const orderedItems = cartItems
+            orderedItems = cartItems
               .map(itemId => {
                 const parts = itemId.split(':');
                 const turmaId = parts[1];
@@ -127,7 +129,7 @@ export default function Cart() {
             setItems(orderedItems);
           } catch (err) {
             console.error('Erro ao carregar preços opcionais no carrinho:', err);
-            const orderedItems = cartItems
+            orderedItems = cartItems
               .map(itemId => {
                 const parts = itemId.split(':');
                 const turmaId = parts[1];

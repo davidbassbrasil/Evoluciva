@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus, Ticket, Tag
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatBRDate, formatBRDateTime } from '@/lib/dates';
@@ -122,6 +122,87 @@ export default function AdminAlunos() {
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
+
+  // Profile Coupons dialog
+  const [openProfileCoupons, setOpenProfileCoupons] = useState(false);
+  const [profileCoupons, setProfileCoupons] = useState<Array<any>>([]);
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponDiscountInput, setCouponDiscountInput] = useState<number>(0);
+  const [couponUsesInput, setCouponUsesInput] = useState<number>(1);
+  const [couponSaving, setCouponSaving] = useState(false);
+
+  const loadProfileCoupons = async (profileId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profile_coupons')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProfileCoupons(data || []);
+    } catch (err: any) {
+      console.error('Erro ao carregar cupons do perfil:', err);
+      toast({ title: 'Erro', description: err.message || 'Não foi possível carregar cupons', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createProfileCoupon = async () => {
+    if (!selectedProfile) return;
+    if (!couponCodeInput.trim()) {
+      toast({ title: 'Erro', description: 'Informe o código do cupom', variant: 'destructive' });
+      return;
+    }
+    setCouponSaving(true);
+    try {
+      const payload = {
+        profile_id: selectedProfile.id,
+        code: couponCodeInput.trim().toUpperCase(),
+        discount_value: Number(couponDiscountInput) || 0,
+        uses_remaining: Number(couponUsesInput) || 1,
+        active: true,
+      };
+      const { error } = await supabase.from('profile_coupons').insert(payload);
+      if (error) throw error;
+      toast({ title: 'Cupom criado', description: `Cupom ${payload.code} criado para ${selectedProfile.full_name}` });
+      setCouponCodeInput('');
+      setCouponDiscountInput(0);
+      setCouponUsesInput(1);
+      await loadProfileCoupons(selectedProfile.id);
+    } catch (err: any) {
+      console.error('Erro ao criar cupom do perfil:', err);
+      toast({ title: 'Erro', description: err.message || 'Não foi possível criar o cupom', variant: 'destructive' });
+    } finally {
+      setCouponSaving(false);
+    }
+  };
+
+  const deleteProfileCoupon = async (id: string) => {
+    try {
+      const { error } = await supabase.from('profile_coupons').delete().eq('id', id);
+      if (error) throw error;
+      toast({ title: 'Cupom removido' });
+      if (selectedProfile) await loadProfileCoupons(selectedProfile.id);
+    } catch (err: any) {
+      console.error('Erro ao deletar cupom:', err);
+      toast({ title: 'Erro', description: err.message || 'Não foi possível remover o cupom', variant: 'destructive' });
+    }
+  };
+
+  const deactivateProfileCoupon = async (id: string) => {
+    try {
+      const { error } = await supabase.from('profile_coupons').update({ active: false }).eq('id', id);
+      if (error) throw error;
+      toast({ title: 'Cupom desativado' });
+      if (selectedProfile) await loadProfileCoupons(selectedProfile.id);
+    } catch (err: any) {
+      console.error('Erro ao desativar cupom:', err);
+      toast({ title: 'Erro', description: err.message || 'Não foi possível desativar o cupom', variant: 'destructive' });
+    }
+  };
   const [refundValue, setRefundValue] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [refundDescription, setRefundDescription] = useState('');
@@ -1488,6 +1569,13 @@ export default function AdminAlunos() {
                       <Button variant="ghost" size="icon" onClick={() => openFinanceiroView(profile)} title="Financeiro">
                         <DollarSign className="w-4 h-4 text-blue-600" />
                       </Button>
+                      <Button variant="ghost" size="icon" onClick={() => {
+                        setSelectedProfile(profile);
+                        loadProfileCoupons(profile.id);
+                        setOpenProfileCoupons(true);
+                      }} title="Cupons do Aluno">
+                        <Ticket className="w-4 h-4 text-purple-600" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEnroll(profile)} title="Matricular">
                         <UserPlus className="w-4 h-4 text-green-600" />
                       </Button>
@@ -1635,6 +1723,18 @@ export default function AdminAlunos() {
                             title="Financeiro"
                           >
                             <DollarSign className="w-4 h-4 text-blue-600" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedProfile(profile);
+                              loadProfileCoupons(profile.id);
+                              setOpenProfileCoupons(true);
+                            }}
+                            title="Cupons do Aluno"
+                          >
+                            <Ticket className="w-4 h-4 text-purple-600" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -2160,6 +2260,58 @@ export default function AdminAlunos() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpenFinanceiro(false)}>Fechar</Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Profile Coupons Dialog */}
+        <Dialog open={openProfileCoupons} onOpenChange={setOpenProfileCoupons}>
+          <DialogContent className="w-full max-w-full sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Cupons do Aluno - {selectedProfile?.full_name}</DialogTitle>
+              <DialogDescription>Crie cupons exclusivos para este aluno (desconto em R$).</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <Input placeholder="Código do cupom" value={couponCodeInput} onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())} />
+                </div>
+                <div>
+                  <Input placeholder="Desconto (R$)" type="number" step="0.01" value={couponDiscountInput} onChange={(e) => setCouponDiscountInput(Number(e.target.value))} />
+                  <div className="text-xs text-muted-foreground mt-1">Digite o valor do desconto</div>
+                </div>
+                <div>
+                  <Input placeholder="Quantidade de usos" type="number" min={1} value={couponUsesInput} onChange={(e) => setCouponUsesInput(Number(e.target.value))} />
+                  <div className="text-xs text-muted-foreground mt-1">Número de vezes que o aluno pode usar</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button onClick={createProfileCoupon} disabled={couponSaving}>{couponSaving ? 'Salvando...' : 'Criar cupom'}</Button>
+                <Button variant="outline" onClick={() => setOpenProfileCoupons(false)}>Fechar</Button>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Cupons existentes</h4>
+                <div className="space-y-2">
+                  {profileCoupons.length === 0 && <div className="text-sm text-muted-foreground">Nenhum cupom</div>}
+                  {profileCoupons.map((c: any) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 bg-muted p-2 rounded">
+                      <div>
+                        <div className="font-medium">{c.code} {(!c.active) && <span className="text-xs text-destructive">(inativo)</span>}</div>
+                        <div className="text-sm text-muted-foreground">R$ {Number(c.discount_value).toFixed(2)} • {c.uses_remaining} uso(s)</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => deactivateProfileCoupon(c.id)} title="Desativar"><X className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => deleteProfileCoupon(c.id)} title="Remover"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
           </DialogContent>
         </Dialog>
 

@@ -132,6 +132,17 @@ export interface User {
   createdAt: string;
 }
 
+export interface ProfileCoupon {
+  id: string;
+  profile_id: string;
+  code: string;
+  discount_value: number; // currency in BRL (e.g., 50.00 = R$50)
+  uses_remaining: number;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface SiteSettings {
   siteName: string;
   logo: string;

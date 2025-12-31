@@ -75,8 +75,10 @@ export default function Checkout() {
   const [couponCode, setCouponCode] = useState<string>('');
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
-    discount: number;
+    discount?: number; // percentage (turma coupon)
+    discountValue?: number; // fixed amount in BRL (profile coupon)
     turmaId?: string | null;
+    profileCouponId?: string | null;
   } | null>(null);
   const [couponError, setCouponError] = useState<string>('');
 
@@ -362,7 +364,8 @@ export default function Checkout() {
     userId: string,
     items: Array<{ turma: Turma; modality: 'presential' | 'online' }>,
     paymentId?: string,
-    enrolledAt?: string
+    enrolledAt?: string,
+    couponCode?: string | null
   ) => {
     const ts = enrolledAt || getLocalTimestamp();
     try {
@@ -385,17 +388,7 @@ export default function Checkout() {
             enrolled_at: ts,
           };
           if (paymentId) enrollmentData.payment_id = paymentId;
-
-          const { error: enrollError } = await supabase
-            .from('enrollments')
-            .insert(enrollmentData);
-
-          if (enrollError) {
-            console.error('[checkout] Error creating enrollment:', enrollError);
-          } else {
-            console.log(`[checkout] Enrollment created for profile ${userId} turma ${item.turma.id} (status=paid)`);
-          }
-        } else if (existingEnrollment.payment_status !== 'paid') {
+          if (couponCode) enrollmentData.coupon_used = couponCode;
           // Atualizar para paid se existir mas não estiver paga
           try {
             const updateData: any = { payment_status: 'paid', paid_at: ts, payment_id: paymentId || existingEnrollment.payment_id };
@@ -692,7 +685,19 @@ export default function Checkout() {
           }
 
           // Criar matrículas imediatamente para pagamentos confirmados
-          await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+          await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp, appliedCoupon?.code || null);
+
+          // Se usou um cupom de perfil, decrementar seu contador via RPC
+          if (appliedCoupon?.profileCouponId) {
+            try {
+              const { data: useRes, error: useErr } = await supabase.rpc('use_profile_coupon', { p_profile_id: userId, p_code: appliedCoupon.code });
+              if (useErr) console.error('Erro ao decrementar cupom de perfil:', useErr);
+              // optionally: show toast if needed
+            } catch (e) {
+              console.error('RPC error use_profile_coupon', e);
+            }
+          }
+
           if (!turma) clearCart();
 
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
@@ -742,7 +747,15 @@ export default function Checkout() {
 
         // Só criar matrícula se pagamento já confirmado
         if (pixStatus === 'CONFIRMED' || pixStatus === 'RECEIVED') {
-          await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp);
+          await createEnrollmentsForPayment(userId, itemsToPurchase, pixPaymentRecord?.id || undefined, localTimestamp, appliedCoupon?.code || null);
+
+          if (appliedCoupon?.profileCouponId) {
+            try {
+              const { data: useRes, error: useErr } = await supabase.rpc('use_profile_coupon', { p_profile_id: userId, p_code: appliedCoupon.code });
+              if (useErr) console.error('Erro ao decrementar cupom de perfil:', useErr);
+            } catch (e) { console.error('RPC error use_profile_coupon', e); }
+          }
+
           if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
@@ -786,7 +799,15 @@ export default function Checkout() {
 
         // Só criar matrícula se pagamento já confirmado
         if (boletoStatus === 'CONFIRMED' || boletoStatus === 'RECEIVED') {
-          await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp);
+          await createEnrollmentsForPayment(userId, itemsToPurchase, boletoPaymentRecord?.id || undefined, localTimestamp, appliedCoupon?.code || null);
+
+          if (appliedCoupon?.profileCouponId) {
+            try {
+              const { data: useRes, error: useErr } = await supabase.rpc('use_profile_coupon', { p_profile_id: userId, p_code: appliedCoupon.code });
+              if (useErr) console.error('Erro ao decrementar cupom de perfil:', useErr);
+            } catch (e) { console.error('RPC error use_profile_coupon', e); }
+          }
+
           if (!turma) clearCart();
           toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
           navigate('/aluno/dashboard');
@@ -863,7 +884,15 @@ export default function Checkout() {
             }
 
             // Criar matrículas imediatamente para pagamento confirmado
-            await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp);
+            await createEnrollmentsForPayment(userId, itemsToPurchase, paymentRecord?.id, localTimestamp, appliedCoupon?.code || null);
+
+            if (appliedCoupon?.profileCouponId) {
+              try {
+                const { data: useRes, error: useErr } = await supabase.rpc('use_profile_coupon', { p_profile_id: userId, p_code: appliedCoupon.code });
+                if (useErr) console.error('Erro ao decrementar cupom de perfil:', useErr);
+              } catch (e) { console.error('RPC error use_profile_coupon', e); }
+            }
+
             if (!turma) clearCart();
 
             toast({ title: 'Pagamento confirmado!', description: 'Sua matrícula foi liberada. Acesse o dashboard para começar.' });
@@ -885,7 +914,7 @@ export default function Checkout() {
     }
   };
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     setCouponError('');
     const code = couponCode.trim().toUpperCase();
     if (!code) {
@@ -894,7 +923,31 @@ export default function Checkout() {
     }
 
     const items = turma ? [{ turma, modality: turmaModality }] : cartItems;
-    // Encontrar primeira turma que possua este cupom
+
+    // First, check profile-specific coupons for the current user
+    if (user) {
+      try {
+        const { data: profCoupon, error: profErr } = await supabase
+          .from('profile_coupons')
+          .select('*')
+          .eq('profile_id', user.id)
+          .eq('code', code)
+          .eq('active', true)
+          .gt('uses_remaining', 0)
+          .maybeSingle();
+
+        if (profErr) console.error('Erro ao buscar cupom de perfil:', profErr);
+        if (profCoupon) {
+          setAppliedCoupon({ code, discountValue: Number(profCoupon.discount_value || 0), profileCouponId: profCoupon.id });
+          toast({ title: 'Cupom aplicado', description: `Cupom ${code} aplicado (R$ ${Number(profCoupon.discount_value).toFixed(2)})` });
+          return;
+        }
+      } catch (e) {
+        console.error('[checkout] error checking profile coupon', e);
+      }
+    }
+
+    // Fallback: find first turma coupon that matches
     const match = items.find(i => (i.turma.coupon_code || '').toUpperCase() === code);
     if (match) {
       setAppliedCoupon({ code, discount: Number(match.turma.coupon_discount || 0), turmaId: match.turma.id });
@@ -939,16 +992,18 @@ export default function Checkout() {
     // Aplicar desconto de cupom (se aplicável)
     let couponDiscount = 0;
     if (appliedCoupon) {
-      // Se associado a turma específica
-      if (appliedCoupon.turmaId) {
+      // Profile coupon: fixed value in R$
+      if (appliedCoupon.profileCouponId && appliedCoupon.discountValue != null) {
+        couponDiscount = Math.min(Number(appliedCoupon.discountValue), subtotalBase);
+      } else if (appliedCoupon.turmaId) {
         const match = itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId);
         if (match) {
           const price = match.modality === 'online'
             ? Number(match.turma._effective_price_online ?? match.turma.price_online ?? 0)
             : Number(match.turma._effective_price_presential ?? match.turma.price ?? 0);
-          couponDiscount = price * (appliedCoupon.discount / 100);
+          couponDiscount = price * ((appliedCoupon.discount || 0) / 100);
         }
-      } else {
+      } else if (appliedCoupon.discount) {
         couponDiscount = subtotalBase * (appliedCoupon.discount / 100);
       }
     }
@@ -1105,10 +1160,7 @@ export default function Checkout() {
                 {appliedCoupon && (
                   <div className="flex justify-between text-success mb-2">
                     <span>Desconto (cupom: {appliedCoupon.code})</span>
-                    <span>-R$ { ( (itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.modality === 'online') ?
-                      (Number(itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.turma.price_online ?? 0) * (appliedCoupon.discount/100)) :
-                      (Number(itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId)?.turma.price ?? 0) * (appliedCoupon.discount/100))
-                    ).toFixed(2)}</span>
+                    <span>-R$ {Number(couponDiscount || 0).toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-xl font-bold">
@@ -1250,7 +1302,7 @@ export default function Checkout() {
                   </div>
                   {couponError && <div className="text-sm text-destructive mt-2">{couponError}</div>}
                   {appliedCoupon && (
-                    <div className="text-sm text-success mt-2">Cupom <strong>{appliedCoupon.code}</strong> aplicado: -{appliedCoupon.discount}%</div>
+                    <div className="text-sm text-success mt-2">Cupom <strong>{appliedCoupon.code}</strong> aplicado: {appliedCoupon.discountValue != null ? `-R$ ${Number(appliedCoupon.discountValue).toFixed(2)}` : `-${appliedCoupon.discount || 0}%`}</div>
                   )}
                 </div>
                 <div className="border-t border-border pt-6">
