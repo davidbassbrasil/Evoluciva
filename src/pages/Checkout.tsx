@@ -506,7 +506,7 @@ export default function Checkout() {
         return `${y}-${m}-${day}`;
       };
 
-      // Calcular total com desconto por método de pagamento
+      // Calcular total base
       let totalValue = itemsToPurchase.reduce((s, item) => {
         const price = item.modality === 'online'
           ? Number(item.turma._effective_price_online ?? item.turma.price_online ?? 0)
@@ -514,35 +514,6 @@ export default function Checkout() {
         return s + price;
       }, 0);
 
-      // Aplicar desconto de cupom, se aplicado
-      if (appliedCoupon) {
-        // Se o cupom está associado a uma turma específica, aplica apenas nela
-        if (appliedCoupon.turmaId) {
-          const match = itemsToPurchase.find(i => i.turma.id === appliedCoupon.turmaId);
-            if (match) {
-            const price = match.modality === 'online' ? Number(match.turma._effective_price_online ?? match.turma.price_online ?? 0) : Number(match.turma._effective_price_presential ?? match.turma.price ?? 0);
-            const cupomDiscount = price * (appliedCoupon.discount / 100);
-            totalValue -= cupomDiscount;
-          }
-        } else {
-          // Aplica desconto percentual sobre o total
-          totalValue -= totalValue * (appliedCoupon.discount / 100);
-        }
-      }
-
-      // Se o total é zero ou menor, finalizar matrícula sem passar pelo gateway
-      if (totalValue <= 0) {
-        // Registrar matrícula localmente e limpar carrinho
-        itemsToPurchase.forEach((item) => {
-          purchaseCourse(currentUser!.id, item.turma.course_id || item.turma.course?.id);
-        });
-        if (!turma) clearCart();
-        toast({ title: 'Matrícula concluída', description: 'Seu acesso foi liberado gratuitamente.', variant: 'default' });
-        navigate('/aluno/dashboard');
-        setLoading(false);
-        return;
-      }
-      
       // Aplicar desconto baseado no método de pagamento (apenas primeira turma se cart)
       const firstItemForDiscount = itemsToPurchase[0];
       const turmaForDiscount = firstItemForDiscount?.turma;
@@ -558,6 +529,74 @@ export default function Checkout() {
           totalValue -= discount;
         }
       }
+
+      // Aplicar desconto de cupom por último (profile ou turma)
+      if (appliedCoupon) {
+        // Profile coupon: desconto fixo em R$
+        if (appliedCoupon.profileCouponId && appliedCoupon.discountValue != null) {
+          const couponValue = Number(appliedCoupon.discountValue);
+          totalValue -= Math.min(couponValue, totalValue); // Não pode ficar negativo
+        }
+        // Turma coupon: desconto percentual na turma específica
+        else if (appliedCoupon.turmaId) {
+          const match = itemsToPurchase.find(i => i.turma.id === appliedCoupon.turmaId);
+          if (match) {
+            const price = match.modality === 'online' 
+              ? Number(match.turma._effective_price_online ?? match.turma.price_online ?? 0) 
+              : Number(match.turma._effective_price_presential ?? match.turma.price ?? 0);
+            const cupomDiscount = price * ((appliedCoupon.discount || 0) / 100);
+            totalValue -= cupomDiscount;
+          }
+        }
+        // Cupom genérico: desconto percentual sobre o total
+        else if (appliedCoupon.discount) {
+          totalValue -= totalValue * ((appliedCoupon.discount || 0) / 100);
+        }
+      }
+
+      // Garantir que o valor não fique negativo
+      totalValue = Math.max(0, totalValue);
+
+      // Se o total é zero ou menor que R$ 1, finalizar matrícula sem passar pelo gateway
+      if (totalValue < 1.00) {
+        // Buscar usuário autenticado do Supabase
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.id || currentUser.id;
+        
+        // Criar matrícula gratuita diretamente
+        const localTimestamp = getLocalTimestamp();
+        await createEnrollmentsForPayment(userId, itemsToPurchase, undefined, localTimestamp, appliedCoupon?.code || null);
+        
+        // Se usou cupom de perfil, decrementar contador
+        if (appliedCoupon?.profileCouponId) {
+          try {
+            await supabase.rpc('use_profile_coupon', { 
+              p_profile_id: userId, 
+              p_code: appliedCoupon.code 
+            });
+          } catch (e) {
+            console.error('Erro ao decrementar cupom:', e);
+          }
+        }
+        
+        // Registrar matrícula localmente e limpar carrinho
+        itemsToPurchase.forEach((item) => {
+          purchaseCourse(currentUser!.id, item.turma.course_id || item.turma.course?.id);
+        });
+        if (!turma) clearCart();
+        
+        toast({ 
+          title: 'Matrícula concluída!', 
+          description: 'Seu acesso foi liberado com o cupom aplicado.', 
+          variant: 'default' 
+        });
+        navigate('/aluno/dashboard');
+        setLoading(false);
+        return;
+      }
+      
+      // Arredondar para 2 casas decimais antes de enviar para gateway
+      totalValue = Number(totalValue.toFixed(2));
 
       if (paymentMethod === 'CREDIT_CARD_ONE' || paymentMethod === 'CREDIT_CARD_INSTALL') {
         const [expiryMonth, expiryYear] = formData.expiry.split('/');
@@ -994,7 +1033,7 @@ export default function Checkout() {
     if (appliedCoupon) {
       // Profile coupon: fixed value in R$
       if (appliedCoupon.profileCouponId && appliedCoupon.discountValue != null) {
-        couponDiscount = Math.min(Number(appliedCoupon.discountValue), subtotalBase);
+        couponDiscount = Math.min(Number(appliedCoupon.discountValue), subtotalBase - paymentDiscount);
       } else if (appliedCoupon.turmaId) {
         const match = itemsToShow.find(i => i.turma.id === appliedCoupon.turmaId);
         if (match) {
@@ -1004,11 +1043,11 @@ export default function Checkout() {
           couponDiscount = price * ((appliedCoupon.discount || 0) / 100);
         }
       } else if (appliedCoupon.discount) {
-        couponDiscount = subtotalBase * (appliedCoupon.discount / 100);
+        couponDiscount = (subtotalBase - paymentDiscount) * ((appliedCoupon.discount || 0) / 100);
       }
     }
 
-    const subtotal = subtotalBase - paymentDiscount - couponDiscount;
+    const subtotal = Math.max(0, subtotalBase - paymentDiscount - couponDiscount);
     const discountTotal = subtotalOriginal - subtotalBase + couponDiscount;
 
     if (!turma && itemsToShow.length === 0) {
