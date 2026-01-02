@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import supabase from './supabaseClient';
 import { Module, ModuleDelivery, ModuleWithDeliveries } from '@/types';
+import { getCurrentUser } from './localStorage';
 
 // ========================================
 // HOOKS PARA MÓDULOS
@@ -35,7 +36,38 @@ export function useModules(turmaId?: string) {
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
-      setModules(data || []);
+      const modulesData: any[] = data || [];
+
+      // Ensure total_students counts include 'paid' and 'free' enrollments.
+      // Collect turma_ids to fetch enrollments in a single query.
+      const turmaIds = Array.from(new Set(modulesData.map(m => m.turma_id).filter(Boolean)));
+
+      if (supabase && turmaIds.length > 0) {
+        const { data: enrollments, error: enrollError } = await supabase
+          .from('enrollments')
+          .select('turma_id, profile_id')
+          .in('turma_id', turmaIds)
+          .in('payment_status', ['paid', 'free']);
+
+        if (enrollError) {
+          console.warn('Erro ao buscar enrollments para total_students:', enrollError);
+        } else {
+          const countsByTurma: Record<string, number> = {};
+          (enrollments || []).forEach((e: any) => {
+            const t = e.turma_id;
+            if (!t) return;
+            countsByTurma[t] = (countsByTurma[t] || 0) + 1;
+          });
+
+          // Merge counts into modules
+          modulesData.forEach(m => {
+            const tid = m.turma_id;
+            m.total_students = countsByTurma[tid] ?? (m.total_students || 0);
+          });
+        }
+      }
+
+      setModules(modulesData);
     } catch (err: any) {
       setError(err.message);
       console.error('Erro ao buscar módulos:', err);
@@ -137,7 +169,7 @@ export function useStudentsWithModuleStatus(turmaId: string, moduleId?: string) 
           )
         `)
         .eq('turma_id', turmaId)
-        .eq('payment_status', 'paid');
+        .in('payment_status', ['paid', 'free']);
 
       if (enrollError) throw enrollError;
 
@@ -244,13 +276,24 @@ export async function createDelivery(delivery: {
   student_id: string;
   notes?: string;
 }) {
-  const { data: userData } = await supabase.auth.getUser();
+  const { data: userData } = supabase ? await supabase.auth.getUser() : { data: null };
+  let userId = userData?.user?.id;
+
+  // Fallback para o usuário armazenado em localStorage (admin logado no painel)
+  if (!userId) {
+    const localUser = getCurrentUser();
+    userId = localUser?.id || null;
+  }
+
+  if (!userId) {
+    throw new Error('Usuário não autenticado. Não é possível registrar entrega sem um usuário autenticado.');
+  }
 
   const { data, error } = await supabase
     .from('module_deliveries')
     .insert({
       ...delivery,
-      delivered_by: userData?.user?.id,
+      delivered_by: userId,
       delivered_at: new Date().toISOString(),
     })
     .select()

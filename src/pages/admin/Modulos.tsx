@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -857,8 +857,8 @@ export default function AdminModulos() {
                     const isExpanded = expandedModuleId === module.id;
 
                     return (
-                      <>
-                        <TableRow key={module.id} className={isExpanded ? "bg-muted/50" : ""}>
+                      <Fragment key={module.id}>
+                        <TableRow className={isExpanded ? "bg-muted/50" : ""}>
                           <TableCell>
                             <Button 
                               variant="ghost" 
@@ -925,7 +925,7 @@ export default function AdminModulos() {
                         {isExpanded && (
                           <ModuleDeliveriesRow module={module} onRefresh={refetch} />
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </TableBody>
