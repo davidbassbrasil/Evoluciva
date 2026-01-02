@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus, Ticket, Tag, Power
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus, Ticket, Tag, Power, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatBRDate, formatBRDateTime } from '@/lib/dates';
@@ -108,6 +108,10 @@ export default function AdminAlunos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTurma, setFilterTurma] = useState<string>('all');
   const [filterModality, setFilterModality] = useState<string>('select');
+  
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   
   // Dialogs
   const [openAddStudent, setOpenAddStudent] = useState(false);
@@ -376,6 +380,17 @@ export default function AdminAlunos() {
 
     return result;
   }, [profiles, searchTerm, filterTurma, enrollments, filterModality]);
+
+  // Paginação
+  const totalPages = Math.ceil(filteredProfiles.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedProfiles = filteredProfiles.slice(startIndex, endIndex);
+
+  // Reset página quando filtros mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterTurma, filterModality]);
 
   const studentsCountByTurma = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1568,7 +1583,7 @@ export default function AdminAlunos() {
           {filteredProfiles.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground">{searchTerm || filterTurma !== 'all' ? 'Nenhum aluno encontrado com os filtros aplicados' : 'Nenhum aluno cadastrado'}</div>
           ) : (
-            filteredProfiles.map((profile) => {
+            paginatedProfiles.map((profile) => {
               const profileEnrollments = getEnrollmentsForProfile(profile.id);
               return (
                 <div key={profile.id} className="bg-card p-4 rounded-lg border">
@@ -1656,7 +1671,7 @@ export default function AdminAlunos() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredProfiles.map((profile) => {
+                paginatedProfiles.map((profile) => {
                   const profileEnrollments = getEnrollmentsForProfile(profile.id);
                   return (
                     <TableRow key={profile.id}>
@@ -1792,6 +1807,77 @@ export default function AdminAlunos() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Paginação */}
+        {!loading && filteredProfiles.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t mt-4">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredProfiles.length)} de {filteredProfiles.length} alunos
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+
+              <Select value={String(itemsPerPage)} onValueChange={(value) => {
+                setItemsPerPage(Number(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 / pág</SelectItem>
+                  <SelectItem value="50">50 / pág</SelectItem>
+                  <SelectItem value="100">100 / pág</SelectItem>
+                  <SelectItem value="200">200 / pág</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Edit Student Dialog */}
         <Dialog open={openEditStudent} onOpenChange={setOpenEditStudent}>

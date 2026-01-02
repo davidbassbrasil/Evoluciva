@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, Image as ImageIcon, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, ChevronUp, ChevronDown, Image as ImageIcon, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -499,6 +499,10 @@ export function AdminPopups() {
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
 
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
   useEffect(() => {
     loadPopups();
   }, []);
@@ -719,10 +723,16 @@ export function AdminPopups() {
   const closeDialog = () => {
     setOpen(false);
     setSelected(null);
-    setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '' });
+    setForm({ type: 'image', title: '', content: '', image: '', active: true, course_id: '', expires_date: '', expires_time: '23:59' });
     setImageFile(null);
     setImagePreview('');
   };
+
+  // Calcular paginação
+  const totalPages = Math.ceil(items.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = items.slice(startIndex, endIndex);
 
   return (
     <AdminLayout>
@@ -742,7 +752,7 @@ export function AdminPopups() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {items.map(item => (
+          {paginatedItems.map(item => (
             <div key={item.id} className="bg-card p-4 rounded-xl border border-border/50 flex items-center justify-between">
               <div>
                 <h3 className="font-bold">{item.title || (item.type === 'image' ? 'Imagem' : 'Texto')}</h3>
@@ -757,6 +767,77 @@ export function AdminPopups() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Paginação */}
+      {items.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {startIndex + 1} a {Math.min(endIndex, items.length)} de {items.length} popups
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className="w-8 h-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+
+            <Select value={String(itemsPerPage)} onValueChange={(value) => {
+              setItemsPerPage(Number(value));
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20 / pág</SelectItem>
+                <SelectItem value="50">50 / pág</SelectItem>
+                <SelectItem value="100">100 / pág</SelectItem>
+                <SelectItem value="200">200 / pág</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 

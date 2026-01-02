@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2, UserRound } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, EyeOff, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2, UserRound, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -131,6 +131,18 @@ export default function Financeiro() {
   const [tempRangeStart, setTempRangeStart] = useState<Date | null>(null);
   const [calendarMode, setCalendarMode] = useState<'single' | 'range'>('single');
 
+  // Estados para controle de bloqueio de valores financeiros
+  const [isValuesLocked, setIsValuesLocked] = useState(true); // Inicia bloqueado
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(false);
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [checkingPassword, setCheckingPassword] = useState(false);
+
+  // Estados de paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+
   // Reset all filters to their defaults
   const resetFilters = () => {
     setSearchTerm('');
@@ -140,6 +152,7 @@ export default function Financeiro() {
     setDatePreset('7days');
     setDateFrom(brStartOfDay(subDays(new Date(), 6)));
     setDateTo(brEndOfDay(new Date()));
+    setCurrentPage(1);
   };
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [stats, setStats] = useState({
@@ -155,6 +168,187 @@ export default function Financeiro() {
     avgTicket: 0,
     uniqueCustomers: 0,
   });
+
+  // Função simples para hash de senha (apenas para comparação básica)
+  // Usa múltiplas iterações de btoa para criar um hash simples
+  const hashPassword = async (password: string): Promise<string> => {
+    let hash = password;
+    // Aplica múltiplas iterações de encoding para criar um hash básico
+    for (let i = 0; i < 5; i++) {
+      hash = btoa(hash + 'salt_financeiro_' + i);
+    }
+    return hash;
+  };
+
+  // Verifica se já existe senha configurada para o admin logado
+  const checkPasswordExists = async (): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data, error } = await supabase
+        .from('financial_password')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+
+      // PGRST116 = no rows returned (tabela existe mas usuário não tem senha)
+      // 42P01 = tabela não existe
+      if (error && error.code !== 'PGRST116') {
+        // Se for erro de tabela não existente, retornar false silenciosamente
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          toast({
+            title: 'Tabela não encontrada',
+            description: 'Por favor, aplique a migração SQL primeiro. Veja PROTECAO_FINANCEIRA.md',
+            variant: 'destructive',
+          });
+          return false;
+        }
+        console.error('Erro ao verificar senha:', error);
+        return false;
+      }
+
+      return !!data;
+    } catch (error) {
+      console.error('Erro ao verificar senha:', error);
+      return false;
+    }
+  };
+
+  // Configura senha pela primeira vez
+  const setupPassword = async () => {
+    if (!passwordInput || passwordInput.length < 4) {
+      toast({
+        title: 'Senha inválida',
+        description: 'A senha deve ter no mínimo 4 caracteres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (passwordInput !== passwordConfirm) {
+      toast({
+        title: 'Senhas não conferem',
+        description: 'A senha e a confirmação devem ser iguais',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCheckingPassword(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const hashedPassword = await hashPassword(passwordInput);
+      
+      const { error } = await supabase
+        .from('financial_password')
+        .insert({
+          user_id: user.id,
+          password_hash: hashedPassword,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Senha configurada',
+        description: 'Sua senha de proteção financeira foi criada com sucesso',
+      });
+
+      setIsValuesLocked(false);
+      setShowPasswordDialog(false);
+      setPasswordInput('');
+      setPasswordConfirm('');
+    } catch (error: any) {
+      console.error('Erro ao configurar senha:', error);
+      toast({
+        title: 'Erro ao configurar senha',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setCheckingPassword(false);
+    }
+  };
+
+  // Verifica a senha informada
+  const verifyPassword = async () => {
+    if (!passwordInput) {
+      toast({
+        title: 'Digite a senha',
+        description: 'Informe a senha de desbloqueio',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCheckingPassword(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const hashedPassword = await hashPassword(passwordInput);
+      
+      const { data, error } = await supabase
+        .from('financial_password')
+        .select('password_hash')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data.password_hash === hashedPassword) {
+        setIsValuesLocked(false);
+        setShowPasswordDialog(false);
+        setPasswordInput('');
+        toast({
+          title: 'Desbloqueado',
+          description: 'Valores financeiros desbloqueados com sucesso',
+        });
+      } else {
+        toast({
+          title: 'Senha incorreta',
+          description: 'A senha informada está incorreta',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao verificar senha:', error);
+      toast({
+        title: 'Erro ao verificar senha',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setCheckingPassword(false);
+    }
+  };
+
+  // Handler do clique no ícone de olho
+  const handleToggleLock = async () => {
+    if (!isValuesLocked) {
+      // Se está desbloqueado, bloqueia novamente
+      setIsValuesLocked(true);
+      toast({
+        title: 'Valores bloqueados',
+        description: 'Os valores financeiros foram ocultados',
+      });
+    } else {
+      // Se está bloqueado, verifica se existe senha
+      const passwordExists = await checkPasswordExists();
+      setIsFirstTimeSetup(!passwordExists);
+      setShowPasswordDialog(true);
+    }
+  };
+
+  // Função para mascarar valores
+  const maskValue = (value: string | number): string => {
+    if (isValuesLocked) {
+      return 'R$ *****';
+    }
+    return typeof value === 'string' ? value : formatCurrency(value);
+  };
 
   // helpers imported from lib/dates (formatBRDateTime, formatBRDate, formatBRWithAt, brStartOfDay, brEndOfDay, brStartOfMonth, brEndOfMonth, brStartOfYear, nowInBrazil, dateKeyBR, todayKeyBR)
 
@@ -219,6 +413,11 @@ export default function Financeiro() {
   useEffect(() => {
     filterWebhookLogs();
   }, [webhookLogs, webhookSearchTerm, webhookStatusFilter]);
+
+  // Reset página quando filtros mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter, turmaFilter, dateFrom, dateTo]);
 
   const loadTurmas = async () => {
     try {
@@ -975,6 +1174,12 @@ export default function Financeiro() {
     });
   };
 
+  // Calcular paginação
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPayments = filteredPayments.slice(startIndex, endIndex);
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -985,6 +1190,17 @@ export default function Financeiro() {
             <p className="text-muted-foreground">Acompanhe pagamentos, receitas e transações</p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant={isValuesLocked ? "default" : "outline"}
+              onClick={handleToggleLock}
+              title={isValuesLocked ? "Desbloquear valores" : "Bloquear valores"}
+            >
+              {isValuesLocked ? (
+                <><EyeOff className="w-4 h-4 mr-2" />Bloqueado</>
+              ) : (
+                <><Eye className="w-4 h-4 mr-2" />Desbloqueado</>
+              )}
+            </Button>
             <Button 
               variant="outline" 
               onClick={() => {
@@ -1216,7 +1432,7 @@ export default function Financeiro() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {loading ? '...' : formatCurrency(stats.periodRevenue)}
+                {loading ? '...' : maskValue(stats.periodRevenue)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {stats.periodSales} vendas no período
@@ -1231,7 +1447,7 @@ export default function Financeiro() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {loading ? '...' : formatCurrency(stats.monthRevenue)}
+                {loading ? '...' : maskValue(stats.monthRevenue)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {stats.monthSales} vendas este mês
@@ -1246,7 +1462,7 @@ export default function Financeiro() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">
-                {loading ? '...' : formatCurrency(stats.pendingAmount)}
+                {loading ? '...' : maskValue(stats.pendingAmount)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {stats.pendingCount} pagamentos aguardando
@@ -1261,7 +1477,7 @@ export default function Financeiro() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">
-                {loading ? '...' : formatCurrency(stats.avgTicket)}
+                {loading ? '...' : maskValue(stats.avgTicket)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Por venda
@@ -1357,14 +1573,7 @@ export default function Financeiro() {
         {/* Tabela de Pagamentos */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Pagamentos ({filteredPayments.length})</CardTitle>
-              {filteredPayments.length !== payments.length && (
-                <Badge variant="secondary">
-                  {filteredPayments.length} de {payments.length} registros
-                </Badge>
-              )}
-            </div>
+            <CardTitle>Pagamentos ({filteredPayments.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {/* Mobile cards list for payments (inside Pagamentos card on mobile) */}
@@ -1372,7 +1581,7 @@ export default function Financeiro() {
               {filteredPayments.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">{payments.length === 0 ? 'Os pagamentos aparecerão aqui quando houver vendas' : 'Tente ajustar os filtros de busca'}</div>
               ) : (
-                filteredPayments.map((p) => (
+                paginatedPayments.map((p) => (
                   <div key={p.id} className="bg-card p-4 rounded-lg border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -1392,7 +1601,9 @@ export default function Financeiro() {
                         <div className="text-xs text-muted-foreground mt-2">{p.confirmed_date ? formatBRDate(p.confirmed_date) : p.payment_date ? formatBRDate(p.payment_date) : formatBRDate(p.created_at)}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-bold text-primary">{formatCurrency(Number(p.value))}</div>
+                        <div className="text-sm font-bold text-primary">
+                          {isValuesLocked ? 'R$ *****' : formatCurrency(Number(p.value))}
+                        </div>
                         <div className="text-xs text-muted-foreground">{getPaymentTypeName(p.billing_type)}</div>
                       </div>
                     </div>
@@ -1439,7 +1650,7 @@ export default function Financeiro() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPayments.map((payment) => (
+                    {paginatedPayments.map((payment) => (
                       <TableRow key={payment.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium whitespace-nowrap">
                           {/* Prioriza enrolled_at, depois created_at, para todos os pagamentos */}
@@ -1505,17 +1716,17 @@ export default function Financeiro() {
                             {payment.total_refunded && payment.total_refunded > 0 ? (
                               <>
                                 <div className="text-muted-foreground line-through text-xs">
-                                  {formatCurrency(Number(payment.value))}
+                                  {isValuesLocked ? 'R$ *****' : formatCurrency(Number(payment.value))}
                                 </div>
                                 <div className="text-green-600">
-                                  {formatCurrency(Number(payment.value) - payment.total_refunded)}
+                                  {isValuesLocked ? 'R$ *****' : formatCurrency(Number(payment.value) - payment.total_refunded)}
                                 </div>
                                 <div className="text-xs text-orange-600">
-                                  -{formatCurrency(payment.total_refunded)}
+                                  {isValuesLocked ? '-R$ ***' : `-${formatCurrency(payment.total_refunded)}`}
                                 </div>
                               </>
                             ) : (
-                              formatCurrency(Number(payment.value))
+                              isValuesLocked ? 'R$ *****' : formatCurrency(Number(payment.value))
                             )}
                           </div>
                         </TableCell>
@@ -1563,6 +1774,77 @@ export default function Financeiro() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Paginação */}
+            {!loading && filteredPayments.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {startIndex + 1} a {Math.min(endIndex, filteredPayments.length)} de {filteredPayments.length} pagamentos
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+
+                  <Select value={String(itemsPerPage)} onValueChange={(value) => {
+                    setItemsPerPage(Number(value));
+                    setCurrentPage(1);
+                  }}>
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20 / pág</SelectItem>
+                      <SelectItem value="50">50 / pág</SelectItem>
+                      <SelectItem value="100">100 / pág</SelectItem>
+                      <SelectItem value="200">200 / pág</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </CardContent>
@@ -2120,6 +2402,98 @@ export default function Financeiro() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Senha Financeira */}
+        <Dialog open={showPasswordDialog} onOpenChange={(open) => {
+          setShowPasswordDialog(open);
+          if (!open) {
+            setPasswordInput('');
+            setPasswordConfirm('');
+          }
+        }}>
+          <DialogContent className="w-full max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {isFirstTimeSetup ? 'Configurar Senha Financeira' : 'Desbloquear Valores'}
+              </DialogTitle>
+              <DialogDescription>
+                {isFirstTimeSetup 
+                  ? 'Configure uma senha para proteger os valores financeiros. Esta senha será solicitada sempre que quiser visualizar os valores.'
+                  : 'Digite a senha para desbloquear e visualizar os valores financeiros.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Senha</label>
+                <Input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Digite a senha"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (isFirstTimeSetup) {
+                        if (passwordConfirm) setupPassword();
+                      } else {
+                        verifyPassword();
+                      }
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {isFirstTimeSetup && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Confirmar Senha</label>
+                  <Input
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    placeholder="Confirme a senha"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setupPassword();
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo de 4 caracteres. Guarde esta senha com segurança!
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPasswordDialog(false);
+                    setPasswordInput('');
+                    setPasswordConfirm('');
+                  }}
+                  disabled={checkingPassword}
+                  className="w-full sm:w-auto"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={isFirstTimeSetup ? setupPassword : verifyPassword}
+                  disabled={checkingPassword || !passwordInput || (isFirstTimeSetup && !passwordConfirm)}
+                  className="w-full sm:w-auto"
+                >
+                  {checkingPassword ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    isFirstTimeSetup ? 'Configurar Senha' : 'Desbloquear'
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

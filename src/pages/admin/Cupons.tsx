@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Search, Ticket, User, Users, Calendar, Percent, Loader2, CheckCircle2, XCircle, AlertCircle, Power, Eye, Mail, Phone, GraduationCap } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Search, Ticket, User, Users, Calendar, Percent, Loader2, CheckCircle2, XCircle, AlertCircle, Power, Eye, Mail, Phone, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { formatBRDateTime } from '@/lib/dates';
@@ -49,6 +50,10 @@ export default function AdminCupons() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'turma' | 'profile'>('all');
   
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  
   // Dialog de visualização do aluno
   const [openStudentView, setOpenStudentView] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -58,6 +63,11 @@ export default function AdminCupons() {
   useEffect(() => {
     loadAllCoupons();
   }, []);
+
+  // Reset página quando filtros mudarem
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
 
   const loadAllCoupons = async () => {
     if (!supabase) {
@@ -247,6 +257,12 @@ export default function AdminCupons() {
     .reduce((sum, c) => sum + c.uses_remaining, 0);
   const totalActiveCoupons = activeTurmaCoupons + totalUsesRemaining;
 
+  // Calcular paginação
+  const totalPages = Math.ceil(filteredCoupons.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedCoupons = filteredCoupons.slice(startIndex, endIndex);
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -374,7 +390,7 @@ export default function AdminCupons() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCoupons.map((coupon) => {
+                  {paginatedCoupons.map((coupon) => {
                     if (coupon.type === 'turma') {
                       return (
                         <TableRow key={`turma-${coupon.id}`}>
@@ -526,6 +542,77 @@ export default function AdminCupons() {
             </div>
           )}
         </Card>
+
+        {/* Paginação */}
+        {!loading && filteredCoupons.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredCoupons.length)} de {filteredCoupons.length} cupons
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+
+              <Select value={String(itemsPerPage)} onValueChange={(value) => {
+                setItemsPerPage(Number(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 / pág</SelectItem>
+                  <SelectItem value="50">50 / pág</SelectItem>
+                  <SelectItem value="100">100 / pág</SelectItem>
+                  <SelectItem value="200">200 / pág</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Dialog de Visualização do Aluno */}
         <Dialog open={openStudentView} onOpenChange={setOpenStudentView}>
