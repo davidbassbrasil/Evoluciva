@@ -115,7 +115,19 @@ export default function AdminImpersonarAluno() {
                               <div className="flex items-center gap-3">
                                 <GraduationCap className="w-5 h-5 text-muted-foreground" />
                                 <div>
-                                  <div className="font-medium">{e.turmas?.name || 'Turma'}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{e.turmas?.name || 'Turma'}</span>
+                                    {e.modality === 'online' && (
+                                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
+                                        Online
+                                      </Badge>
+                                    )}
+                                    {e.modality === 'presential' && (
+                                      <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
+                                        Presencial
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <div className="text-sm text-muted-foreground">Curso: {e.turmas?.course?.title || '-'}</div>
                                 </div>
                               </div>
