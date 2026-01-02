@@ -16,4 +16,15 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+      },
+    },
+    // Ensure service worker and manifest are copied to dist
+    copyPublicDir: true,
+    // Generate source maps for debugging
+    sourcemap: mode === 'development',
+  },
 }));

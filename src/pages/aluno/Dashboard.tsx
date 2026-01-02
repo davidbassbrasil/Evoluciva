@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { getCurrentUser, logout, getPreviewStudentId, clearPreviewStudentId } from '@/lib/localStorage';
 import { exitPreviewAndCloseWindow } from '@/lib/previewUtils';
 import supabase from '@/lib/supabaseClient';
+import PWAInstallPrompt from '@/components/pwa/PWAInstallPrompt';
 
 interface EnrolledTurma {
   id: string;
@@ -618,6 +619,9 @@ export default function AlunoDashboard() {
           </section>
         )}
       </main>
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 }

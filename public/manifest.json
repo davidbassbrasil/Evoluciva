@@ -1,0 +1,48 @@
+{
+  "name": "Edu Sampaio - Área do Aluno",
+  "short_name": "Edu Sampaio",
+  "id": "/aluno",
+  "description": "Plataforma de cursos preparatórios para concursos públicos - Área do Aluno",
+  "start_url": "/aluno/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["education", "learning"],
+  "shortcuts": [
+    {
+      "name": "Meus Cursos",
+      "short_name": "Cursos",
+      "description": "Acessar meus cursos",
+      "url": "/aluno/modulos",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ir para o dashboard",
+      "url": "/aluno/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

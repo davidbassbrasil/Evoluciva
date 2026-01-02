@@ -1,0 +1,110 @@
+# Enable HTTPS redirect (se ainda não tiver HTTPS configurado)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Configuração para SPA (Single Page Application)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # Se o arquivo ou diretório existir, servir diretamente
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Caso contrário, redirecionar para index.html
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Configurar MIME types corretos
+<IfModule mod_mime.c>
+  # JavaScript
+  AddType application/javascript js mjs
+  AddType application/json json
+  AddType application/manifest+json webmanifest
+  
+  # Web fonts
+  AddType font/woff woff
+  AddType font/woff2 woff2
+  AddType application/vnd.ms-fontobject eot
+  AddType font/ttf ttf
+  AddType font/otf otf
+  
+  # Imagens
+  AddType image/svg+xml svg svgz
+  AddType image/webp webp
+  
+  # Service Worker precisa ser servido com tipo correto
+  AddType application/javascript js
+</IfModule>
+
+# Cache control para assets
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Imagens
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  
+  # CSS e JavaScript
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  
+  # Web fonts
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  
+  # Manifest e Service Worker - cache curto para permitir atualizações
+  ExpiresByType application/manifest+json "access plus 1 day"
+  
+  # HTML - sem cache para sempre pegar a versão mais recente
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+# Service Worker específico - IMPORTANTE!
+<FilesMatch "service-worker\.js$">
+  # Não fazer cache do service worker
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires 0
+  
+  # MIME type correto
+  Header set Content-Type "application/javascript; charset=utf-8"
+  
+  # Service-Worker-Allowed header (para permitir controle de todo o site)
+  Header set Service-Worker-Allowed "/"
+</FilesMatch>
+
+# Manifest.json
+<FilesMatch "manifest\.json$">
+  Header set Content-Type "application/manifest+json; charset=utf-8"
+  Header set Cache-Control "public, max-age=86400"
+</FilesMatch>
+
+# Segurança
+<IfModule mod_headers.c>
+  # X-Content-Type-Options
+  Header set X-Content-Type-Options "nosniff"
+  
+  # X-Frame-Options
+  Header set X-Frame-Options "SAMEORIGIN"
+  
+  # Referrer Policy
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Compressão
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE text/javascript
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE application/manifest+json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Error documents
+ErrorDocument 404 /index.html

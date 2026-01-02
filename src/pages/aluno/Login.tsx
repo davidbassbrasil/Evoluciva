@@ -11,6 +11,7 @@ import { signIn } from '@/lib/supabaseAuth';
 import { signUpViaEdgeFunction } from '@/lib/createUserEdgeFunction';
 import { User as UserType } from '@/types';
 import logoPng from '@/assets/logo_.png';
+import PWAInstallPrompt from '@/components/pwa/PWAInstallPrompt';
 
 const ESTADOS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -433,6 +434,9 @@ export default function AlunoLogin() {
           </div>
         </div>
       </div>
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 }

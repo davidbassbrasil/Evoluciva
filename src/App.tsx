@@ -15,6 +15,7 @@ import AlunoDashboard from "./pages/aluno/Dashboard";
 import CursoPlayer from "./pages/aluno/CursoPlayer";
 import AlunoConfiguracoes from "./pages/aluno/Configuracoes";
 import AlunoModulos from "./pages/aluno/Modulos";
+import PWADebug from "./pages/aluno/PWADebug";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Checkout from "./pages/Checkout";
@@ -83,6 +84,7 @@ const App = () => {
           <Route path="/aluno/curso/:turmaId" element={<CursoPlayer />} />
           <Route path="/aluno/configuracoes" element={<AlunoConfiguracoes />} />
           <Route path="/aluno/modulos" element={<AlunoModulos />} />
+          <Route path="/aluno/pwa-debug" element={<PWADebug />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<ProtectedAdminRoute requiredPermission="dashboard"><AdminDashboard /></ProtectedAdminRoute>} />
           <Route path="/admin/cursos" element={<ProtectedAdminRoute requiredPermission="cursos"><AdminCursos /></ProtectedAdminRoute>} />
