@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, CreditCard, Percent, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, Calendar, Users, DollarSign, Loader2, Tag, CreditCard, Percent, Copy, Power } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 import { DAY_LABELS, formatSessions, validateSessions } from '../../lib/schedules';
@@ -39,6 +39,7 @@ interface TurmaForm {
   discount_debit: string;
   coupon_code: string;
   coupon_discount: string;
+  coupon_active: boolean;
   weekdays?: string[];
   sessions?: { day: string; start: string; end: string }[];
 }
@@ -97,6 +98,7 @@ export default function AdminTurmas() {
     discount_debit: '0',
     coupon_code: '',
     coupon_discount: '0',
+    coupon_active: true,
     weekdays: [],
     sessions: [],
   });
@@ -198,6 +200,7 @@ export default function AdminTurmas() {
     discount_debit: '0',
     coupon_code: '',
     coupon_discount: '0',
+    coupon_active: true,
     weekdays: [],
     sessions: [],
   });
@@ -306,6 +309,7 @@ const handleDeletePreco = async (id: string) => {
         discount_debit: Number(form.discount_debit) || 0,
         coupon_code: form.coupon_code || null,
         coupon_discount: Number(form.coupon_discount) || 0,
+        coupon_active: form.coupon_active !== false,
         weekdays: form.weekdays || [],
         sessions: form.sessions || [],
       };
@@ -399,6 +403,7 @@ const handleDeletePreco = async (id: string) => {
       discount_debit: String(turma.discount_debit || 0),
       coupon_code: turma.coupon_code || '',
       coupon_discount: String(turma.coupon_discount || 0),
+      coupon_active: turma.coupon_active !== false,
       weekdays: turma.weekdays || [],
       sessions: (turma.sessions && typeof turma.sessions === 'string') ? JSON.parse(turma.sessions) : ((turma.sessions as any) || []),
     });
@@ -433,6 +438,7 @@ const handleDeletePreco = async (id: string) => {
       discount_debit: String(turma.discount_debit || 0),
       coupon_code: turma.coupon_code || '',
       coupon_discount: String(turma.coupon_discount || 0),
+      coupon_active: turma.coupon_active !== false,
       weekdays: turma.weekdays || [],
       sessions: (turma.sessions && typeof turma.sessions === 'string') ? JSON.parse(turma.sessions) : ((turma.sessions as any) || []),
     });
@@ -929,6 +935,24 @@ const handleDeletePreco = async (id: string) => {
                     />
                   </div>
                 </div>
+                {form.coupon_code && (
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Power className={`w-4 h-4 ${form.coupon_active ? 'text-green-600' : 'text-muted-foreground'}`} />
+                      <span className="text-sm font-medium">
+                        Cupom {form.coupon_active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={form.coupon_active ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setForm({ ...form, coupon_active: !form.coupon_active })}
+                    >
+                      {form.coupon_active ? 'Desativar' : 'Ativar'}
+                    </Button>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Cupom com 100% de desconto = matrícula gratuita
                 </p>

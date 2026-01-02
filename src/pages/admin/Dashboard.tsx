@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { getCourses, getUsers, getTestimonials, getBanners, getProfessors, getTags, getFAQs, getLessons, getCurrentUser } from '@/lib/localStorage';
 import { Course, Testimonial, User, Banner } from '@/types';
-import { BookOpen, Users, MessageSquare, Image, TrendingUp, GraduationCap, Tag, HelpCircle, PlayCircle, Eye, ArrowRight } from 'lucide-react';
+import { BookOpen, Users, MessageSquare, Image, TrendingUp, GraduationCap, Tag, HelpCircle, PlayCircle, Eye, ArrowRight, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import supabase from '@/lib/supabaseClient';
@@ -19,6 +19,7 @@ export default function AdminDashboard() {
     faqs: 0,
     lessons: 0,
     totalRevenue: 0,
+    activeCoupons: 0,
   });
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [recentTestimonials, setRecentTestimonials] = useState<Testimonial[]>([]);
@@ -89,6 +90,8 @@ export default function AdminDashboard() {
           professorsResult,
           tagsResult,
           faqsResult,
+          turmaCouponsResult,
+          profileCouponsResult,
         ] = await Promise.all([
           // Buscar cursos (limit reduzido para dashboard)
           supabase
@@ -150,6 +153,18 @@ export default function AdminDashboard() {
           supabase
             .from('faqs')
             .select('*'),
+          // Cupons de turmas ativos
+          supabase
+            .from('turmas')
+            .select('id', { count: 'exact', head: true })
+            .not('coupon_code', 'is', null)
+            .neq('coupon_code', '')
+            .neq('coupon_active', false),
+          // Cupons de perfil ativos
+          supabase
+            .from('profile_coupons')
+            .select('uses_remaining')
+            .eq('active', true),
         ]);
 
         // Processar cursos
@@ -218,6 +233,9 @@ export default function AdminDashboard() {
         const professors = (professorsResult?.data || []) as any[];
         const tags = (tagsResult?.data || []) as any[];
         const faqs = (faqsResult?.data || []) as any[];
+        const turmaCouponsCount = turmaCouponsResult?.count || 0;
+        const profileCouponsUsesRemaining = (profileCouponsResult?.data || []).reduce((sum: number, c: any) => sum + (c.uses_remaining || 0), 0);
+        const totalActiveCoupons = turmaCouponsCount + profileCouponsUsesRemaining;
 
         setStats({
           courses: courses.length,
@@ -229,6 +247,7 @@ export default function AdminDashboard() {
           faqs: faqs.length,
           lessons: lessonsCount,
           totalRevenue: displayRevenue,
+          activeCoupons: totalActiveCoupons,
         });
 
         // recent courses: prefer most recent by created_at (courses already ordered)
@@ -264,6 +283,7 @@ export default function AdminDashboard() {
           faqs: getFAQs().length,
           lessons: lessons.length,
           totalRevenue: 0,
+          activeCoupons: 0,
         });
         
         setRecentCoursesAll(courses);
@@ -290,6 +310,7 @@ export default function AdminDashboard() {
         faqs: getFAQs().length,
         lessons: lessons.length,
         totalRevenue: 0,
+        activeCoupons: 0,
       });
       
       setRecentCoursesAll(courses);
@@ -321,6 +342,7 @@ export default function AdminDashboard() {
     { icon: BookOpen, label: 'Cursos', value: stats.courses, color: 'bg-primary', link: '/admin/cursos', permission: 'cursos' },
     { icon: Users, label: 'Alunos', value: stats.users, color: 'bg-emerald-500', link: '/admin/alunos', permission: 'alunos' },
     { icon: PlayCircle, label: 'Aulas', value: stats.lessons, color: 'bg-violet-500', link: '/admin/aulas', permission: 'aulas' },
+    { icon: Ticket, label: 'Cupons', value: stats.activeCoupons, color: 'bg-pink-500', link: '/admin/cupons', permission: 'admin_only' },
     { icon: TrendingUp, label: 'Financeiro', value: `R$ ${stats.totalRevenue.toFixed(2)}`, color: 'bg-amber-500', link: '/admin/financeiro', permission: 'financeiro' },
   ];
 

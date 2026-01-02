@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { 
   Plus, Pencil, Trash2, Search, Users, GraduationCap, 
   Download, FileText, Filter, Eye, UserPlus, Loader2,
-  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus, Ticket, Tag
+  Mail, Phone, MapPin, Calendar, CreditCard, X, MessageCircle, DollarSign, Undo2, Minus, Ticket, Tag, Power
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatBRDate, formatBRDateTime } from '@/lib/dates';
@@ -201,6 +201,21 @@ export default function AdminAlunos() {
     } catch (err: any) {
       console.error('Erro ao desativar cupom:', err);
       toast({ title: 'Erro', description: err.message || 'Não foi possível desativar o cupom', variant: 'destructive' });
+    }
+  };
+
+  const toggleProfileCouponStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase.from('profile_coupons').update({ active: !currentStatus }).eq('id', id);
+      if (error) throw error;
+      toast({ 
+        title: currentStatus ? 'Cupom desativado' : 'Cupom ativado',
+        description: currentStatus ? 'O cupom foi desativado' : 'O cupom foi reativado'
+      });
+      if (selectedProfile) await loadProfileCoupons(selectedProfile.id);
+    } catch (err: any) {
+      console.error('Erro ao alterar status do cupom:', err);
+      toast({ title: 'Erro', description: err.message || 'Não foi possível alterar o status', variant: 'destructive' });
     }
   };
   const [refundValue, setRefundValue] = useState('');
@@ -2302,7 +2317,15 @@ export default function AdminAlunos() {
                         <div className="text-sm text-muted-foreground">R$ {Number(c.discount_value).toFixed(2)} • {c.uses_remaining} uso(s)</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => deactivateProfileCoupon(c.id)} title="Desativar"><X className="w-4 h-4" /></Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => toggleProfileCouponStatus(c.id, c.active)} 
+                          title={c.active ? 'Desativar' : 'Ativar'}
+                          className={c.active ? 'text-green-600 hover:text-green-700' : 'text-muted-foreground hover:text-primary'}
+                        >
+                          <Power className="w-4 h-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => deleteProfileCoupon(c.id)} title="Remover"><Trash2 className="w-4 h-4 text-destructive" /></Button>
                       </div>
                     </div>

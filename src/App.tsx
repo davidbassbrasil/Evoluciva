@@ -29,6 +29,7 @@ import AdminAlunos from "./pages/admin/Alunos";
 import AdminFinanceiro from "./pages/admin/Financeiro";
 import AdminAcesso from "./pages/admin/Acesso";
 import AdminModulos from "./pages/admin/Modulos";
+import AdminCupons from "./pages/admin/Cupons";
 import AdminAppSettings from "./pages/admin/AppSettings";
 import AdminImpersonarAluno from "./pages/admin/ImpersonarAluno";
 import CheckoutCart from "./pages/CheckoutCart";
@@ -95,6 +96,7 @@ const App = () => {
           <Route path="/admin/faq" element={<ProtectedAdminRoute requiredPermission="faq"><AdminFAQ /></ProtectedAdminRoute>} />
           <Route path="/admin/alunos" element={<ProtectedAdminRoute requiredPermission="alunos"><AdminAlunos /></ProtectedAdminRoute>} />
           <Route path="/admin/alunos/impersonate/:profileId" element={<ProtectedAdminRoute requiredPermission="alunos"><AdminImpersonarAluno /></ProtectedAdminRoute>} />
+          <Route path="/admin/cupons" element={<ProtectedAdminRoute requiredPermission="admin_only"><AdminCupons /></ProtectedAdminRoute>} />
           <Route path="/admin/financeiro" element={<ProtectedAdminRoute requiredPermission="financeiro"><AdminFinanceiro /></ProtectedAdminRoute>} />
           <Route path="/admin/acesso" element={<ProtectedAdminRoute requiredPermission="admin_only"><AdminAcesso /></ProtectedAdminRoute>} />
           <Route path="/admin/modulos" element={<ProtectedAdminRoute requiredPermission="modulos"><AdminModulos /></ProtectedAdminRoute>} />
