@@ -37,6 +37,7 @@ import TermosDeUso from "./pages/TermosDeUso";
 import PoliticaDePrivacidade from "./pages/PoliticaDePrivacidade";
 import LGPD from "./pages/LGPD";
 import PoliticaDeReembolso from "./pages/PoliticaDeReembolso";
+import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -82,22 +83,22 @@ const App = () => {
           <Route path="/aluno/configuracoes" element={<AlunoConfiguracoes />} />
           <Route path="/aluno/modulos" element={<AlunoModulos />} />
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/cursos" element={<AdminCursos />} />
-          <Route path="/admin/turmas" element={<AdminTurmas />} />
-          <Route path="/admin/aulas" element={<AdminAulas />} />
-          <Route path="/admin/banners" element={<AdminBanners />} />
-          <Route path="/admin/popups" element={<AdminPopups />} />
-          <Route path="/admin/professores" element={<AdminProfessores />} />
-          <Route path="/admin/tags" element={<AdminTags />} />
-          <Route path="/admin/depoimentos" element={<AdminDepoimentos />} />
-          <Route path="/admin/faq" element={<AdminFAQ />} />
-          <Route path="/admin/alunos" element={<AdminAlunos />} />
-          <Route path="/admin/alunos/impersonate/:profileId" element={<AdminImpersonarAluno />} />
-          <Route path="/admin/financeiro" element={<AdminFinanceiro />} />
-          <Route path="/admin/acesso" element={<AdminAcesso />} />
-          <Route path="/admin/modulos" element={<AdminModulos />} />
-          <Route path="/admin/app-settings" element={<AdminAppSettings />} />
+          <Route path="/admin" element={<ProtectedAdminRoute requiredPermission="dashboard"><AdminDashboard /></ProtectedAdminRoute>} />
+          <Route path="/admin/cursos" element={<ProtectedAdminRoute requiredPermission="cursos"><AdminCursos /></ProtectedAdminRoute>} />
+          <Route path="/admin/turmas" element={<ProtectedAdminRoute requiredPermission="turmas"><AdminTurmas /></ProtectedAdminRoute>} />
+          <Route path="/admin/aulas" element={<ProtectedAdminRoute requiredPermission="aulas"><AdminAulas /></ProtectedAdminRoute>} />
+          <Route path="/admin/banners" element={<ProtectedAdminRoute requiredPermission="banners"><AdminBanners /></ProtectedAdminRoute>} />
+          <Route path="/admin/popups" element={<ProtectedAdminRoute requiredPermission="popups"><AdminPopups /></ProtectedAdminRoute>} />
+          <Route path="/admin/professores" element={<ProtectedAdminRoute requiredPermission="professores"><AdminProfessores /></ProtectedAdminRoute>} />
+          <Route path="/admin/tags" element={<ProtectedAdminRoute requiredPermission="tags"><AdminTags /></ProtectedAdminRoute>} />
+          <Route path="/admin/depoimentos" element={<ProtectedAdminRoute requiredPermission="depoimentos"><AdminDepoimentos /></ProtectedAdminRoute>} />
+          <Route path="/admin/faq" element={<ProtectedAdminRoute requiredPermission="faq"><AdminFAQ /></ProtectedAdminRoute>} />
+          <Route path="/admin/alunos" element={<ProtectedAdminRoute requiredPermission="alunos"><AdminAlunos /></ProtectedAdminRoute>} />
+          <Route path="/admin/alunos/impersonate/:profileId" element={<ProtectedAdminRoute requiredPermission="alunos"><AdminImpersonarAluno /></ProtectedAdminRoute>} />
+          <Route path="/admin/financeiro" element={<ProtectedAdminRoute requiredPermission="financeiro"><AdminFinanceiro /></ProtectedAdminRoute>} />
+          <Route path="/admin/acesso" element={<ProtectedAdminRoute requiredPermission="admin_only"><AdminAcesso /></ProtectedAdminRoute>} />
+          <Route path="/admin/modulos" element={<ProtectedAdminRoute requiredPermission="modulos"><AdminModulos /></ProtectedAdminRoute>} />
+          <Route path="/admin/app-settings" element={<ProtectedAdminRoute requiredPermission="app_settings"><AdminAppSettings /></ProtectedAdminRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
