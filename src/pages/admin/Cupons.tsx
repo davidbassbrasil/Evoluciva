@@ -262,7 +262,7 @@ export default function AdminCupons() {
                 Gerenciamento de Cupons
               </h1>
               <p className="text-muted-foreground mt-1">
-                Visualize e gerencie todos os cupons de desconto criados
+                Visualize e gerencie todos os cupons de desconto criados <span className="text-red-500">(crie ou exclua novos cupons no menu alunos).</span>
               </p>
             </div>
           </div>
