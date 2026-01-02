@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Receipt, Download, Loader2, Search, Filter, Eye, RefreshCw, Users, CalendarIcon, Undo2, Webhook, Activity, Trash2, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -126,6 +127,9 @@ export default function Financeiro() {
   const [dateFrom, setDateFrom] = useState<Date>(brStartOfDay(subDays(new Date(), 6)));
   const [dateTo, setDateTo] = useState<Date>(brEndOfDay(new Date()));
   const [datePreset, setDatePreset] = useState<string>('7days');
+  const [isSelectingRange, setIsSelectingRange] = useState(false);
+  const [tempRangeStart, setTempRangeStart] = useState<Date | null>(null);
+  const [calendarMode, setCalendarMode] = useState<'single' | 'range'>('single');
 
   // Reset all filters to their defaults
   const resetFilters = () => {
@@ -421,7 +425,6 @@ export default function Financeiro() {
       );
 
       // DEBUG: contar quantos pagamentos têm modalidade definida
-      console.log('Financeiro: pagamentos com modality', paymentsWithProfiles.filter(p => !!p.modality).length, 'de', paymentsWithProfiles.length);
       setPayments(paymentsWithProfiles);
       calculateStats(paymentsWithProfiles);
       
@@ -535,18 +538,16 @@ export default function Financeiro() {
 
     // Filtrar por período selecionado (comparar por dia no fuso BR usando chaves YYYY-MM-DD)
     const startKey = dateKeyBR(dateFrom) || '';
-    const endKey = dateKeyBR(dateTo) || '';
-    console.log('[financeiro][debug] dateFrom', dateFrom, 'dateTo', dateTo, 'startKey', startKey, 'endKey', endKey);
+    const endKey = dateKeyBR(dateTo) || ''; 
     const periodPayments = confirmed.filter(p => {
       // Use the same date precedence as the table: enrolled_at > created_at > confirmed_date > payment_date
       const key = dateKeyBR(p.enrolled_at || p.created_at || p.confirmed_date || p.payment_date) || '';
       const match = key >= startKey && key <= endKey;
       if (key === todayKeyBR()) {
-        console.log('[financeiro][debug] payment with todayKey', { id: p.id, key, status: p.status, enrolled_at: p.enrolled_at, created_at: p.created_at, confirmed_date: p.confirmed_date, payment_date: p.payment_date });
+        // payment is for today (BR timezone) - suppressed debug log in production
       }
       return match;
     });
-    console.log('[financeiro][debug] periodPayments count', periodPayments.length);
 
     // Para mês/ano, calcular diretamente a chave BR do 'now' e comparar prefixos
     const brNowKey = dateKeyBR(now) || '';
@@ -554,12 +555,12 @@ export default function Financeiro() {
     const yearPrefix = brNowKey.slice(0, 4); // YYYY
 
     const monthPayments = confirmed.filter(p => {
-      const key = (dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 7);
+      const key = (dateKeyBR(p.enrolled_at || p.created_at || p.confirmed_date || p.payment_date) || '').slice(0, 7);
       return key === monthPrefix;
     });
 
     const yearPayments = confirmed.filter(p => {
-      const key = (dateKeyBR(p.confirmed_date || p.payment_date || p.created_at) || '').slice(0, 4);
+      const key = (dateKeyBR(p.enrolled_at || p.created_at || p.confirmed_date || p.payment_date) || '').slice(0, 4);
       return key === yearPrefix;
     });
     
@@ -1068,7 +1069,23 @@ export default function Financeiro() {
                 Este Ano
               </Button>
 
-              <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+              {datePreset === 'custom' && (
+                <Button 
+                  variant="default"
+                  size="sm"
+                  className="col-span-3 sm:col-span-1"
+                >
+                  Período Customizado
+                </Button>
+              )}
+
+              <Popover open={showDatePicker} onOpenChange={(open) => {
+                setShowDatePicker(open);
+                if (!open) {
+                  setIsSelectingRange(false);
+                  setTempRangeStart(null);
+                }
+              }}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="col-span-3 row-start-3 sm:col-span-1 sm:row-auto sm:ml-auto">
                     <CalendarIcon className="w-4 h-4 mr-2" />
@@ -1077,16 +1094,86 @@ export default function Financeiro() {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 max-h-[500px] overflow-y-auto" align="end" side="bottom">
                   <div className="p-3 space-y-3">
+                    {/* Seletor de modo */}
+                    <div className="flex gap-2 border-b pb-3">
+                      <Button
+                        variant={calendarMode === 'single' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          setCalendarMode('single');
+                          setIsSelectingRange(false);
+                          setTempRangeStart(null);
+                        }}
+                        className="flex-1"
+                      >
+                        Data Única
+                      </Button>
+                      <Button
+                        variant={calendarMode === 'range' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          setCalendarMode('range');
+                          setIsSelectingRange(false);
+                          setTempRangeStart(null);
+                        }}
+                        className="flex-1"
+                      >
+                        Período
+                      </Button>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground mb-2">
+                      {calendarMode === 'single' 
+                        ? 'Clique em uma data para filtrar apenas esse dia' 
+                        : !isSelectingRange 
+                          ? 'Clique em uma data para iniciar a seleção de período' 
+                          : 'Clique novamente na mesma data ou escolha uma data final'}
+                    </div>
                     <div>
-                      <label className="text-sm font-medium block mb-2">Data Inicial</label>
                       <CalendarComponent
                         mode="single"
-                        selected={dateFrom}
+                        selected={tempRangeStart || dateFrom}
                         onSelect={(date) => {
-                          if (date) {
+                          if (!date) return;
+
+                          // Modo Data Única: 1 clique seleciona o dia e fecha
+                          if (calendarMode === 'single') {
                             setDateFrom(startOfDay(date));
                             setDateTo(endOfDay(date));
                             setDatePreset('custom');
+                            setShowDatePicker(false);
+                            return;
+                          }
+
+                          // Modo Período: lógica de 2 cliques
+                          // Primeiro clique: define data inicial
+                          if (!isSelectingRange) {
+                            setTempRangeStart(startOfDay(date));
+                            setIsSelectingRange(true);
+                            return;
+                          }
+
+                          // Segundo clique na mesma data: define apenas essa data (hoje)
+                          if (tempRangeStart && format(date, 'yyyy-MM-dd') === format(tempRangeStart, 'yyyy-MM-dd')) {
+                            setDateFrom(startOfDay(date));
+                            setDateTo(endOfDay(date));
+                            setDatePreset('custom');
+                            setIsSelectingRange(false);
+                            setTempRangeStart(null);
+                            setShowDatePicker(false);
+                            return;
+                          }
+
+                          // Segundo clique em data diferente: define range
+                          if (tempRangeStart) {
+                            const start = date < tempRangeStart ? date : tempRangeStart;
+                            const end = date < tempRangeStart ? tempRangeStart : date;
+                            
+                            setDateFrom(startOfDay(start));
+                            setDateTo(endOfDay(end));
+                            setDatePreset('custom');
+                            setIsSelectingRange(false);
+                            setTempRangeStart(null);
                             setShowDatePicker(false);
                           }
                         }}
@@ -1094,22 +1181,17 @@ export default function Financeiro() {
                         initialFocus
                       />
                     </div>
-                    <div className="border-t pt-3">
-                      <label className="text-sm font-medium block mb-2">Data Final</label>
-                      <CalendarComponent
-                        mode="single"
-                        selected={dateTo}
-                        onSelect={(date) => {
-                          if (date) {
-                            setDateTo(endOfDay(date));
-                            setDatePreset('custom');
-                            setShowDatePicker(false);
-                          }
-                        }}
-                        disabled={(date) => date < dateFrom}
-                        className="scale-90"
-                      />
-                    </div>
+                    {isSelectingRange && tempRangeStart && calendarMode === 'range' && (
+                      <div className="border-t pt-3">
+                        <div className="text-sm font-medium text-center text-green-600 mb-2">
+                          📅 Início: {format(tempRangeStart, 'dd/MM/yyyy')}
+                        </div>
+                        <div className="text-xs text-center text-muted-foreground">
+                          Clique novamente na mesma data para filtrar apenas esse dia,<br/>
+                          ou clique em outra data para definir o período final
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1294,7 +1376,18 @@ export default function Financeiro() {
                   <div key={p.id} className="bg-card p-4 rounded-lg border">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">{p.profiles?.full_name || 'N/A'}</span>
+                          {p.user_id && (
+                            <Link 
+                              to={`/admin/alunos/impersonate/${p.user_id}`}
+                              className="text-primary hover:text-primary/80 transition-colors flex-shrink-0"
+                              title="Impersonar aluno"
+                            >
+                              <UserRound className="w-4 h-4" />
+                            </Link>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground truncate">{p.profiles?.email || ''}</div>
                         <div className="text-xs text-muted-foreground mt-2">{p.confirmed_date ? formatBRDate(p.confirmed_date) : p.payment_date ? formatBRDate(p.payment_date) : formatBRDate(p.created_at)}</div>
                       </div>
@@ -1362,7 +1455,18 @@ export default function Financeiro() {
                         </TableCell>
                         <TableCell>
                           <div className="min-w-[150px]">
-                            <div className="font-medium">{payment.profiles?.full_name || 'N/A'}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{payment.profiles?.full_name || 'N/A'}</span>
+                              {payment.user_id && (
+                                <Link 
+                                  to={`/admin/alunos/impersonate/${payment.user_id}`}
+                                  className="text-primary hover:text-primary/80 transition-colors"
+                                  title="Impersonar aluno"
+                                >
+                                  <UserRound className="w-4 h-4" />
+                                </Link>
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground truncate max-w-[200px]">
                               {payment.profiles?.email || ''}
                             </div>
