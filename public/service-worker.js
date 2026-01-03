@@ -1,6 +1,7 @@
 const CACHE_NAME = 'edusampaio-pwa-v2';
 // Cache apenas recursos estáticos reais, não rotas SPA
 const urlsToCache = [
+  '/aluno/index.html',
   '/icon-192.png',
   '/icon-512.png',
   '/favicon.png',
@@ -68,7 +69,7 @@ self.addEventListener('fetch', (event) => {
       fetch(event.request)
         .catch(() => {
           // Se offline, retornar index.html do cache
-          return caches.match('/index.html') || caches.match('/');
+          return caches.match('/aluno/index.html');
         })
     );
     return;

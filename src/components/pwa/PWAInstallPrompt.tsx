@@ -9,6 +9,22 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function PWAInstallPrompt() {
+  // PWA DESATIVADO - Retorna null para não renderizar nada
+  return null;
+}
+
+/* CÓDIGO ORIGINAL COMENTADO
+import { useState, useEffect } from 'react';
+import { Download, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -259,3 +275,4 @@ export default function PWAInstallPrompt() {
     </div>
   );
 }
+*/

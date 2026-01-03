@@ -40,6 +40,7 @@ import PoliticaDePrivacidade from "./pages/PoliticaDePrivacidade";
 import LGPD from "./pages/LGPD";
 import PoliticaDeReembolso from "./pages/PoliticaDeReembolso";
 import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoute";
+import FullscreenMobile from "./components/FullscreenMobile";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const App = () => {
           v7_relativeSplatPath: true,
         }}
       >
+        <FullscreenMobile />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/cursos" element={<Cursos />} />

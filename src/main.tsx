@@ -4,7 +4,9 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
+// PWA DESATIVADO
 // Register Service Worker for PWA
+/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     console.log('[PWA] Attempting to register service worker...');
@@ -63,4 +65,5 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+*/
 
